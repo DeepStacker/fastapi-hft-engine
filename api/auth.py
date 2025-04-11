@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 import logging
 from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession # Import AsyncSession
@@ -9,9 +9,9 @@ from pydantic import BaseModel # Import BaseModel
 # Import security functions
 from core.security import (
     create_access_token, verify_password, get_password_hash, decode_token,
-    add_token_to_blacklist, is_token_blacklisted, ACCESS_TOKEN_EXPIRE_MINUTES,
-    create_password_reset_token, # Added
-    verify_password_reset_token # Added
+    create_password_reset_token, verify_password_reset_token,
+    create_token_pair, verify_token, blacklist_token,
+    TokenPayload
 )
 # Import Pydantic models (Remove Token from this import)
 from models.user import UserCreate, UserPublic, UserPreferences, PasswordChange, PasswordResetRequest, PasswordResetPerform # Added models
@@ -28,12 +28,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 # --- Token Model Definition ---
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
 
 # --- Dependency to Get Current User (using DB) ---
 async def get_current_user_dependency(
     token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db) # Add DB session dependency
+    db: AsyncSession = Depends(get_db), # Add DB session dependency
+    request: Request = None,
 ) -> user_crud.db_models.User: # Return the DB model instance
     """
     Dependency to verify token and return the current user from DB.
@@ -43,28 +45,18 @@ async def get_current_user_dependency(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    # Conceptual: Check blacklist first
-    if await is_token_blacklisted(token):
-        logger.warning(f"Attempt to use blacklisted token: {token[:10]}...")
-        raise credentials_exception
-
-    payload = decode_token(token)
-    if payload is None:
-        logger.debug("Token decoding failed or token expired.")
-        raise credentials_exception
-
-    username: Optional[str] = payload.get("sub")
-    if username is None:
-        logger.debug("Token payload missing 'sub' (username).")
+    redis_client = request.app.state.redis
+    token_data = await verify_token(token, redis_client)
+    if not token_data:
         raise credentials_exception
 
     # Use CRUD function to get user from DB
-    user = await user_crud.get_user_by_username(db=db, username=username)
+    user = await user_crud.get_user_by_username(db=db, username=token_data.sub)
     if user is None:
-        logger.debug(f"User '{username}' not found in DB based on token.")
+        logger.debug(f"User '{token_data.sub}' not found in DB based on token.")
         raise credentials_exception
     if user.disabled:
-         logger.warning(f"Authentication attempt by disabled user: {username}")
+         logger.warning(f"Authentication attempt by disabled user: {token_data.sub}")
          raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
 
     return user # Return the SQLAlchemy User model instance
@@ -115,7 +107,8 @@ async def register_user(
 @router.post("/auth/token", response_model=Token) # Use the locally defined Token model
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: AsyncSession = Depends(get_db) # Add DB session dependency
+    db: AsyncSession = Depends(get_db), # Add DB session dependency
+    request: Request = None,
 ):
     """Provides an access token for valid username/email and password."""
     # Use CRUD function to find user by username or email
@@ -130,14 +123,48 @@ async def login_for_access_token(
     if user.disabled:
          raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
+    tokens = await create_token_pair(user.username, request.app.state.redis)
     logger.info(f"User logged in: {user.username}")
-    return {"access_token": access_token, "token_type": "bearer"} # Return dict matching Token model
+    return tokens
 
-# Logout remains conceptual or needs Redis/DB blacklist implementation
+@router.post("/auth/refresh", response_model=Token)
+async def refresh_token(
+    request: Request,
+    refresh_token: str,
+):
+    """Creates new token pair using refresh token"""
+    redis_client = request.app.state.redis
+    token_data = await verify_token(refresh_token, redis_client)
+    
+    if not token_data or token_data.type != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Create new token pair
+    tokens = await create_token_pair(token_data.sub, redis_client)
+    
+    # Blacklist the used refresh token
+    await blacklist_token(token_data.jti, token_data.exp, redis_client)
+    
+    return tokens
+
+@router.post("/auth/logout")
+async def logout(
+    request: Request,
+    token: str = Depends(oauth2_scheme),
+):
+    """Logout endpoint that blacklists the current token"""
+    redis_client = request.app.state.redis
+    token_data = await verify_token(token, redis_client)
+    
+    if token_data:
+        # Blacklist the current token
+        await blacklist_token(token_data.jti, token_data.exp, redis_client)
+    
+    return {"message": "Successfully logged out"}
 
 @router.get("/users/me", response_model=UserPublic)
 async def read_users_me(
