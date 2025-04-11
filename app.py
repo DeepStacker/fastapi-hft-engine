@@ -14,6 +14,11 @@ import aiohttp
 # Import from new modules
 from core.redis_client import get_redis_connection # Import connection function
 from api.routes import router as api_router # Import the API router
+from api.auth import router as auth_router # Import the Auth router
+# Import database engine and Base for table creation
+from core.database import engine, Base
+# Import your DB models so Base knows about them
+from models import db_models
 
 # Setup logging
 logging.basicConfig(
@@ -28,17 +33,33 @@ REQUEST_TIME = prometheus_client.Summary(
 REQUESTS_TOTAL = prometheus_client.Counter("requests_total", "Total requests")
 
 
+# --- Function to Create Tables ---
+async def init_db():
+    async with engine.begin() as conn:
+        # This creates tables based on models inheriting from Base
+        # Use drop_all cautiously only during development if needed
+        # await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    # Dispose engine is usually not needed here as lifespan manages connections
+    # await engine.dispose()
+    logger.info("Database tables checked/created.")
+
 # Lifecycle events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up application...")
+
+    # Create DB tables before setting up connections that might use them
+    await init_db() # <-- Add this call
+
     # Use imported function for Redis connection
     app.state.redis = await get_redis_connection()
     if not app.state.redis:
          logger.warning("Redis unavailable. Running without cache.")
     # Keep aiohttp session management
     app.state.http_session = aiohttp.ClientSession()
+    logger.info("Application startup complete.") # Move log after setup
     yield
 
     # Shutdown
@@ -47,6 +68,9 @@ async def lifespan(app: FastAPI):
         await app.state.redis.close()
     if app.state.http_session: # Check if session exists before closing
         await app.state.http_session.close()
+    # Dispose of the engine pool on shutdown (good practice)
+    await engine.dispose()
+    logger.info("Application shutdown complete.")
 
 
 app = FastAPI(
@@ -72,8 +96,9 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 Prometheus = prometheus_fastapi_instrumentator.Instrumentator()
 Prometheus.instrument(app).expose(app, include_in_schema=False)
 
-# Include the API router
-app.include_router(api_router)
+# Include the API routers
+app.include_router(auth_router, tags=["Authentication"]) # Add auth routes
+app.include_router(api_router, tags=["Option Chain"]) # Add existing routes
 
 # Exception handlers
 # Use the imported handler

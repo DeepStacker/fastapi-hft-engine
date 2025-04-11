@@ -1,17 +1,27 @@
 import json
 from fastapi import APIRouter, HTTPException, Query, Depends, Request, status
 from typing import Optional, Dict, Any
-import time
+import time 
 import logging
-
-# Assuming Get_oc_data is in the parent directory or PYTHONPATH is configured
-from Get_oc_data import get_oc_data, get_symbol_expiry, OptionChainError
-
-# Import caching functions from the core module
-from core.redis_client import get_cached_data, set_cached_data
-
-# Import limiter instance from the new core module
+# Keep limiter and auth dependency imports
 from core.limiter import limiter
+from api.auth import get_current_user_dependency
+
+# Keep DB imports
+from sqlalchemy.ext.asyncio import AsyncSession
+from core.database import get_db
+
+# Keep model imports
+from models.user import UserPreferences
+from models.db_models import User as UserInDBModel
+
+# Import Service functions
+from services.option_chain_service import fetch_and_process_option_chain
+from services.expiry_service import fetch_and_process_expiry_dates
+from services.settings_service import update_user_settings
+# Import OptionChainError if needed for specific handling
+from Get_oc_data import OptionChainError
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,25 +33,61 @@ async def health_check():
     return {"status": "healthy"}
 
 
+# --- Settings Endpoint ---
+
+@router.put("/api/settings", response_model=UserPreferences)
+async def update_settings_route( # Renamed route function slightly
+    preferences: UserPreferences,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserInDBModel = Depends(get_current_user_dependency)
+):
+    """Updates preferences for the currently authenticated user."""
+    try:
+        updated_prefs = await update_user_settings(
+            db=db, current_user=current_user, preferences=preferences
+        )
+        return updated_prefs
+    except Exception as e:
+        # Handle potential DB errors or other issues from the service
+        logger.error(f"Error in update_settings route for user '{current_user.username}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user settings."
+        )
+
+
+# --- Option Chain / Expiry Endpoints ---
+
 @router.get("/api/option-chain", response_model=Dict[str, Any])
 @limiter.limit("100/minute")
-async def get_option_chain(
+async def get_option_chain_route( # Renamed route function slightly
     request: Request,
     symbol_seg: int = Query(..., description="Symbol segment"),
     symbol_sid: int = Query(..., description="Symbol ID"),
     symbol_exp: Optional[int] = Query(None, description="Expiry timestamp"),
     strike_count: Optional[int] = Query(
-        ..., description="Number of strikes around ATM to return", ge=2, le=100
-    ),  # Added strike_count as Query param
+        None, description="Number of strikes around ATM to return (defaults to user preference)", ge=2, le=500
+    ),
+    current_user: UserInDBModel = Depends(get_current_user_dependency)
 ):
-    """Get option chain data for a symbol with Redis caching"""
-    start_time = time.time()
+    """Get option chain data for a symbol with Redis caching (Requires Auth)"""
+    logger.info(f"User '{current_user.username}' requested option chain route.")
+    # Overall request timer can still be useful
+    request_start_time = time.time()
 
-    # Removed reading request body for strike_count
+    # Parse preferences from the DB model
+    try:
+        user_prefs = UserPreferences(**current_user.preferences) if isinstance(current_user.preferences, dict) else UserPreferences()
+    except Exception: # Handle potential parsing error
+        logger.warning(f"Could not parse preferences for user '{current_user.username}', using defaults.")
+        user_prefs = UserPreferences()
 
-    http_session = request.app.state.http_session  # Access shared HTTP session first
+    effective_strike_count = strike_count if strike_count is not None else user_prefs.default_strike_count
+    logger.debug(f"Route using effective strike count: {effective_strike_count}")
 
-    # Check if http_session is available early
+    http_session = request.app.state.http_session
+    redis_client = request.app.state.redis
+
     if not http_session:
         logger.error("HTTP session not available in application state.")
         raise HTTPException(
@@ -49,239 +95,54 @@ async def get_option_chain(
             detail="Internal configuration error: HTTP session missing",
         )
 
-    # Validate and fetch expiry if not provided
-    if symbol_exp is None:
-        try:
-            symbol_expiry_data = await get_symbol_expiry(
-                http_session, symbol_seg, symbol_sid
-            )
-            if (
-                symbol_expiry_data
-                and isinstance(symbol_expiry_data.get("data"), dict)
-                and isinstance(symbol_expiry_data["data"].get("opsum"), dict)
-                and symbol_expiry_data["data"]["opsum"]
-            ):
-                # Assuming the keys are timestamps, get the first one (often the nearest)
-                # Consider sorting if specific expiry (e.g., nearest) is needed reliably
-                first_expiry_key = next(iter(symbol_expiry_data["data"]["opsum"]))
-                symbol_exp = int(first_expiry_key)
-                logger.info(f"Fetched and using first expiry: {symbol_exp}")
-            else:
-                logger.error(
-                    f"Failed to fetch or parse valid expiry data for {symbol_seg}:{symbol_sid}. Response: {symbol_expiry_data}"
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Could not determine expiry date for the symbol.",
-                )
-        except OptionChainError as e:
-            logger.error(f"Error fetching expiry dates for auto-detection: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to fetch expiry data: {e}",
-            )
-        except Exception as e:
-            logger.error(
-                f"Unexpected error during expiry auto-detection: {e}", exc_info=True
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error auto-detecting expiry date.",
-            )
-
-    cache_key = f"oc:{symbol_seg}:{symbol_sid}:{symbol_exp}"
-    redis_client = request.app.state.redis  # Access Redis client from app state
-
     try:
-        cached_data = await get_cached_data(redis_client, cache_key)
-        if cached_data:
-            cached_data["metadata"]["total_strikes"] = len(cached_data["data"])
-            cached_data["metadata"]["from_cache"] = True
-            cached_data["metadata"]["cache_time"] = time.time() - start_time
-            return cached_data
-
-        # Pass the shared session to the data fetching function
-        data = await get_oc_data(http_session, symbol_seg, symbol_sid, symbol_exp)
-
-        # Process the data
-        records = []
-        if (
-            data
-            and isinstance(data.get("data"), dict)
-            and isinstance(data["data"].get("oc"), dict)
-        ):
-            # Optimized record creation using a loop (list comprehension complexity might reduce readability here)
-            for strike, details in data["data"]["oc"].items():
-                ce_details = details.get("ce", {})
-                pe_details = details.get("pe", {})
-                ce_optgeeks = ce_details.get("optgeeks", {})
-                pe_optgeeks = pe_details.get("optgeeks", {})
-
-                # Using dict comprehension for inner CE/PE structure for slight conciseness
-                record = {
-                    str(float(strike)): {
-                        "CE": {
-                            k.replace(" ", "_"): v
-                            for k, v in {
-                                # "Symbol": ce_details.get("disp_sym"), # Commented out as per original
-                                "OI": ce_details.get("OI", 0),
-                                "OI_Change": ce_details.get("oichng", 0),
-                                "Implied_Volatility": ce_details.get("iv", 0.0),
-                                "Last_Traded_Price": ce_details.get("ltp", 0.0),
-                                "Volume": ce_details.get("vol", 0),
-                                "Delta": ce_optgeeks.get("delta", 0.0),
-                                "Theta": ce_optgeeks.get("theta", 0.0),
-                                "Gamma": ce_optgeeks.get("gamma", 0.0),
-                                "Vega": ce_optgeeks.get("vega", 0.0),
-                                "Rho": ce_optgeeks.get("rho", 0.0),
-                                "Theoretical_Price": ce_optgeeks.get("theoryprc", 0.0),
-                                "Bid_Price": ce_details.get("bid", 0.0),
-                                "Ask_Price": ce_details.get("ask", 0.0),
-                                "Bid_Quantity": ce_details.get("bid_qty", 0),
-                                "Ask_Quantity": ce_details.get("ask_qty", 0),
-                                "Moneyness": ce_details.get("mness"),
-                            }.items()
-                        },
-                        "PE": {
-                            k.replace(" ", "_"): v
-                            for k, v in {
-                                # "Symbol": pe_details.get("disp_sym"), # Commented out as per original
-                                "Open Interest": pe_details.get("OI", 0),
-                                "OI_Change": pe_details.get("oichng", 0),
-                                "Implied_Volatility": pe_details.get("iv", 0.0),
-                                "Last_Traded_Price": pe_details.get("ltp", 0.0),
-                                "Volume": pe_details.get("vol", 0),
-                                "Delta": pe_optgeeks.get("delta", 0.0),
-                                "Theta": pe_optgeeks.get("theta", 0.0),
-                                "Gamma": pe_optgeeks.get("gamma", 0.0),
-                                "Vega": pe_optgeeks.get("vega", 0.0),
-                                "Rho": pe_optgeeks.get("rho", 0.0),
-                                "Theoretical_Price": pe_optgeeks.get("theoryprc", 0.0),
-                                "Bid_Price": pe_details.get("bid", 0.0),
-                                "Ask_Price": pe_details.get("ask", 0.0),
-                                "Bid_Quantity": pe_details.get("bid_qty", 0),
-                                "Ask_Quantity": pe_details.get("ask_qty", 0),
-                                "Moneyness": pe_details.get("mness"),
-                            }.items()
-                        },
-                        "OI_PCR": details.get("oipcr", 0.0),
-                        "Volume_PCR": details.get("volpcr", 0.0),
-                        "Max_Pain_Loss": details.get("mploss", 0.0),
-                        "Expiry_Type": details.get("exptype"),
-                    }
-                }
-                records.append(record)
-        else:
-            # ...existing error handling...
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Received invalid data structure from upstream service.",
-            )
-
-        # Optimized fut_data filtering
-        raw_fut_data = data.get("data", {}).get("fl", {})
-        keys_to_keep_fut = {  # Define keys to keep instead of keys to remove
-            "v_chng",
-            "v_pchng",
-            "sid",
-            "ltp",
-            # "pch",
-            # "prch",
-            "pc",
-            "vol",
-            "sym",
-            "oi",
-            "oichng",
-            "pvol",
-            "oipchng",
-            # "xch",
-            # "seg",
-            # "poi",
-            # "d_sym",
-            # "daystoexp",
-            # "expcode",
-            # "mtp",
-            # "ticksize",
-            # "lot",
-            # "exptype",
-        }
-        fut_data = {}
-        if isinstance(raw_fut_data, dict):
-            for fut_key, fut_details in raw_fut_data.items():
-                if isinstance(fut_details, dict):
-                    fut_data[fut_key] = {
-                        k: fut_details[k] for k in keys_to_keep_fut if k in fut_details
-                    }
-
-        # Construct response data
-        market_data_raw = data.get("data", {})
-        response_data = {
-            "status": "success",
-            "data": records,  # Already filtered by strike_count
-            "fut_data": fut_data,  # Filtered future data
-            "market_data": {
-                "lot_size": market_data_raw.get("olot", 0),
-                "atm_iv": market_data_raw.get("atmiv", 0.0),
-                "iv_change": market_data_raw.get("aivperchng", 0.0),
-                "spot_price": market_data_raw.get("sltp", 0.0),
-                "spot_change": market_data_raw.get("SChng", 0.0),
-                "spot_change_percent": market_data_raw.get("SPerChng", 0.0),
-                "OI_call": market_data_raw.get("OIC", 0),
-                "OI_put": market_data_raw.get("OIP", 0),
-                "io_ratio": market_data_raw.get("Rto", 0.0),
-                "days_to_expiry": market_data_raw.get("dte", 0),
-            },
-            "metadata": {
-                "symbol_seg": symbol_seg,
-                "symbol_sid": symbol_sid,
-                "symbol_exp": symbol_exp,
-                "total_strikes": len(records),  # Use length of filtered records
-                "processing_time": f"{time.time() - start_time:.3f}s",
-                "from_cache": False,
-                "cached_at": int(time.time()),
-            },
-        }
-
-        await set_cached_data(redis_client, cache_key, response_data)
+        response_data, from_cache = await fetch_and_process_option_chain(
+            http_session=http_session,
+            redis_client=redis_client,
+            symbol_seg=symbol_seg,
+            symbol_sid=symbol_sid,
+            symbol_exp=symbol_exp, # Pass None if not provided, service handles detection
+            effective_strike_count=effective_strike_count
+        )
+        # Add overall request processing time if desired (optional)
+        response_data["metadata"]["overall_request_time"] = f"{time.time() - request_start_time:.3f}s"
         return response_data
 
-    # ...existing error handling...
     except OptionChainError as e:
-        logger.error(
-            f"Option Chain Error for {symbol_seg}:{symbol_sid}:{symbol_exp}: {e}"
-        )
-        # Use 503 for service unavailable or 502 if it's an error from the upstream API
-        status_code = (
-            status.HTTP_503_SERVICE_UNAVAILABLE
-            if "unavailable" in str(e).lower()
-            else status.HTTP_502_BAD_GATEWAY
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+        logger.error(f"Option Chain Service Error for {symbol_seg}:{symbol_sid}: {e}")
+        # Determine status code based on error message from service
+        if "Could not determine expiry" in str(e):
+             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        elif "upstream service" in str(e).lower():
+             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+        else: # Default to 503 for other service availability issues
+             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except HTTPException as e:
-        # Re-raise HTTPExceptions to let FastAPI handle them
+        # Re-raise HTTPExceptions that might originate from dependencies called by service
         raise e
     except Exception as e:
-        logger.error(f"Error processing option chain request: {e}", exc_info=True)
+        logger.error(f"Unexpected error in option chain route: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
+            detail="Internal server error processing option chain request.",
         )
 
 
 @router.get("/api/expiry-dates", response_model=Dict[str, Any])
 @limiter.limit("100/minute")
-async def get_expiry_dates(
+async def get_expiry_dates_route( # Renamed route function slightly
     request: Request,
     symbol_seg: int = Query(..., description="Symbol segment"),
     symbol_sid: int = Query(..., description="Symbol ID"),
+    current_user: UserInDBModel = Depends(get_current_user_dependency)
 ):
-    """Get expiry dates for a symbol with Redis caching"""
-    start_time = time.time()
-    cache_key = f"exp:{symbol_seg}:{symbol_sid}"
-    redis_client = request.app.state.redis  # Access Redis client from app state
-    http_session = request.app.state.http_session  # Access shared HTTP session
+    """Get expiry dates for a symbol with Redis caching (Requires Auth)"""
+    logger.info(f"User '{current_user.username}' requested expiry dates route.")
+    request_start_time = time.time()
 
-    # Check if http_session is available
+    http_session = request.app.state.http_session
+    redis_client = request.app.state.redis
+
     if not http_session:
         logger.error("HTTP session not available in application state.")
         raise HTTPException(
@@ -290,87 +151,34 @@ async def get_expiry_dates(
         )
 
     try:
-        # Check cache first
-        cached_data = await get_cached_data(redis_client, cache_key)
-        if cached_data:
-            cached_data["metadata"]["from_cache"] = True
-            cached_data["metadata"]["cache_time"] = time.time() - start_time
-            return cached_data
+        response_data, from_cache = await fetch_and_process_expiry_dates(
+            http_session=http_session,
+            redis_client=redis_client,
+            symbol_seg=symbol_seg,
+            symbol_sid=symbol_sid
+        )
 
-        # If not in cache, fetch fresh data
-        data = await get_symbol_expiry(http_session, symbol_seg, symbol_sid)
-
-        # Process data
-        expiry_data = []
-        if (
-            data
-            and isinstance(data.get("data"), dict)
-            and isinstance(data["data"].get("opsum"), dict)
-        ):
-            # Optimized extraction using list comprehension
-            expiry_data = [
-                value.get("exp", 0)
-                for value in data["data"]["opsum"].values()
-                if value.get("exp") is not None
-            ]
-            # Optional: Sort expiry dates if order matters
-            expiry_data.sort()
-        else:
-            # Handle case where data structure is not as expected after fetch
-            logger.error(
-                f"Invalid or missing data structure received from get_symbol_expiry for {symbol_seg}:{symbol_sid}. Data: {data}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Received invalid data structure from upstream service.",
-            )
-
-        # Check if expiry_data is empty after processing
-        if not expiry_data:  # Check the processed list directly
-            logger.warning(
-                f"No expiry dates found in opsum for {symbol_seg}:{symbol_sid}, though structure was valid."
-            )
-            # Decide whether to return 404 or empty success
-            # Returning 404 might be more accurate if no expiries exist
-            raise HTTPException(
+        # Check if service returned empty data (which might imply 404)
+        if not response_data["data"]:
+             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No expiry data found for the symbol.",
             )
 
-        response_data = {
-            "status": "success",
-            "data": expiry_data,  # List of expiry timestamps
-            "metadata": {
-                "symbol_seg": symbol_seg,
-                "symbol_sid": symbol_sid,
-                "curr_exp": (
-                    expiry_data[0] if expiry_data else None
-                ),  # Nearest expiry after sort
-                "total_expiries": len(expiry_data),
-                "processing_time": f"{time.time() - start_time:.3f}s",
-                "from_cache": False,
-                "cached_at": int(time.time()),
-            },
-        }
-
-        await set_cached_data(redis_client, cache_key, response_data)
+        response_data["metadata"]["overall_request_time"] = f"{time.time() - request_start_time:.3f}s"
         return response_data
 
     except OptionChainError as e:
-        logger.error(f"Expiry Data Error for {symbol_seg}:{symbol_sid}: {e}")
-        # Use 503 for service unavailable or 502 if it's an error from the upstream API
-        status_code = (
-            status.HTTP_503_SERVICE_UNAVAILABLE
-            if "unavailable" in str(e).lower()
-            else status.HTTP_502_BAD_GATEWAY
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+        logger.error(f"Expiry Service Error for {symbol_seg}:{symbol_sid}: {e}")
+        if "upstream service" in str(e).lower():
+             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+        else: # Default to 503
+             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except HTTPException as e:
-        # Re-raise HTTPExceptions
         raise e
     except Exception as e:
-        logger.error(f"Error processing expiry dates request: {e}", exc_info=True)
+        logger.error(f"Unexpected error in expiry dates route: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
+            detail="Internal server error processing expiry dates request.",
         )
