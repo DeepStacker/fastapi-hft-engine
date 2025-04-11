@@ -13,7 +13,7 @@ REDIS_URLS: List[str] = [
     "redis://172.17.0.1:6379"  # WSL2 default IP
 ]
 REDIS_TIMEOUT: int = 10  # seconds
-REDIS_CACHE_TTL: int = 5  # 5 minutes cache
+REDIS_CACHE_TTL: int = 5  # 5 seconds cache
 
 async def get_redis_connection() -> Optional[redis.Redis]:
     """Try multiple Redis connection URLs with timeout"""

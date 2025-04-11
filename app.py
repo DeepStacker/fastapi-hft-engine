@@ -1,33 +1,23 @@
-import asyncio
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-# Removed unused imports like HTTPException, Query, Depends, BaseModel, Field, pd
 import uvicorn
-# Removed redis.asyncio import, now handled in core.redis_client
 import prometheus_client
 import prometheus_fastapi_instrumentator
 import logging
-# Removed time import if not used directly here
-import orjson # Keep if used for default response class or elsewhere
-# Remove Limiter import from slowapi here if only used for definition
-from slowapi import _rate_limit_exceeded_handler # Import handler directly
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 import aiohttp
-
 # Import from new modules
 from core.redis_client import get_redis_connection # Import connection function
-from core.limiter import limiter # Import the limiter instance
 from api.routes import router as api_router # Import the API router
-from utils.csv_saver import save_to_csv # Import utility function if needed globally
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -60,11 +50,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Option Chain API",
+    title="Stockify RestAPI",
     description="Production-ready API for fetching option chain and expiry data",
     version="1.0.0",
     lifespan=lifespan,
-    default_response_class=JSONResponse, # Consider OrjsonResponse for performance
+    default_response_class=JSONResponse,
 )
 
 # Middleware setup (keep as is)
@@ -108,7 +98,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 if __name__ == "__main__":
     import multiprocessing
     import platform
-    # Removed signal import if not used
 
     # Determine optimal worker count based on platform
     workers = min(multiprocessing.cpu_count() * 2 + 1, 8)  # Cap at 8 workers
@@ -119,7 +108,7 @@ if __name__ == "__main__":
         "host": "0.0.0.0",
         "port": 8000,
         "workers": (
-            1 if platform.system() == "Windows" else workers
+            10 if platform.system() == "Windows" else workers
         ),
         "loop": "asyncio", # Consider 'uvloop' on Linux for performance
         "http": "httptools",
