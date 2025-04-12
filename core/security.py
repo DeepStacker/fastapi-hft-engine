@@ -12,12 +12,6 @@ from .config import settings
 
 load_dotenv()
 
-# --- Configuration ---
-# SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES are now in settings
-REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
-PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 60 # Password reset token lifetime (e.g., 1 hour)
-
-
 # --- Password Hashing ---
 # Use explicit bcrypt settings to potentially avoid warnings
 pwd_context = CryptContext(
@@ -61,7 +55,7 @@ async def create_token_pair(subject: str) -> Dict[str, str]:
     """Creates both access and refresh tokens"""
     # Calculate expiration times using timedelta
     access_token_expires = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    refresh_token_expires = datetime.now(timezone.utc) + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
+    refresh_token_expires = datetime.now(timezone.utc) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
     # Create tokens with JTI (JWT ID) for blacklisting
     access_jti = str(uuid.uuid4())
@@ -107,7 +101,7 @@ async def verify_token(token: str, redis_client) -> Optional[TokenPayload]:
 # --- Password Reset Token Handling ---
 def create_password_reset_token(email: str) -> str:
     """Creates a JWT token specifically for password reset."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
     to_encode = {
         "exp": int(expire.timestamp()), # Use timestamp
         "sub": email, # Subject is the user's email
@@ -143,5 +137,4 @@ async def blacklist_token(jti: str, exp: int, redis_client) -> None:
         # Store JTI in Redis with expiration (TTL)
         await redis_client.setex(f"blacklisted_token:{jti}", ttl, "1")
 
-# Removed old is_token_blacklisted function (check is done inside verify_token)
 

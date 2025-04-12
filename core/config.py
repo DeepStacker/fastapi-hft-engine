@@ -10,11 +10,9 @@ load_dotenv()
 class Settings(BaseSettings):
     # --- Core Settings ---
     PROJECT_NAME: str = "Stockify RestAPI"
-    API_V1_STR: str = "/api/v1" # Example API prefix
+    API_V1_STR: str = "/api/v1"
 
     # --- Database ---
-    # Update DATABASE_URL for MySQL using aiomysql driver
-    # Format: mysql+aiomysql://<user>:<password>@<host>[:<port>]/<database>
     # Replace 'your_database_name' with the actual name of the database you want to use.
     DATABASE_URL: str = os.getenv("DATABASE_URL", "mysql+aiomysql://root:Shivam%40977140@localhost:3306/test_db") # Ensure password characters are URL-encoded if necessary (@ becomes %40)
 
@@ -22,6 +20,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.getenv("SECRET_KEY", "a_very_insecure_default_secret_key_replace_me")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 60 # Password reset token lifetime (e.g., 1 hour)
+
 
     # --- Firebase Configuration ---
     FIREBASE_API_KEY: str
