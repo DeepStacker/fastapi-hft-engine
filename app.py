@@ -75,25 +75,21 @@ async def init_firebase(app: FastAPI):
                     "universe_domain": "googleapis.com"
                 }
                 
-                logger.info("Initializing Firebase Admin SDK with credentials...")
                 cred = credentials.Certificate(cred_dict)
-                if not firebase_admin._apps:  # Check if not already initialized
-                    firebase_admin.initialize_app(cred)
-                    logger.info("Firebase Admin SDK initialized successfully with service account.")
-                else:
-                    logger.info("Firebase Admin SDK was already initialized.")
-                
+                firebase_admin.initialize_app(cred)
+                logger.info("Firebase Admin SDK initialized successfully with service account.")
                 app.state.firebase_initialized = True
                 
-                # Verify initialization by making a test API call
-                try:
-                    auth.get_user_by_email("test@test.com")
-                except auth.UserNotFoundError:
-                    logger.info("Firebase Auth API connection verified successfully.")
-                except Exception as e:
-                    logger.error(f"Firebase Auth API test failed: {e}")
-                    app.state.firebase_initialized = False
-                
+                # Store client config for frontend
+                app.state.firebase_config = {
+                    'apiKey': settings.FIREBASE_API_KEY,
+                    'authDomain': settings.FIREBASE_AUTH_DOMAIN,
+                    'projectId': settings.FIREBASE_PROJECT_ID,
+                    'storageBucket': settings.FIREBASE_STORAGE_BUCKET,
+                    'messagingSenderId': settings.FIREBASE_MESSAGING_SENDER_ID,
+                    'appId': settings.FIREBASE_APP_ID,
+                    'measurementId': settings.FIREBASE_MEASUREMENT_ID
+                }
                 return
             except Exception as e:
                 logger.error(f"Failed to initialize Firebase with service account: {e}", exc_info=True)
