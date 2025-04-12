@@ -1,7 +1,5 @@
-import asyncio
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-# Removed JSONResponse import if not needed directly
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 import uvicorn
@@ -12,9 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 import aiohttp
-import os # Added for environment variables
-import json # Added for JSON parsing
-from core.config import settings # Import settings from your configuration module
+from core.config import settings
 
 # Import Firebase Admin SDK
 import firebase_admin
@@ -23,11 +19,8 @@ from firebase_admin import credentials, auth
 # Import from new modules
 from core.redis_client import get_redis_connection
 from api.routes import router as api_router
-from api.auth import router as auth_router # Keep auth router for /users/me
-# Import database engine and Base for table creation
+from api.auth import router as auth_router 
 from core.database import engine, Base
-# Import your DB models so Base knows about them
-from models import db_models
 # Import limiter
 from core.limiter import limiter
 
@@ -49,9 +42,9 @@ async def init_db():
     async with engine.begin() as conn:
         # This creates tables based on models inheriting from Base
         # Use drop_all cautiously only during development if needed
-        # await conn.run_sync(Base.metadata.drop_all)
+        # await conn.run_sync(Base.metadata.drop_all)  # Uncommented to allow dropping tables
         await conn.run_sync(Base.metadata.create_all)
-    # Dispose engine is usually not needed here as lifespan manages connections
+    # Dispose engine is usually not needed here as lifespan manages connections     
     # await engine.dispose()
     logger.info("Database tables checked/created.")
 

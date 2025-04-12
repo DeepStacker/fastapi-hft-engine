@@ -165,7 +165,6 @@ async def register_user(
     logger.info(f"User registered manually: {user_db.username}")
     return user_db
 
-
 @router.post("/auth/token", response_model=Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -274,7 +273,6 @@ async def change_current_user_password(
     logger.info(f"User '{current_user.username}' changed their password.")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-
 @router.post("/auth/forgot-password")
 async def forgot_password(
     request_data: PasswordResetRequest,
@@ -301,7 +299,6 @@ async def forgot_password(
 
     # Always return a generic success message
     return {"message": "If an account with that email exists and requires a password reset, a link has been sent."}
-
 
 @router.post("/auth/reset-password", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_password(
@@ -333,7 +330,6 @@ async def reset_password(
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-# Keep /users/me endpoint (it was already present)
 @router.get("/users/me", response_model=UserPublic)
 async def read_users_me(
     current_user: db_models.User = Depends(get_current_active_user) # Use combined dependency
