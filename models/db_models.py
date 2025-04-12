@@ -12,7 +12,8 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False) # Example length 255
     phone_no = Column(String(30), unique=True, index=True, nullable=True) # Example length 30
     full_name = Column(String(255), nullable=True) # Example length 255
-    hashed_password = Column(String(255), nullable=False) # Length depends on hashing algorithm output, 255 is usually safe for bcrypt
+    # Make password nullable as Firebase handles auth
+    hashed_password = Column(String(255), nullable=True)
     disabled = Column(Boolean, default=False)
 
     # Store preferences as JSON - This is the intended approach now

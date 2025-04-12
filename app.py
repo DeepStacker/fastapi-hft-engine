@@ -1,6 +1,7 @@
+import asyncio
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+# Removed JSONResponse import if not needed directly
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 import uvicorn
@@ -11,18 +12,28 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 import aiohttp
+import os # Added for environment variables
+import json # Added for JSON parsing
+from core.config import settings # Import settings from your configuration module
+
+# Import Firebase Admin SDK
+import firebase_admin
+from firebase_admin import credentials, auth
+
 # Import from new modules
-from core.redis_client import get_redis_connection # Import connection function
-from api.routes import router as api_router # Import the API router
-from api.auth import router as auth_router # Import the Auth router
+from core.redis_client import get_redis_connection
+from api.routes import router as api_router
+from api.auth import router as auth_router # Keep auth router for /users/me
 # Import database engine and Base for table creation
 from core.database import engine, Base
 # Import your DB models so Base knows about them
 from models import db_models
+# Import limiter
+from core.limiter import limiter
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -44,14 +55,68 @@ async def init_db():
     # await engine.dispose()
     logger.info("Database tables checked/created.")
 
+
+async def init_firebase(app: FastAPI):
+    """Initialize Firebase Admin SDK with service account credentials"""
+    try:
+        # Check if we have the service account credentials in settings
+        if settings.FIREBASE_CREDENTIALS_JSON:
+            try:
+                cred_dict = {
+                    "type": "service_account",
+                    "project_id": settings.FIREBASE_PROJECT_ID,
+                    "private_key": settings.FIREBASE_PRIVATE_KEY.replace('\\n', '\n'),
+                    "client_email": settings.FIREBASE_CLIENT_EMAIL,
+                    "client_id": settings.FIREBASE_CLIENT_ID,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                    "client_x509_cert_url": settings.FIREBASE_CLIENT_CERT_URL,
+                    "universe_domain": "googleapis.com"
+                }
+                
+                logger.info("Initializing Firebase Admin SDK with credentials...")
+                cred = credentials.Certificate(cred_dict)
+                if not firebase_admin._apps:  # Check if not already initialized
+                    firebase_admin.initialize_app(cred)
+                    logger.info("Firebase Admin SDK initialized successfully with service account.")
+                else:
+                    logger.info("Firebase Admin SDK was already initialized.")
+                
+                app.state.firebase_initialized = True
+                
+                # Verify initialization by making a test API call
+                try:
+                    auth.get_user_by_email("test@test.com")
+                except auth.UserNotFoundError:
+                    logger.info("Firebase Auth API connection verified successfully.")
+                except Exception as e:
+                    logger.error(f"Firebase Auth API test failed: {e}")
+                    app.state.firebase_initialized = False
+                
+                return
+            except Exception as e:
+                logger.error(f"Failed to initialize Firebase with service account: {e}", exc_info=True)
+        
+        logger.warning("Firebase credentials not found in settings.")
+        app.state.firebase_initialized = False
+
+    except Exception as e:
+        logger.error(f"Failed to initialize Firebase Admin SDK: {e}", exc_info=True)
+        app.state.firebase_initialized = False
+
+
 # Lifecycle events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up application...")
 
-    # Create DB tables before setting up connections that might use them
-    await init_db() # <-- Add this call
+    # Initialize Firebase Admin SDK
+    await init_firebase(app)
+
+    # Create DB tables
+    await init_db()
 
     # Use imported function for Redis connection
     app.state.redis = await get_redis_connection()
@@ -64,9 +129,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down application...")
-    if app.state.redis:
+    if hasattr(app.state, 'redis') and app.state.redis:
         await app.state.redis.close()
-    if app.state.http_session: # Check if session exists before closing
+    if hasattr(app.state, 'http_session') and app.state.http_session: # Check if session exists before closing
         await app.state.http_session.close()
     # Dispose of the engine pool on shutdown (good practice)
     await engine.dispose()
@@ -74,12 +139,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Stockify RestAPI",
-    description="Production-ready API for fetching option chain and expiry data",
-    version="1.0.0",
+    title="Option Chain API",
+    description="Production-ready API for fetching option chain and expiry data with Firebase Auth",
+    version="1.1.0",
     lifespan=lifespan,
-    default_response_class=JSONResponse,
+    # default_response_class=JSONResponse, # Consider OrjsonResponse for performance
 )
+
+# Attach limiter state to app
+app.state.limiter = limiter
 
 # Middleware setup (keep as is)
 app.add_middleware(
@@ -97,25 +165,23 @@ Prometheus = prometheus_fastapi_instrumentator.Instrumentator()
 Prometheus.instrument(app).expose(app, include_in_schema=False)
 
 # Include the API routers
-app.include_router(auth_router, tags=["Authentication"]) # Add auth routes
+app.include_router(auth_router, tags=["Authentication"]) # Keep for /users/me
 app.include_router(api_router, tags=["Option Chain"]) # Add existing routes
 
 # Exception handlers
-# Use the imported handler
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler"""
     logger.error(f"Unhandled exception: {exc}", exc_info=True) # Log stack trace
+    # Avoid importing JSONResponse if not used elsewhere
+    from fastapi.responses import JSONResponse
     return JSONResponse(
         status_code=500,
         content={
             "status": "error",
             "message": "An unexpected internal server error occurred.",
-            # Optionally include error type in non-production environments
-            # "type": exc.__class__.__name__,
-            # "detail": str(exc)
         },
     )
 
@@ -133,7 +199,7 @@ if __name__ == "__main__":
         "host": "0.0.0.0",
         "port": 8000,
         "workers": (
-            10 if platform.system() == "Windows" else workers
+            1 if platform.system() == "Windows" else workers
         ),
         "loop": "asyncio", # Consider 'uvloop' on Linux for performance
         "http": "httptools",

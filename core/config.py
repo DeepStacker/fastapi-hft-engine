@@ -1,7 +1,9 @@
 import os
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
-from pydantic import Extra # Import Extra
+from pydantic import Extra
+from typing import Optional
+import json
 
 load_dotenv()
 
@@ -21,10 +23,41 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # --- Firebase Configuration ---
+    FIREBASE_API_KEY: str
+    FIREBASE_AUTH_DOMAIN: str
+    FIREBASE_DATABASE_URL: str
+    FIREBASE_PROJECT_ID: str = "true-false-c6b46"
+    FIREBASE_STORAGE_BUCKET: str
+    FIREBASE_MESSAGING_SENDER_ID: str
+    FIREBASE_APP_ID: str
+    FIREBASE_MEASUREMENT_ID: str
+    FIREBASE_CREDENTIALS_JSON: Optional[str] = None
+
+    # Firebase Service Account Credentials
+    FIREBASE_PRIVATE_KEY: str
+    FIREBASE_CLIENT_EMAIL: str
+    FIREBASE_CLIENT_ID: str
+    FIREBASE_CLIENT_CERT_URL: str
+
+    @property
+    def firebase_config(self) -> dict:
+        """Returns Firebase configuration as a dictionary"""
+        return {
+            "apiKey": self.FIREBASE_API_KEY,
+            "authDomain": self.FIREBASE_AUTH_DOMAIN,
+            "databaseURL": self.FIREBASE_DATABASE_URL,
+            "projectId": self.FIREBASE_PROJECT_ID,
+            "storageBucket": self.FIREBASE_STORAGE_BUCKET,
+            "messagingSenderId": self.FIREBASE_MESSAGING_SENDER_ID,
+            "appId": self.FIREBASE_APP_ID,
+            "measurementId": self.FIREBASE_MEASUREMENT_ID
+        }
+
     class Config:
         case_sensitive = True
         env_file = '.env'
-        extra = Extra.ignore # Add this line to ignore extra environment variables
+        extra = Extra.ignore
 
 settings = Settings()
 

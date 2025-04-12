@@ -5,7 +5,7 @@ import time
 import logging
 # Keep limiter and auth dependency imports
 from core.limiter import limiter
-from api.auth import get_current_user_dependency
+from api.auth import get_current_active_user
 
 # Keep DB imports
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,7 +39,7 @@ async def health_check():
 async def update_settings_route( # Renamed route function slightly
     preferences: UserPreferences,
     db: AsyncSession = Depends(get_db),
-    current_user: UserInDBModel = Depends(get_current_user_dependency)
+    current_user: UserInDBModel = Depends(get_current_active_user) # Use combined dependency
 ):
     """Updates preferences for the currently authenticated user."""
     try:
@@ -68,7 +68,7 @@ async def get_option_chain_route( # Renamed route function slightly
     strike_count: Optional[int] = Query(
         None, description="Number of strikes around ATM to return (defaults to user preference)", ge=2, le=500
     ),
-    current_user: UserInDBModel = Depends(get_current_user_dependency)
+    current_user: UserInDBModel = Depends(get_current_active_user) # Use combined dependency
 ):
     """Get option chain data for a symbol with Redis caching (Requires Auth)"""
     logger.info(f"User '{current_user.username}' requested option chain route.")
@@ -134,7 +134,7 @@ async def get_expiry_dates_route( # Renamed route function slightly
     request: Request,
     symbol_seg: int = Query(..., description="Symbol segment"),
     symbol_sid: int = Query(..., description="Symbol ID"),
-    current_user: UserInDBModel = Depends(get_current_user_dependency)
+    current_user: UserInDBModel = Depends(get_current_active_user) # Use combined dependency
 ):
     """Get expiry dates for a symbol with Redis caching (Requires Auth)"""
     logger.info(f"User '{current_user.username}' requested expiry dates route.")
