@@ -20,9 +20,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.getenv("SECRET_KEY", "a_very_insecure_default_secret_key_replace_me")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
-    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 60 # Password reset token lifetime (e.g., 1 hour)
-
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60  # Password reset token lifetime (e.g., 1 hour)
 
     # --- Firebase Configuration ---
     FIREBASE_API_KEY: str
