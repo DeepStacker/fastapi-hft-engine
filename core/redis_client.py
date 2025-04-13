@@ -8,10 +8,13 @@ logger = logging.getLogger(__name__)
 
 # Redis setup with timeout
 REDIS_URLS: List[str] = [
+    "redis://redis:6379",
     "redis://localhost:6379",  # Default Redis/Memurai
     "redis://127.0.0.1:6379",  # Alternative localhost
     "redis://172.17.0.1:6379"  # WSL2 default IP
 ]
+# REDIS_URLS: str ="redis://redis:6379"
+
 REDIS_TIMEOUT: int = 10  # seconds
 REDIS_CACHE_TTL: int = 5  # 5 seconds cache
 

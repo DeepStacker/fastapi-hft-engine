@@ -8,7 +8,7 @@ from .config import settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True, # Recommended for checking connections
-    # echo=True, # Uncomment for debugging SQL queries
+    echo=True, # Uncomment for debugging SQL queries
 )
 
 # Create session factory

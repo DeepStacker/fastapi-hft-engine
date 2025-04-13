@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # --- Database ---
     # Replace 'your_database_name' with the actual name of the database you want to use.
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "mysql+aiomysql://root:Shivam%40977140@localhost:3306/test_db") # Ensure password characters are URL-encoded if necessary (@ becomes %40)
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "mysql://root:Shivam@977140@127.0.0.1:3306/test_db") # Ensure password characters are URL-encoded if necessary (@ becomes %40)
 
     # --- Security ---
     SECRET_KEY: str = os.getenv("SECRET_KEY", "a_very_insecure_default_secret_key_replace_me")
