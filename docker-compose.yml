@@ -1,0 +1,115 @@
+# version: "3.9"
+
+# services:
+#   web:
+#     build: .
+#     container_name: myapp-container
+#     ports:
+#       - "8000:8000"
+#     env_file:
+#       - .env
+#     networks:
+#       - stockify-network
+#     depends_on:
+#       - redis
+#       - mysql
+#     command: ["/wait-for-it.sh", "mysql:3306", "--timeout=60", "--", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+
+#   redis:
+#     image: redis:latest
+#     container_name: redis
+#     ports:
+#       - "6379:6379"
+#     networks:
+#       - stockify-network
+
+#   mysql:
+#     image: mysql:9.2
+#     container_name: mysql
+#     ports:
+#       - "3307:3306"  # Host:Container
+#     environment:
+#       MYSQL_ROOT_PASSWORD: root
+#       MYSQL_DATABASE: test_db
+#     volumes:
+#       - mysql_data:/var/lib/mysql
+#     networks:
+#       - stockify-network
+#     healthcheck:
+#       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+#       interval: 10s
+#       retries: 5
+#       start_period: 30s
+#       timeout: 10s
+
+# networks:
+#   stockify-network:
+#     driver: bridge
+
+# volumes:
+#   mysql_data:
+
+
+
+services:
+  web:
+    build: .
+    container_name: myapp-container
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - FIREBASE_CREDENTIALS_PATH=/app/firebase-credentials.json  # Optional: if Firebase is used
+    networks:
+      - stockify-network
+    depends_on:
+      mysql:
+        condition: service_healthy  # Wait for MySQL to be healthy
+      redis:
+        condition: service_started
+    command: ["/wait-for-it.sh", "mysql:3306", "--timeout=60", "--", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro  # Optional: if Firebase is used
+
+  redis:
+    image: redis:7.4.2  # Pin to specific version for stability
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - stockify-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+
+  mysql:
+    image: mysql:9.2.0  # Pin exact version for consistency
+    container_name: mysql
+    ports:
+      - "3307:3306"  # Host:Container
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: test_db
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro  # Fix timezone warnings
+    networks:
+      - stockify-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+    command: ["mysqld", "--pid-file=/var/lib/mysql/mysqld.pid"]  # Fix insecure PID file warning
+
+networks:
+  stockify-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
