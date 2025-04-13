@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+prometheus_client
+prometheus_fastapi_instrumentator
+slowapi
+aiohttp
+firebase_admin
+python-dotenv
+pydantic
+pydantic-settings
+SQLAlchemy[asyncio]
