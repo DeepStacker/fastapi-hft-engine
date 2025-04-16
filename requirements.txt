@@ -41,3 +41,4 @@ SQLAlchemy
 uvicorn[standard]
 uvloop
 pydantic[email]
+httpx

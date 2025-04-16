@@ -8,7 +8,7 @@ DATABASE_URL = os.getenv(
 )
 
 # REDIS_URLS: str = "redis://localhost:6379"
-REDIS_URLS: str = "redis://redis:6379",
+REDIS_URLS: str = "redis://redis:6379"
 
 API_INSTR_URL = "https://api.example.com/optionchain"
 INSTRUMENTS = [

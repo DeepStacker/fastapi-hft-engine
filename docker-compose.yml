@@ -2,7 +2,7 @@
 services:
   web:
     build: .
-    container_name: myapp-container
+    container_name: DB_ingestion-container
     ports:
       - "8000:8000"
     env_file:
@@ -16,13 +16,13 @@ services:
         condition: service_healthy  # Wait for MySQL to be healthy
       redis:
         condition: service_started
-    command: ["/wait-for-it.sh", "mysql:3306", "--timeout=60", "--", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["/wait-for-it.sh", "mysql:3306", "--timeout=60", "--", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     # volumes:
     #   - ./firebase-credentials.json:/app/firebase-credentials.json:ro  # Optional: if Firebase is used
 
   redis:
     image: redis:7.4.2  # Pin to specific version for stability
-    container_name: redis
+    container_name: redis_for_stockify_db
     ports:
       - "6379:6379"
     networks:
@@ -36,7 +36,7 @@ services:
 
   mysql:
     image: mysql:9.2.0  # Pin exact version for consistency
-    container_name: mysql
+    container_name: mysql_for_stockify_db
     ports:
       - "3307:3306"  # Host:Container
     environment:
