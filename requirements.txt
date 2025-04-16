@@ -42,3 +42,4 @@ uvicorn[standard]
 uvloop
 pydantic[email]
 httpx
+mysql-connector-python
