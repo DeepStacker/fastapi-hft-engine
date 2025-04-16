@@ -4,7 +4,7 @@ services:
     build: .
     container_name: DB_ingestion-container
     ports:
-      - "8000:8000"
+      - "8000:5000"
     env_file:
       - .env
     # environment:
@@ -16,7 +16,7 @@ services:
         condition: service_healthy  # Wait for MySQL to be healthy
       redis:
         condition: service_started
-    command: ["/wait-for-it.sh", "mysql:3306", "--timeout=60", "--", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000"]
+    command: ["/wait-for-it.sh", "mysql:3306", "--timeout=60", "--", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000", "--reload"]
     # volumes:
     #   - ./firebase-credentials.json:/app/firebase-credentials.json:ro  # Optional: if Firebase is used
 
