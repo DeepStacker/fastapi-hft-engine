@@ -4,10 +4,11 @@ from typing import List
 # Database: use MySQL with native password authentication
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "mysql+aiomysql://root:Shivam%40977140@localhost:3306/test_db_optionchain?auth_plugin=mysql_native_password"
+    "mysql+aiomysql://root:root@mysql:3306/test_db_optionchain"
 )
 
-REDIS_URLS: str = "redis://localhost:6379"
+# REDIS_URLS: str = "redis://localhost:6379"
+REDIS_URLS: str = "redis://redis:6379",
 
 API_INSTR_URL = "https://api.example.com/optionchain"
 INSTRUMENTS = [
