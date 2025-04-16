@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Any
+from models import IOdata
 
 def parse_timestamp(timestamp: int) -> datetime:
     """Convert Unix timestamp to datetime object"""
@@ -159,3 +160,63 @@ def flatten_option_chain(response: Dict[str, Any], instrument_id: str) -> Dict[s
         "options": extract_option_contracts(response)
     }
     return result
+
+
+def filter_data(data: List[IOdata]) -> Dict[str, List]:
+    """Filter and format the data into lists for chart plotting"""
+    filtered_data = {
+        "symbol": data[0].symbol,
+        "symbol_id": data[0].symbol_id,
+        "timestamp": [],
+        "ltp": [],
+        "oi": [],
+        "iv": [],
+        "delta": [],
+        "theta": [],
+        "gamma": [],
+        "vega": [],
+        "rho": [],
+        "price_change": [],
+        "price_change_percent": [],
+        "volume_change": [],
+        "volume_change_percent": [],
+        "oi_change": [],
+        "oi_change_percent": [],
+    }
+
+    for item in data:
+        filtered_data["timestamp"].append(
+            item.timestamp.isoformat() if item.timestamp else None
+        )
+        filtered_data["ltp"].append(item.ltp if item.ltp is not None else 0)
+        filtered_data["oi"].append(
+            item.open_interest if item.open_interest is not None else 0
+        )
+        filtered_data["iv"].append(
+            item.implied_volatility if item.implied_volatility is not None else 0
+        )
+        filtered_data["delta"].append(item.delta if item.delta is not None else 0)
+        filtered_data["theta"].append(item.theta if item.theta is not None else 0)
+        filtered_data["gamma"].append(item.gamma if item.gamma is not None else 0)
+        filtered_data["vega"].append(item.vega if item.vega is not None else 0)
+        filtered_data["rho"].append(item.rho if item.rho is not None else 0)
+        filtered_data["price_change"].append(
+            item.price_change if item.price_change is not None else 0
+        )
+        filtered_data["price_change_percent"].append(
+            item.price_change_percent if item.price_change_percent is not None else 0
+        )
+        filtered_data["volume_change"].append(
+            item.volume_change if item.volume_change is not None else 0
+        )
+        filtered_data["volume_change_percent"].append(
+            item.volume_change_percent if item.volume_change_percent is not None else 0
+        )
+        filtered_data["oi_change"].append(
+            item.oi_change if item.oi_change is not None else 0
+        )
+        filtered_data["oi_change_percent"].append(
+            item.oi_change_percent if item.oi_change_percent is not None else 0
+        )
+
+    return filtered_data

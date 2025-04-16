@@ -18,4 +18,4 @@ COPY . .
 EXPOSE 8000
 
 # Default command (this can be overridden in docker-compose)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -17,6 +17,7 @@ from models import (
     OptionSnapshot,
     IOdata,
 )
+from utils import filter_data
 from sqlalchemy.future import select
 from sqlalchemy import func, desc
 from ingest import ingest_loop
@@ -24,6 +25,9 @@ from websocket import manager, redis_subscriber
 from redis_cache import get_latest
 from datetime import datetime
 from typing import List, Optional, Dict
+
+from datetime import datetime, time
+import pytz
 
 # Windows-specific event loop policy
 if sys.platform == "win32":
@@ -34,15 +38,29 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def startup():
-    # Ensure we have a running event loop
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-    # start ingestion and Redis subscriber
-    asyncio.create_task(ingest_loop())
+    # Define IST timezone
+    ist = pytz.timezone("Asia/Kolkata")
+    now = datetime.now(ist).time()
+
+    # Define allowed time windows
+    morning_start = time(9, 0)
+    morning_end = time(9, 7)
+
+    day_start = time(9, 14)
+    day_end = time(15, 31)
+
+    if (morning_start <= now <= morning_end) or (day_start <= now <= day_end):
+        asyncio.create_task(ingest_loop())
+        print("✅ Ingest loop started: within trading windows.")
+    else:
+        print("⏸️ Ingest loop not started: outside trading time.")
+
     asyncio.create_task(redis_subscriber())
 
 
@@ -64,12 +82,12 @@ async def get_live(inst_id: str):
     return data
 
 
-@app.get("/historical/{inst_id}/{strike}/{otype}", response_model=HistoricalResponse)
+@app.get("/historical/{inst_id}/{otype}", response_model=HistoricalResponse)
 async def historical(
     inst_id: str,
-    strike: float,
     otype: str,
     db=Depends(get_db),
+    strike: Optional[float] = None,
     start: Optional[str] = None,
     end: Optional[str] = None,
 ):
@@ -85,9 +103,17 @@ async def historical(
     end_date = datetime.fromisoformat(end) if end else datetime.max
 
     # Query option contracts
+    if not start or not end:
+        raise HTTPException(status_code=400, detail="'start' and 'end' datetime values are required.")
+
+    # Optional: Debug logging
+    print(f"[DEBUG] start: {start}, end: {end}, strike: {strike}, otype: {otype}, symbol_id: {symbol_id}")
+
+    # SQLAlchemy query
     stmt = (
         select(OptionContract)
         .where(OptionContract.symbol_id == symbol_id)
+        .where(OptionContract.timestamp.between(start_date, end_date))
         .where(OptionContract.strike_price == strike)
         .where(OptionContract.option_type == otype.upper())
         .order_by(OptionContract.timestamp)
@@ -355,63 +381,3 @@ async def get_options(
         "limit": limit,
         "data": filter_data(options),
     }
-
-
-def filter_data(data: List[IOdata]) -> Dict[str, List]:
-    """Filter and format the data into lists for chart plotting"""
-    filtered_data = {
-        "timestamp": [],
-        "symbol_id": data[0].symbol_id,
-        "symbol": data[0].symbol,
-        "ltp": [],
-        "oi": [],
-        "iv": [],
-        "delta": [],
-        "theta": [],
-        "gamma": [],
-        "vega": [],
-        "rho": [],
-        "price_change": [],
-        "price_change_percent": [],
-        "volume_change": [],
-        "volume_change_percent": [],
-        "oi_change": [],
-        "oi_change_percent": [],
-    }
-
-    for item in data:
-        filtered_data["timestamp"].append(
-            item.timestamp.isoformat() if item.timestamp else None
-        )
-        filtered_data["ltp"].append(item.ltp if item.ltp is not None else 0)
-        filtered_data["oi"].append(
-            item.open_interest if item.open_interest is not None else 0
-        )
-        filtered_data["iv"].append(
-            item.implied_volatility if item.implied_volatility is not None else 0
-        )
-        filtered_data["delta"].append(item.delta if item.delta is not None else 0)
-        filtered_data["theta"].append(item.theta if item.theta is not None else 0)
-        filtered_data["gamma"].append(item.gamma if item.gamma is not None else 0)
-        filtered_data["vega"].append(item.vega if item.vega is not None else 0)
-        filtered_data["rho"].append(item.rho if item.rho is not None else 0)
-        filtered_data["price_change"].append(
-            item.price_change if item.price_change is not None else 0
-        )
-        filtered_data["price_change_percent"].append(
-            item.price_change_percent if item.price_change_percent is not None else 0
-        )
-        filtered_data["volume_change"].append(
-            item.volume_change if item.volume_change is not None else 0
-        )
-        filtered_data["volume_change_percent"].append(
-            item.volume_change_percent if item.volume_change_percent is not None else 0
-        )
-        filtered_data["oi_change"].append(
-            item.oi_change if item.oi_change is not None else 0
-        )
-        filtered_data["oi_change_percent"].append(
-            item.oi_change_percent if item.oi_change_percent is not None else 0
-        )
-
-    return filtered_data
