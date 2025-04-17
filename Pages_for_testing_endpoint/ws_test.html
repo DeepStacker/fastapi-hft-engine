@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Market Data Viewer</title>
+    <style>
+        body {
+            font-family: "Segoe UI", sans-serif;
+            margin: 20px;
+            background: #f9f9f9;
+        }
+
+        h1,
+        h2 {
+            color: #333;
+        }
+
+        label,
+        input,
+        button {
+            font-size: 16px;
+            margin: 5px;
+        }
+
+        input {
+            padding: 5px;
+        }
+
+        button {
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+
+        .section {
+            margin-top: 30px;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 8px 10px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        th {
+            background-color: #f0f0f0;
+        }
+
+        #log {
+            margin-top: 20px;
+            color: #666;
+        }
+
+        .scroll-table {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>📈 WebSocket Market Data Viewer</h1>
+    <label for="inst_id">Instance ID:</label>
+    <input type="text" id="inst_id" placeholder="Enter inst_id">
+    <button onclick="connect()">Connect</button>
+
+    <div class="section" id="marketData"></div>
+    <div class="section scroll-table" id="futuresData"></div>
+    <div class="section scroll-table" id="optionsData"></div>
+    <div id="log"></div>
+
+    <script>
+        let socket;
+
+        function log(message) {
+            document.getElementById('log').textContent = message;
+        }
+
+        function connect() {
+            const instId = document.getElementById('inst_id').value;
+            if (!instId) {
+                alert('Please enter inst_id');
+                return;
+            }
+
+            const wsUrl = `ws://localhost:8000/ws/${instId}`;
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => log(`✅ Connected to: ${wsUrl}`);
+            socket.onclose = () => log('❌ Connection closed');
+            socket.onerror = (error) => log('⚠️ WebSocket error');
+
+            socket.onmessage = (event) => {
+                log(`🕒 Last update: ${new Date().toLocaleTimeString()}`);
+                const data = JSON.parse(event.data);
+                renderMarket(data.market);
+                renderFutures(data.futures);
+                renderOptions(data.options);
+            };
+        }
+
+        function renderMarket(m) {
+            const html = `
+                <h2>📊 Market Overview</h2>
+                <table>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Exchange</th>
+                        <th>Segment</th>
+                        <th>Instrument</th>
+                        <th>OI Calls</th>
+                        <th>OI Puts</th>
+                        <th>PCR Ratio</th>
+                        <th>ATM IV</th>
+                        <th>IV % Change</th>
+                        <th>Spot LTP</th>
+                        <th>Spot Volume</th>
+                        <th>Spot % Change</th>
+                        <th>Spot Change</th>
+                        <th>Lot Size</th>
+                        <th>Tick Size</th>
+                        <th>Days to Expiry</th>
+                    </tr>
+                    <tr>
+                        <td>${m.timestamp}</td>
+                        <td>${m.exchange}</td>
+                        <td>${m.segment}</td>
+                        <td>${m.instrument_type}</td>
+                        <td>${m.total_oi_calls.toLocaleString()}</td>
+                        <td>${m.total_oi_puts.toLocaleString()}</td>
+                        <td>${m.pcr_ratio.toFixed(2)}</td>
+                        <td>${m.atm_iv.toFixed(4)}</td>
+                        <td>${m.aiv_percent_change.toFixed(2)}%</td>
+                        <td>${m.spot_ltp}</td>
+                        <td>${m.spot_volume}</td>
+                        <td>${m.spot_percent_change.toFixed(2)}%</td>
+                        <td>${m.spot_change.toFixed(2)}</td>
+                        <td>${m.option_lot_size}</td>
+                        <td>${m.option_tick_size}</td>
+                        <td>${m.days_to_expiry}</td>
+                    </tr>
+                </table>
+            `;
+            document.getElementById('marketData').innerHTML = html;
+        }
+
+        function renderFutures(futures) {
+            let rows = futures.map(f => `
+                <tr>
+                    <td>${f.symbol}</td>
+                    <td>${f.symbol_id}</td>
+                    <td>${f.ltp}</td>
+                    <td>${f.previous_close}</td>
+                    <td>${f.price_change}</td>
+                    <td>${f.price_change_percent}%</td>
+                    <td>${f.volume.toLocaleString()}</td>
+                    <td>${f.volume_change.toLocaleString()}</td>
+                    <td>${f.volume_change_percent.toFixed(2)}%</td>
+                    <td>${f.open_interest.toLocaleString()}</td>
+                    <td>${f.oi_change}</td>
+                    <td>${f.oi_change_percent.toFixed(2)}%</td>
+                    <td>${f.previous_volume}</td>
+                    <td>${f.lot_size}</td>
+                    <td>${f.expiry_type}</td>
+                    <td>${f.expiry}</td>
+                    <td>${f.timestamp}</td>
+                </tr>
+            `).join("");
+
+            const html = `
+                <h2>📄 Futures</h2>
+                <table>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>ID</th>
+                        <th>LTP</th>
+                        <th>Prev Close</th>
+                        <th>Price Change</th>
+                        <th>Price %</th>
+                        <th>Volume</th>
+                        <th>Vol Change</th>
+                        <th>Vol %</th>
+                        <th>OI</th>
+                        <th>OI Change</th>
+                        <th>OI %</th>
+                        <th>Prev Vol</th>
+                        <th>Lot Size</th>
+                        <th>Expiry Type</th>
+                        <th>Expiry</th>
+                        <th>Timestamp</th>
+                    </tr>
+                    ${rows}
+                </table>
+            `;
+            document.getElementById('futuresData').innerHTML = html;
+        }
+
+        function renderOptions(options) {
+            let rows = options.map(o => `
+                <tr>
+                    <td>${o.display_symbol}</td>
+                    <td>${o.symbol_id}</td>
+                    <td>${o.strike_price}</td>
+                    <td>${o.option_type}</td>
+                    <td>${o.ltp}</td>
+                    <td>${o.previous_close}</td>
+                    <td>${o.volume}</td>
+                    <td>${o.volume_change}</td>
+                    <td>${o.volume_change_percent}%</td>
+                    <td>${o.open_interest}</td>
+                    <td>${o.oi_change}</td>
+                    <td>${o.oi_change_percent}%</td>
+                    <td>${o.implied_volatility?.toFixed(2) || 0}</td>
+                    <td>${o.price_change}</td>
+                    <td>${o.price_change_percent}</td>
+                    <td>${o.bid_price}</td>
+                    <td>${o.ask_price}</td>
+                    <td>${o.bid_quantity}</td>
+                    <td>${o.ask_quantity}</td>
+                    <td>${o.moneyness}</td>
+                    <td>${o.delta}</td>
+                    <td>${o.theta}</td>
+                    <td>${o.gamma}</td>
+                    <td>${o.rho}</td>
+                    <td>${o.vega}</td>
+                    <td>${o.theoretical_price}</td>
+                    <td>${o.vol_pcr}</td>
+                    <td>${o.oi_pcr?.toFixed(2) || '-'}</td>
+                    <td>${o.max_pain_loss}</td>
+                    <td>${o.expiry_type}</td>
+                    <td>${o.expiry}</td>
+                    <td>${o.timestamp}</td>
+                </tr>
+            `).join("");
+
+            const html = `
+                <h2>📘 Options</h2>
+                <table>
+                    <tr>
+                        <th>Symbol</th><th>ID</th><th>Strike</th><th>Type</th><th>LTP</th><th>Prev Close</th>
+                        <th>Volume</th><th>Vol Change</th><th>Vol %</th><th>OI</th><th>OI Change</th><th>OI %</th>
+                        <th>IV</th><th>Price Chg</th><th>Price %</th><th>Bid</th><th>Ask</th><th>Bid Qty</th>
+                        <th>Ask Qty</th><th>Moneyness</th><th>Delta</th><th>Theta</th><th>Gamma</th>
+                        <th>Rho</th><th>Vega</th><th>Theo Price</th><th>Vol PCR</th><th>OI PCR</th>
+                        <th>Max Pain</th><th>Expiry Type</th><th>Expiry</th><th>Timestamp</th>
+                    </tr>
+                    ${rows}
+                </table>
+            `;
+            document.getElementById('optionsData').innerHTML = html;
+        }
+    </script>
+</body>
+
+</html>

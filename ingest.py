@@ -8,7 +8,7 @@ from datetime import datetime
 
 from config import INSTRUMENTS, FETCH_INTERVAL, INSTRUMENTS_SEG
 from db import init_db, get_session
-from models import MarketSnapshot, FutureContract, OptionContract, IOdata
+from models import MarketSnapshot, FutureContract, OptionContract
 from utils import flatten_option_chain
 from redis_cache import cache_latest, publish_live
 from metrics import FETCH_TIME, INSERT_COUNT, ERROR_COUNT
@@ -82,8 +82,8 @@ async def save_to_db(session, data_dict):
         if data_dict["options"]:
             options_stmt = insert(OptionContract).values(data_dict["options"])
             await session.execute(options_stmt)
-            io_data_stmt = insert(IOdata).values(data_dict["options"])
-            await session.execute(io_data_stmt)
+            # io_data_stmt = insert(IOdata).values(data_dict["options"])
+            # await session.execute(io_data_stmt)
 
         await session.commit()
         INSERT_COUNT.inc(1 + len(data_dict["futures"]) + len(data_dict["options"]))

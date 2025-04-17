@@ -8,14 +8,14 @@ from fastapi import (
     WebSocketDisconnect,
     Query,
 )
+from fastapi.middleware.cors import CORSMiddleware
 from db import get_db
 from schemas import SnapshotIn, HistoricalResponse, HistoricalPoint
 from models import (
     MarketSnapshot,
     FutureContract,
     OptionContract,
-    OptionSnapshot,
-    IOdata,
+    OptionSnapshot
 )
 from utils import filter_data
 from sqlalchemy.future import select
@@ -33,7 +33,17 @@ import pytz
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+
 app = FastAPI()
+
+# Allow requests from your frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # For development only. Use specific origins in production.
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
@@ -53,7 +63,7 @@ async def startup():
     morning_end = time(9, 7)
 
     day_start = time(9, 14)
-    day_end = time(15, 31)
+    day_end = time(23, 31)
 
     if (morning_start <= now <= morning_end) or (day_start <= now <= day_end):
         asyncio.create_task(ingest_loop())
@@ -67,10 +77,32 @@ async def startup():
 @app.websocket("/ws/{inst_id}")
 async def ws_endpoint(inst_id: str, ws: WebSocket):
     await manager.connect(inst_id, ws)
+    last_sent_data = None # Keep track of data sent to this client
     try:
+        # Send initial data immediately upon connection
+        initial_data = await get_latest(inst_id)
+        if initial_data:
+            await ws.send_json(initial_data)
+            last_sent_data = initial_data
+        else:
+            # Optionally send a message if no data is available yet
+            await ws.send_json({"message": f"Waiting for initial data for instrument {inst_id}..."})
+
+        # Continuously check for and send updates every second
         while True:
-            await ws.receive_text()
+            current_data = await get_latest(inst_id)
+            # Send data only if it's new and different from the last sent data
+            if current_data and current_data != last_sent_data:
+                 await ws.send_json(current_data)
+                 last_sent_data = current_data
+            # Wait for 1 second before checking again
+            await asyncio.sleep(1)
+
     except WebSocketDisconnect:
+        print(f"WebSocket disconnected for {inst_id}") # Added log
+        manager.disconnect(inst_id, ws)
+    except Exception as e:
+        print(f"Error in WebSocket connection for {inst_id}: {e}")
         manager.disconnect(inst_id, ws)
 
 
@@ -113,8 +145,8 @@ async def historical(
     stmt = (
         select(OptionContract)
         .where(OptionContract.symbol_id == symbol_id)
-        .where(OptionContract.timestamp.between(start_date, end_date))
-        .where(OptionContract.strike_price == strike)
+        .where(OptionContract.timestamp <= end_date)
+        
         .where(OptionContract.option_type == otype.upper())
         .order_by(OptionContract.timestamp)
     )
@@ -328,7 +360,7 @@ async def get_options(
 
 
 @app.get("/io-data")
-async def get_options(
+async def get_oidata(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, le=1000),
     start_time: Optional[datetime] = None,
@@ -339,39 +371,39 @@ async def get_options(
     db=Depends(get_db),
 ):
     """Get option chain data with pagination and filtering"""
-    query = select(IOdata)
+    query = select(OptionContract)
 
     # Apply filters
     if start_time:
-        query = query.where(IOdata.timestamp >= start_time)
+        query = query.where(OptionContract.timestamp >= start_time)
     if end_time:
-        query = query.where(IOdata.timestamp <= end_time)
+        query = query.where(OptionContract.timestamp <= end_time)
     if symbol_id:
-        query = query.where(IOdata.symbol_id == symbol_id)
+        query = query.where(OptionContract.symbol_id == symbol_id)
     if strike_price:
-        query = query.where(IOdata.strike_price == strike_price)
+        query = query.where(OptionContract.strike_price == strike_price)
     if option_type:
-        query = query.where(IOdata.option_type == option_type.upper())
+        query = query.where(OptionContract.option_type == option_type.upper())
 
     # Add pagination
-    query = query.order_by(desc(IOdata.timestamp)).offset(skip).limit(limit)
+    query = query.order_by(desc(OptionContract.timestamp)).offset(skip).limit(limit)
 
     # Execute query
     result = await db.execute(query)
     options = result.scalars().all()
 
     # Get total count
-    count_query = select(func.count()).select_from(IOdata)
+    count_query = select(func.count()).select_from(OptionContract)
     if start_time:
-        count_query = count_query.where(IOdata.timestamp >= start_time)
+        count_query = count_query.where(OptionContract.timestamp >= start_time)
     if end_time:
-        count_query = count_query.where(IOdata.timestamp <= end_time)
+        count_query = count_query.where(OptionContract.timestamp <= end_time)
     if symbol_id:
-        count_query = count_query.where(IOdata.symbol_id == symbol_id)
+        count_query = count_query.where(OptionContract.symbol_id == symbol_id)
     if strike_price:
-        count_query = count_query.where(IOdata.strike_price == strike_price)
+        count_query = count_query.where(OptionContract.strike_price == strike_price)
     if option_type:
-        count_query = count_query.where(IOdata.option_type == option_type.upper())
+        count_query = count_query.where(OptionContract.option_type == option_type.upper())
 
     total_count = await db.execute(count_query)
 

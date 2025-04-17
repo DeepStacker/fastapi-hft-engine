@@ -1,10 +1,12 @@
 from datetime import datetime
 from typing import Dict, List, Any
-from models import IOdata
+from models import OptionContract
+
 
 def parse_timestamp(timestamp: int) -> datetime:
     """Convert Unix timestamp to datetime object"""
     return datetime.fromtimestamp(timestamp)
+
 
 def extract_market_snapshot(response: Dict[str, Any]) -> Dict[str, Any]:
     """Extract market-wide data from the response"""
@@ -25,8 +27,9 @@ def extract_market_snapshot(response: Dict[str, Any]) -> Dict[str, Any]:
         "spot_change": data.get("SChng", 0),
         "option_lot_size": data.get("olot", 0),
         "option_tick_size": data.get("otick", 0),
-        "days_to_expiry": data.get("dte", 0)
+        "days_to_expiry": data.get("dte", 0),
     }
+
 
 def extract_future_contracts(response: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Extract futures data from the response"""
@@ -50,119 +53,118 @@ def extract_future_contracts(response: Dict[str, Any]) -> List[Dict[str, Any]]:
             "lot_size": fut_data.get("lot", 0),
             "expiry_type": fut_data.get("exptype", ""),
             "timestamp": datetime.utcnow(),
-            "expiry": parse_timestamp(int(fut_id)) if fut_id.isdigit() else None
+            "expiry": parse_timestamp(int(fut_id)) if fut_id.isdigit() else None,
         }
         futures.append(future)
     return futures
 
+
 def extract_option_contracts(response: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Extract option chain data from the response"""
+    """Extract CE + PE data per strike in a single dict (row) matching OptionContract model"""
     options = []
     data = response.get("data", {})
+    timestamp = datetime.utcnow()
+
     for strike, strike_data in data.get("oc", {}).items():
-        # Process call options
-        if "ce" in strike_data:
-            ce_data = strike_data["ce"]
-            option = {
-                "strike_price": float(strike),
-                "option_type": "CE",
-                "symbol_id": ce_data.get("sid", 0),
-                "symbol": ce_data.get("sym", ""),
-                "display_symbol": ce_data.get("disp_sym", ""),
-                "ltp": ce_data.get("ltp", 0),
-                "previous_close": ce_data.get("pc", 0),
-                "volume": ce_data.get("vol", 0),
-                "volume_change": ce_data.get("v_chng", 0),
-                "volume_change_percent": ce_data.get("v_pchng", 0),
-                "open_interest": ce_data.get("OI", 0),
-                "oi_change": ce_data.get("oichng", 0),
-                "oi_change_percent": ce_data.get("oiperchnge", 0),
-                "implied_volatility": ce_data.get("iv", 0),
-                "previous_volume": ce_data.get("pVol", 0),
-                "previous_oi": ce_data.get("p_oi", 0),
-                "price_change": ce_data.get("p_chng", 0),
-                "price_change_percent": ce_data.get("p_pchng", 0),
-                "bid_price": ce_data.get("bid", 0),
-                "ask_price": ce_data.get("ask", 0),
-                "bid_quantity": ce_data.get("bid_qty", 0),
-                "ask_quantity": ce_data.get("ask_qty", 0),
-                "moneyness": ce_data.get("mness", ""),
-                "buildup_type": ce_data.get("btyp", ""),
-                "buildup_name": ce_data.get("BuiltupName", ""),
-                "delta": ce_data.get("optgeeks", {}).get("delta", 0),
-                "theta": ce_data.get("optgeeks", {}).get("theta", 0),
-                "gamma": ce_data.get("optgeeks", {}).get("gamma", 0),
-                "rho": ce_data.get("optgeeks", {}).get("rho", 0),
-                "vega": ce_data.get("optgeeks", {}).get("vega", 0),
-                "theoretical_price": ce_data.get("optgeeks", {}).get("theoryprc", 0),
-                "vol_pcr": strike_data.get("volpcr", 0),
-                "oi_pcr": strike_data.get("oipcr", 0),
-                "max_pain_loss": strike_data.get("mploss", 0),
-                "expiry_type": strike_data.get("exptype", ""),
-                "timestamp": datetime.utcnow()
-            }
-            options.append(option)
-        
-        # Process put options
-        if "pe" in strike_data:
-            pe_data = strike_data["pe"]
-            option = {
-                "strike_price": float(strike),
-                "option_type": "PE",
-                "symbol_id": pe_data.get("sid", 0),
-                "symbol": pe_data.get("sym", ""),
-                "display_symbol": pe_data.get("disp_sym", ""),
-                "ltp": pe_data.get("ltp", 0),
-                "previous_close": pe_data.get("pc", 0),
-                "volume": pe_data.get("vol", 0),
-                "volume_change": pe_data.get("v_chng", 0),
-                "volume_change_percent": pe_data.get("v_pchng", 0),
-                "open_interest": pe_data.get("OI", 0),
-                "oi_change": pe_data.get("oichng", 0),
-                "oi_change_percent": pe_data.get("oiperchnge", 0),
-                "implied_volatility": pe_data.get("iv", 0),
-                "previous_volume": pe_data.get("pVol", 0),
-                "previous_oi": pe_data.get("p_oi", 0),
-                "price_change": pe_data.get("p_chng", 0),
-                "price_change_percent": pe_data.get("p_pchng", 0),
-                "bid_price": pe_data.get("bid", 0),
-                "ask_price": pe_data.get("ask", 0),
-                "bid_quantity": pe_data.get("bid_qty", 0),
-                "ask_quantity": pe_data.get("ask_qty", 0),
-                "moneyness": pe_data.get("mness", ""),
-                "buildup_type": pe_data.get("btyp", ""),
-                "buildup_name": pe_data.get("BuiltupName", ""),
-                "delta": pe_data.get("optgeeks", {}).get("delta", 0),
-                "theta": pe_data.get("optgeeks", {}).get("theta", 0),
-                "gamma": pe_data.get("optgeeks", {}).get("gamma", 0),
-                "rho": pe_data.get("optgeeks", {}).get("rho", 0),
-                "vega": pe_data.get("optgeeks", {}).get("vega", 0),
-                "theoretical_price": pe_data.get("optgeeks", {}).get("theoryprc", 0),
-                "vol_pcr": strike_data.get("volpcr", 0),
-                "oi_pcr": strike_data.get("oipcr", 0),
-                "max_pain_loss": strike_data.get("mploss", 0),
-                "expiry_type": strike_data.get("exptype", ""),
-                "timestamp": datetime.utcnow()
-            }
-            options.append(option)
-    
+        ce_data = strike_data.get("ce", {})
+        pe_data = strike_data.get("pe", {})
+
+        option = {
+            "timestamp": timestamp,
+            # CE fields
+            "ce_symbol_id": ce_data.get("sid", 0),
+            "ce_symbol": ce_data.get("sym", ""),
+            "ce_display_symbol": ce_data.get("disp_sym", ""),
+            "ce_strike_price": float(strike),
+            "ce_option_type": "CE",
+            "ce_ltp": ce_data.get("ltp", 0),
+            "ce_previous_close": ce_data.get("pc", 0),
+            "ce_volume": ce_data.get("vol", 0),
+            "ce_volume_change": ce_data.get("v_chng", 0),
+            "ce_volume_change_percent": ce_data.get("v_pchng", 0),
+            "ce_open_interest": ce_data.get("OI", 0),
+            "ce_oi_change": ce_data.get("oichng", 0),
+            "ce_oi_change_percent": ce_data.get("oiperchnge", 0),
+            "ce_implied_volatility": ce_data.get("iv", 0),
+            "ce_previous_volume": ce_data.get("pVol", 0),
+            "ce_previous_oi": ce_data.get("p_oi", 0),
+            "ce_price_change": ce_data.get("p_chng", 0),
+            "ce_price_change_percent": ce_data.get("p_pchng", 0),
+            "ce_bid_price": ce_data.get("bid", 0),
+            "ce_ask_price": ce_data.get("ask", 0),
+            "ce_bid_quantity": ce_data.get("bid_qty", 0),
+            "ce_ask_quantity": ce_data.get("ask_qty", 0),
+            "ce_moneyness": ce_data.get("mness", ""),
+            "ce_buildup_type": ce_data.get("btyp", ""),
+            "ce_buildup_name": ce_data.get("BuiltupName", ""),
+            "ce_delta": ce_data.get("optgeeks", {}).get("delta", 0),
+            "ce_theta": ce_data.get("optgeeks", {}).get("theta", 0),
+            "ce_gamma": ce_data.get("optgeeks", {}).get("gamma", 0),
+            "ce_rho": ce_data.get("optgeeks", {}).get("rho", 0),
+            "ce_vega": ce_data.get("optgeeks", {}).get("vega", 0),
+            "ce_theoretical_price": ce_data.get("optgeeks", {}).get("theoryprc", 0),
+            "ce_vol_pcr": strike_data.get("volpcr", 0),
+            "ce_oi_pcr": strike_data.get("oipcr", 0),
+            "ce_max_pain_loss": strike_data.get("mploss", 0),
+            "ce_expiry_type": strike_data.get("exptype", ""),
+            # PE fields
+            "pe_symbol_id": pe_data.get("sid", 0),
+            "pe_symbol": pe_data.get("sym", ""),
+            "pe_option_type": "PE",
+            "pe_ltp": pe_data.get("ltp", 0),
+            "pe_previous_close": pe_data.get("pc", 0),
+            "pe_volume": pe_data.get("vol", 0),
+            "pe_volume_change": pe_data.get("v_chng", 0),
+            "pe_volume_change_percent": pe_data.get("v_pchng", 0),
+            "pe_open_interest": pe_data.get("OI", 0),
+            "pe_oi_change": pe_data.get("oichng", 0),
+            "pe_oi_change_percent": pe_data.get("oiperchnge", 0),
+            "pe_implied_volatility": pe_data.get("iv", 0),
+            "pe_previous_volume": pe_data.get("pVol", 0),
+            "pe_previous_oi": pe_data.get("p_oi", 0),
+            "pe_price_change": pe_data.get("p_chng", 0),
+            "pe_price_change_percent": pe_data.get("p_pchng", 0),
+            "pe_bid_price": pe_data.get("bid", 0),
+            "pe_ask_price": pe_data.get("ask", 0),
+            "pe_bid_quantity": pe_data.get("bid_qty", 0),
+            "pe_ask_quantity": pe_data.get("ask_qty", 0),
+            "pe_moneyness": pe_data.get("mness", ""),
+            "pe_buildup_type": pe_data.get("btyp", ""),
+            "pe_buildup_name": pe_data.get("BuiltupName", ""),
+            "pe_delta": pe_data.get("optgeeks", {}).get("delta", 0),
+            "pe_theta": pe_data.get("optgeeks", {}).get("theta", 0),
+            "pe_gamma": pe_data.get("optgeeks", {}).get("gamma", 0),
+            "pe_rho": pe_data.get("optgeeks", {}).get("rho", 0),
+            "pe_vega": pe_data.get("optgeeks", {}).get("vega", 0),
+            "pe_theoretical_price": pe_data.get("optgeeks", {}).get("theoryprc", 0),
+            "pe_vol_pcr": strike_data.get("volpcr", 0),
+            "pe_oi_pcr": strike_data.get("oipcr", 0),
+            "pe_max_pain_loss": strike_data.get("mploss", 0),
+            "pe_expiry_type": strike_data.get("exptype", ""),
+        }
+
+        options.append(option)
+
     return options
 
-def flatten_option_chain(response: Dict[str, Any], instrument_id: str) -> Dict[str, Any]:
+
+def flatten_option_chain(
+    response: Dict[str, Any], instrument_id: str
+) -> Dict[str, Any]:
     """Transform the option chain data into structured format"""
     # Add safeguards for data access
     if not isinstance(response, dict) or "data" not in response:
         raise ValueError("Invalid response format")
-    
+
     result = {
         "market_snapshot": extract_market_snapshot(response),
         "futures": extract_future_contracts(response),
-        "options": extract_option_contracts(response)
+        "options": extract_option_contracts(response),
     }
     return result
 
 
-def filter_data(data: List[IOdata]) -> Dict[str, List]:
+def filter_data(data: List[OptionContract]) -> Dict[str, List]:
     """Filter and format the data into lists for chart plotting"""
     filtered_data = {
         "symbol": data[0].symbol,
