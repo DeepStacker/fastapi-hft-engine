@@ -11,12 +11,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from db import get_db
 from schemas import SnapshotIn, HistoricalResponse, HistoricalPoint
-from models import (
-    MarketSnapshot,
-    FutureContract,
-    OptionContract,
-    OptionSnapshot
-)
+from models import MarketSnapshot, FutureContract, OptionContract, OptionSnapshot
 from utils import filter_data
 from sqlalchemy.future import select
 from sqlalchemy import func, desc
@@ -77,7 +72,7 @@ async def startup():
 @app.websocket("/ws/{inst_id}")
 async def ws_endpoint(inst_id: str, ws: WebSocket):
     await manager.connect(inst_id, ws)
-    last_sent_data = None # Keep track of data sent to this client
+    last_sent_data = None  # Keep track of data sent to this client
     try:
         # Send initial data immediately upon connection
         initial_data = await get_latest(inst_id)
@@ -86,20 +81,22 @@ async def ws_endpoint(inst_id: str, ws: WebSocket):
             last_sent_data = initial_data
         else:
             # Optionally send a message if no data is available yet
-            await ws.send_json({"message": f"Waiting for initial data for instrument {inst_id}..."})
+            await ws.send_json(
+                {"message": f"Waiting for initial data for instrument {inst_id}..."}
+            )
 
         # Continuously check for and send updates every second
         while True:
             current_data = await get_latest(inst_id)
             # Send data only if it's new and different from the last sent data
             if current_data and current_data != last_sent_data:
-                 await ws.send_json(current_data)
-                 last_sent_data = current_data
+                await ws.send_json(current_data)
+                last_sent_data = current_data
             # Wait for 1 second before checking again
             await asyncio.sleep(1)
 
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected for {inst_id}") # Added log
+        print(f"WebSocket disconnected for {inst_id}")  # Added log
         manager.disconnect(inst_id, ws)
     except Exception as e:
         print(f"Error in WebSocket connection for {inst_id}: {e}")
@@ -114,73 +111,107 @@ async def get_live(inst_id: str):
     return data
 
 
-@app.get("/historical/{inst_id}/{otype}", response_model=HistoricalResponse)
+@app.get("/historical/{sid}/{exp}/{timestamp}", response_model=HistoricalResponse)
 async def historical(
-    inst_id: str,
-    otype: str,
+    sid: int,
+    exp: int,
+    timestamp: datetime,
     db=Depends(get_db),
-    strike: Optional[float] = None,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
 ):
     """Get historical option data"""
     # Convert inst_id to integer since that's how it's stored in the database
     try:
-        symbol_id = int(inst_id)
+        symbol_id = int(sid)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid instrument ID")
 
     # Convert string dates to datetime if provided
-    start_date = datetime.fromisoformat(start) if start else datetime.min
-    end_date = datetime.fromisoformat(end) if end else datetime.max
+    start_date = start if start else datetime.min
+    end_date = end if end else datetime.max
 
-    # Query option contracts
-    if not start or not end:
-        raise HTTPException(status_code=400, detail="'start' and 'end' datetime values are required.")
-
-    # Optional: Debug logging
-    print(f"[DEBUG] start: {start}, end: {end}, strike: {strike}, otype: {otype}, symbol_id: {symbol_id}")
-
-    # SQLAlchemy query
-    stmt = (
+    # Try to find an exact match
+    exact_match_stmt = (
         select(OptionContract)
         .where(OptionContract.symbol_id == symbol_id)
-        .where(OptionContract.timestamp <= end_date)
-        
-        .where(OptionContract.option_type == otype.upper())
-        .order_by(OptionContract.timestamp)
+        .where(OptionContract.exp == exp)
+        .where(OptionContract.timestamp == timestamp)
     )
+    exact_match_result = await db.execute(exact_match_stmt)
+    exact_match_rows = exact_match_result.scalars().all()
 
-    result = await db.execute(stmt)
-    rows = result.scalars().all()
+    if exact_match_rows:
+        rows = exact_match_rows
+    else:
+        # If no exact match, find the nearest timestamp
+        nearest_stmt = (
+            select(OptionContract)
+            .where(OptionContract.symbol_id == symbol_id)
+            .where(OptionContract.exp == exp)
+            .order_by(func.abs(OptionContract.timestamp - timestamp))
+        )
+        nearest_result = await db.execute(nearest_stmt)
+        nearest_rows = nearest_result.scalars().all()
+        if nearest_rows:
+            rows = nearest_rows
+        else:
+            rows = []
+
 
     # Transform the data into the response format
     points = []
     for option in rows:
-        point_data = {
-            "ltp": option.ltp,
-            "volume": option.volume,
-            "oi": option.open_interest,
-            "iv": option.implied_volatility,
-            "delta": option.delta,
-            "theta": option.theta,
-            "gamma": option.gamma,
-            "vega": option.vega,
-            "rho": option.rho,
-            "price_change": option.price_change,
-            "price_change_percent": option.price_change_percent,
-            "volume_change": option.volume_change,
-            "volume_change_percent": option.volume_change_percent,
-            "oi_change": option.oi_change,
-            "oi_change_percent": option.oi_change_percent,
-        }
-        points.append(HistoricalPoint(timestamp=option.timestamp, value=point_data))
+
+        points.append(
+            HistoricalPoint(
+                timestamp=option.timestamp,
+                value={
+                    "strike_price": option.strike_price,
+                    "ce_ltp": option.ce_ltp,
+                    "pe_ltp": option.pe_ltp,
+                    "ce_open_interest": option.ce_open_interest,
+                    "pe_open_interest": option.pe_open_interest,
+                    "ce_implied_volatility": option.ce_implied_volatility,
+                    "pe_implied_volatility": option.pe_implied_volatility,
+                    "ce_delta": option.ce_delta,
+                    "pe_delta": option.pe_delta,
+                    "ce_theta": option.ce_theta,
+                    "pe_theta": option.pe_theta,
+                    "ce_gamma": option.ce_gamma,
+                    "pe_gamma": option.pe_gamma,
+                    "ce_rho": option.ce_rho,
+                    "pe_rho": option.pe_rho,
+                    "ce_vega": option.ce_vega,
+                    "pe_vega": option.pe_vega,
+                    "ce_theoretical_price": option.ce_theoretical_price,
+                    "pe_theoretical_price": option.pe_theoretical_price,
+                    "ce_vol_pcr": option.ce_vol_pcr,
+                    "pe_vol_pcr": option.pe_vol_pcr,
+                    "ce_oi_pcr": option.ce_oi_pcr,
+                    "pe_oi_pcr": option.pe_oi_pcr,
+                    "ce_max_pain_loss": option.ce_max_pain_loss,
+                    "pe_max_pain_loss": option.pe_max_pain_loss,
+                    "ce_price_change": option.ce_price_change,
+                    "pe_price_change": option.pe_price_change,
+                    "ce_price_change_percent": option.ce_price_change_percent,
+                    "pe_price_change_percent": option.pe_price_change_percent,
+                    "ce_volume": option.ce_volume,
+                    "pe_volume": option.pe_volume,
+                    "ce_volume_change": option.ce_volume_change,
+                    "pe_volume_change": option.pe_volume_change,
+                    "ce_volume_change_percent": option.ce_volume_change_percent,
+                    "pe_volume_change_percent": option.pe_volume_change_percent,
+                },
+            )
+        )
 
     return HistoricalResponse(
-        instrument_id=inst_id,
-        strike_price=strike,
-        option_type=otype.upper(),
+        sid=sid,
+        exp=str(exp),
+        timestamp=timestamp,
         points=points,
+        actual_timestamps=[str(option.timestamp) for option in rows],
     )
 
 
@@ -403,7 +434,9 @@ async def get_oidata(
     if strike_price:
         count_query = count_query.where(OptionContract.strike_price == strike_price)
     if option_type:
-        count_query = count_query.where(OptionContract.option_type == option_type.upper())
+        count_query = count_query.where(
+            OptionContract.option_type == option_type.upper()
+        )
 
     total_count = await db.execute(count_query)
 

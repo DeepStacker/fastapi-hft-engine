@@ -64,6 +64,10 @@ def extract_option_contracts(response: Dict[str, Any]) -> List[Dict[str, Any]]:
     options = []
     data = response.get("data", {})
     timestamp = datetime.utcnow()
+    s_id = data.get("s_sid", 0)
+
+    symbol_exp = data.get("explst",0)
+    symbol_exp = list(symbol_exp)[0]
 
     for strike, strike_data in data.get("oc", {}).items():
         ce_data = strike_data.get("ce", {})
@@ -71,11 +75,13 @@ def extract_option_contracts(response: Dict[str, Any]) -> List[Dict[str, Any]]:
 
         option = {
             "timestamp": timestamp,
+            "symbol_id": s_id,
+            'exp': symbol_exp,
             # CE fields
             "ce_symbol_id": ce_data.get("sid", 0),
             "ce_symbol": ce_data.get("sym", ""),
             "ce_display_symbol": ce_data.get("disp_sym", ""),
-            "ce_strike_price": float(strike),
+            "strike_price": float(strike),
             "ce_option_type": "CE",
             "ce_ltp": ce_data.get("ltp", 0),
             "ce_previous_close": ce_data.get("pc", 0),

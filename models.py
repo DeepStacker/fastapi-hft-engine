@@ -86,13 +86,17 @@ class OptionContract(Base):
     __tablename__ = "option_contracts"
 
     id = Column(Integer, primary_key=True)
-    timestamp = Column(DateTime, index=True, default=datetime.utcnow)
+    timestamp = Column(DateTime, index=True)
+
+    # Instrument ID and Segment
+    symbol_id = Column(Integer, index=True)  # sid
+    exp = Column(Integer, index=True)  # expiry
 
     # CE fields
     ce_symbol_id = Column(Integer, index=True)
-    ce_symbol = Column(String(100), index=True)
-    ce_display_symbol = Column(String(100))
-    ce_strike_price = Column(Float, index=True)
+    ce_symbol = Column(String(200), index=True)
+    ce_display_symbol = Column(String(200))
+    strike_price = Column(Float, index=True)
     ce_option_type = Column(String(2), index=True)
     ce_ltp = Column(Float)
     ce_previous_close = Column(Float)
@@ -127,7 +131,7 @@ class OptionContract(Base):
 
     # PE fields
     pe_symbol_id = Column(Integer, index=True)
-    pe_symbol = Column(String(100), index=True)
+    pe_symbol = Column(String(200), index=True)
     pe_option_type = Column(String(2), index=True)
     pe_ltp = Column(Float)
     pe_previous_close = Column(Float)
