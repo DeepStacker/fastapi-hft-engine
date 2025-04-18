@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Any
 from models import OptionContract
+from schemas import HistoricalPoint, OptionData
 
 
 def parse_timestamp(timestamp: int) -> datetime:
@@ -13,6 +14,7 @@ def extract_market_snapshot(response: Dict[str, Any]) -> Dict[str, Any]:
     # Access the nested data structure
     data = response.get("data", {})
     return {
+        "symbol_id": data.get("s_sid", 0),
         "total_oi_calls": data.get("OIC", 0),
         "total_oi_puts": data.get("OIP", 0),
         "pcr_ratio": data.get("Rto", 0),
@@ -66,7 +68,7 @@ def extract_option_contracts(response: Dict[str, Any]) -> List[Dict[str, Any]]:
     timestamp = datetime.utcnow()
     s_id = data.get("s_sid", 0)
 
-    symbol_exp = data.get("explst",0)
+    symbol_exp = data.get("explst", 0)
     symbol_exp = list(symbol_exp)[0]
 
     for strike, strike_data in data.get("oc", {}).items():
@@ -76,7 +78,7 @@ def extract_option_contracts(response: Dict[str, Any]) -> List[Dict[str, Any]]:
         option = {
             "timestamp": timestamp,
             "symbol_id": s_id,
-            'exp': symbol_exp,
+            "exp": symbol_exp,
             # CE fields
             "ce_symbol_id": ce_data.get("sid", 0),
             "ce_symbol": ce_data.get("sym", ""),
@@ -228,3 +230,39 @@ def filter_data(data: List[OptionContract]) -> Dict[str, List]:
         )
 
     return filtered_data
+
+
+def get_transformed_data(rows):
+    # Transform the data into the response format
+    points = []
+    for option in rows:
+
+        points.append(
+            HistoricalPoint(
+                timestamp=option.timestamp,
+                value={
+                    str(option.strike_price): OptionData(
+                        ce_ltp=float(option.ce_ltp),
+                        pe_ltp=float(option.pe_ltp),
+                        ce_open_interest=int(option.ce_open_interest),
+                        pe_open_interest=int(option.pe_open_interest),
+                        ce_implied_volatility=float(option.ce_implied_volatility),
+                        pe_implied_volatility=float(option.pe_implied_volatility),
+                        ce_delta=float(option.ce_delta),
+                        pe_delta=float(option.pe_delta),
+                        ce_theoretical_price=float(option.ce_theoretical_price),
+                        pe_theoretical_price=float(option.pe_theoretical_price),
+                        ce_vol_pcr=float(option.ce_vol_pcr),
+                        pe_oi_pcr=float(option.pe_oi_pcr),
+                        ce_price_change=float(option.ce_price_change),
+                        pe_price_change=float(option.pe_price_change),
+                        ce_price_change_percent=float(option.ce_price_change_percent),
+                        pe_price_change_percent=float(option.pe_price_change_percent),
+                        ce_volume=int(option.ce_volume),
+                        pe_volume=int(option.pe_volume),
+                    ),
+                },
+            )
+        )
+
+    return points

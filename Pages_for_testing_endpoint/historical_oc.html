@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dynamic Option Chain Viewer</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f7fc;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+
+    h2 {
+      text-align: center;
+      color: #4A90E2;
+      margin-bottom: 10px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      min-width: 200px;
+    }
+
+    label {
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: #555;
+    }
+
+    input,
+    select {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    button {
+      background-color: #4A90E2;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      align-self: flex-end;
+    }
+
+    button:hover {
+      background-color: #3a7bc8;
+    }
+
+    .table-container {
+      max-height: 70vh;
+      overflow-x: auto;
+      overflow-y: auto;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      background-color: #fff;
+      border-radius: 6px;
+      padding: 10px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 1000px;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      background-color: #4A90E2;
+      color: white;
+      font-weight: 700;
+      padding: 10px 8px;
+      font-size: 14px;
+      border: 1px solid #3a78d8;
+      z-index: 10;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 10px 8px;
+      border: 1px solid #e0e0e0;
+      font-size: 13px;
+      text-align: center;
+      vertical-align: middle;
+      white-space: nowrap;
+      background-color: #fafafa;
+    }
+
+    tbody tr:nth-child(even) td {
+      background-color: #f9f9f9;
+    }
+
+    tbody tr:hover td {
+      background-color: #e6f0ff;
+    }
+
+    .ce-col,
+    .pe-col {
+      width: 11%;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .strike-price-col {
+      width: 12%;
+      font-weight: 700;
+      font-size: 14px;
+      color: #2c3e50;
+      line-height: 1.3;
+    }
+
+    .price-change-positive {
+      color: #27ae60;
+      font-weight: 700;
+    }
+
+    .price-change-negative {
+      color: #c0392b;
+      font-weight: 700;
+    }
+
+    .pcr {
+      font-weight: 700;
+      color: #e67e22;
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
+    }
+
+    .iv-delta {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.3;
+      font-size: 12px;
+      color: #555;
+    }
+
+    .iv-delta span:first-child {
+      font-weight: 700;
+      color: #4A90E2;
+    }
+
+    .iv-delta span:last-child {
+      font-weight: 600;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    .ltp-change {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.3;
+      font-size: 12px;
+    }
+
+    .ltp-change span:first-child {
+      font-weight: 700;
+      color: #2c3e50;
+    }
+
+    .ltp-change span:last-child {
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    @media (max-width: 768px) {
+      table {
+        font-size: 12px;
+      }
+
+      .controls {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Option Chain Table</h2>
+
+  <!-- Dynamic Controls -->
+  <div class="controls">
+    <div class="control-group">
+      <label for="symbol">Stock ID</label>
+      <input type="text" id="symbol" placeholder="e.g. 13" value="13">
+    </div>
+
+    <div class="control-group">
+      <label for="expiry">Expiry (Unix Timestamp)</label>
+      <input type="text" id="expiry" placeholder="e.g. 1429900200" value="1429900200">
+    </div>
+
+    <div class="control-group">
+      <label for="timestamp">Timestamp (ISO Format)</label>
+      <input type="text" id="timestamp" placeholder="e.g. 2024-04-18T11:46:52Z" value="2024-04-18T11:46:52Z">
+    </div>
+
+    <button id="fetch-btn">Fetch Data</button>
+  </div>
+
+  <div class="table-container">
+    <table id="option-chain-table" aria-label="Option Chain Table">
+      <thead>
+        <tr>
+          <th class="ce-col">CE IV / Delta</th>
+          <th class="ce-col">CE Open Interest</th>
+          <th class="ce-col">CE Volume</th>
+          <th class="ce-col">CE LTP / Chng</th>
+          <th class="strike-price-col">Strike Price / PCR (OI)</th>
+          <th class="pe-col">PE LTP / Chng</th>
+          <th class="pe-col">PE Volume</th>
+          <th class="pe-col">PE Open Interest</th>
+          <th class="pe-col">PE IV / Delta</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    // DOM Elements
+    const fetchBtn = document.getElementById('fetch-btn');
+    const symbolInput = document.getElementById('symbol');
+    const expiryInput = document.getElementById('expiry');
+    const timestampInput = document.getElementById('timestamp');
+
+    // Fetch data on button click
+    fetchBtn.addEventListener('click', () => {
+      const symbol = symbolInput.value.trim();
+      const expiry = expiryInput.value.trim();
+      const timestamp = timestampInput.value.trim();
+
+      if (!symbol || !expiry || !timestamp) {
+        alert('Please fill all fields');
+        return;
+      }
+
+      fetchOptionChainData(symbol, expiry, timestamp);
+    });
+
+    // Modified fetch function
+    function fetchOptionChainData(symbol, expiry, timestamp) {
+      const apiUrl = `http://localhost:8000/historical/${symbol}/${expiry}/${timestamp}`;
+
+      document.querySelector("#option-chain-table tbody").innerHTML =
+        `<tr><td colspan="9" style="text-align:center; padding:20px;">Loading data...</td></tr>`;
+
+      fetch(apiUrl)
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          return response.json();
+        })
+        .then(data => renderOptionChainTable(data))
+        .catch(error => {
+          console.error("Error fetching data:", error);
+          document.querySelector("#option-chain-table tbody").innerHTML =
+            `<tr><td colspan="9" style="color:red; text-align:center;">Error: ${error.message}</td></tr>`;
+        });
+    }
+
+    // Round helper
+    function roundToTwo(value) {
+      if (value === null || value === undefined || value === 0) return '-';
+      if (typeof value === "string" && value.trim() === "") return '-';
+      return Number(value).toFixed(2);
+    }
+
+    // Render table rows
+    function renderOptionChainTable(data) {
+      const tableBody = document.querySelector("#option-chain-table tbody");
+      const points = data.points;
+      tableBody.innerHTML = '';
+
+      points.forEach(point => {
+        const values = point.value;
+
+        for (let strikePrice in values) {
+          if (!values.hasOwnProperty(strikePrice)) continue;
+
+          const optionData = values[strikePrice];
+
+          // PCR (Put-Call Ratio)
+          const pcr = optionData.pe_oi_pcr ? roundToTwo(optionData.pe_oi_pcr) : '-';
+
+          // Price change classes
+          const cePriceChangeClass =
+            optionData.ce_price_change > 0
+              ? 'price-change-positive'
+              : optionData.ce_price_change < 0
+                ? 'price-change-negative'
+                : '';
+
+          const pePriceChangeClass =
+            optionData.pe_price_change > 0
+              ? 'price-change-positive'
+              : optionData.pe_price_change < 0
+                ? 'price-change-negative'
+                : '';
+
+          const row = document.createElement('tr');
+
+          row.innerHTML = `
+            <!-- CE Columns -->
+            <td class="ce-col">
+              <div class="iv-delta">
+                <span>IV: ${roundToTwo(optionData.ce_implied_volatility)}</span>
+                <span>Δ: ${roundToTwo(optionData.ce_delta)}</span>
+              </div>
+            </td>
+            <td class="ce-col">${roundToTwo(optionData.ce_open_interest)}</td>
+            <td class="ce-col">${roundToTwo(optionData.ce_volume)}</td>
+            <td class="ce-col">
+              <div class="ltp-change">
+                <span>LTP: ${roundToTwo(optionData.ce_ltp)}</span>
+                <span class="${cePriceChangeClass}">Chg: ${roundToTwo(optionData.ce_price_change)}</span>
+              </div>
+            </td>
+
+            <!-- Strike Price and PCR -->
+            <td class="strike-price-col">
+              ${strikePrice}
+              <span class="pcr">PCR: ${pcr}</span>
+            </td>
+
+            <!-- PE Columns -->
+            <td class="pe-col">
+              <div class="ltp-change">
+                <span>LTP: ${roundToTwo(optionData.pe_ltp)}</span>
+                <span class="${pePriceChangeClass}">Chg: ${roundToTwo(optionData.pe_price_change)}</span>
+              </div>
+            </td>
+            <td class="pe-col">${roundToTwo(optionData.pe_volume)}</td>
+                        <td class="pe-col">${roundToTwo(optionData.pe_open_interest)}</td>
+            <td class="pe-col">
+              <div class="iv-delta">
+                <span>IV: ${roundToTwo(optionData.pe_implied_volatility)}</span>
+                <span>Δ: ${roundToTwo(optionData.pe_delta)}</span>
+              </div>
+            </td>
+          `;
+
+          tableBody.appendChild(row);
+        }
+      });
+    }
+
+    // Initialize with default values
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchOptionChainData(
+        symbolInput.value.trim(),
+        expiryInput.value.trim(),
+        timestampInput.value.trim()
+      );
+    });
+  </script>
+</body>
+
+</html>

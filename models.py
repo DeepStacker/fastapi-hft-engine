@@ -42,6 +42,7 @@ class MarketSnapshot(Base):
 
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, index=True, default=datetime.utcnow)
+    symbol_id = Column(Integer, index=True)  # sid
     total_oi_calls = Column(Integer)  # OIC
     total_oi_puts = Column(Integer)  # OIP
     pcr_ratio = Column(Float)  # Rto

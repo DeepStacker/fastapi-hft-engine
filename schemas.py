@@ -8,9 +8,29 @@ class SnapshotIn(BaseModel):
     data: Dict[str, Any]
 
 
+class OptionData(BaseModel):
+    ce_ltp: float
+    pe_ltp: float
+    ce_open_interest: int
+    pe_open_interest: int
+    ce_implied_volatility: float
+    pe_implied_volatility: float
+    ce_delta: float
+    pe_delta: float
+    ce_theoretical_price: float
+    pe_theoretical_price: float
+    ce_vol_pcr: float
+    pe_oi_pcr: float
+    ce_price_change: float
+    pe_price_change: float
+    ce_price_change_percent: float
+    pe_price_change_percent: float
+    ce_volume: int
+    pe_volume: int
+
 class HistoricalPoint(BaseModel):
     timestamp: datetime
-    value: Dict[str, Union[float, int]]
+    value: Dict[str, OptionData]
 
 
 class HistoricalResponse(BaseModel):

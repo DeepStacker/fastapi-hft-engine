@@ -10,17 +10,16 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from db import get_db
-from schemas import SnapshotIn, HistoricalResponse, HistoricalPoint
+from schemas import SnapshotIn, HistoricalResponse, HistoricalPoint, OptionData
 from models import MarketSnapshot, FutureContract, OptionContract, OptionSnapshot
-from utils import filter_data
+from utils import filter_data, get_transformed_data
 from sqlalchemy.future import select
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, literal_column, cast, DateTime
 from ingest import ingest_loop
 from websocket import manager, redis_subscriber
 from redis_cache import get_latest
 from datetime import datetime
 from typing import List, Optional, Dict
-
 from datetime import datetime, time
 import pytz
 
@@ -34,7 +33,7 @@ app = FastAPI()
 # Allow requests from your frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development only. Use specific origins in production.
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,7 +57,7 @@ async def startup():
     morning_end = time(9, 7)
 
     day_start = time(9, 14)
-    day_end = time(23, 31)
+    day_end = time(15, 31)
 
     if (morning_start <= now <= morning_end) or (day_start <= now <= day_end):
         asyncio.create_task(ingest_loop())
@@ -120,109 +119,74 @@ async def historical(
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
 ):
-    """Get historical option data"""
-    # Convert inst_id to integer since that's how it's stored in the database
     try:
         symbol_id = int(sid)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid instrument ID")
 
-    # Convert string dates to datetime if provided
     start_date = start if start else datetime.min
     end_date = end if end else datetime.max
 
-    # Try to find an exact match
-    exact_match_stmt = (
+    # Step 1: Try exact timestamp match
+    exact_stmt = (
         select(OptionContract)
         .where(OptionContract.symbol_id == symbol_id)
         .where(OptionContract.exp == exp)
         .where(OptionContract.timestamp == timestamp)
     )
-    exact_match_result = await db.execute(exact_match_stmt)
-    exact_match_rows = exact_match_result.scalars().all()
+    exact_result = await db.execute(exact_stmt)
+    rows = exact_result.scalars().all()
 
-    if exact_match_rows:
-        rows = exact_match_rows
-    else:
-        # If no exact match, find the nearest timestamp
-        nearest_stmt = (
-            select(OptionContract)
+    if not rows:
+        # Step 2: Find nearest timestamp (just the timestamp)
+        nearest_ts_stmt = (
+            select(OptionContract.timestamp)
             .where(OptionContract.symbol_id == symbol_id)
             .where(OptionContract.exp == exp)
-            .order_by(func.abs(OptionContract.timestamp - timestamp))
+            .where(OptionContract.timestamp >= start_date)
+            .where(OptionContract.timestamp <= end_date)
+            .order_by(
+                func.abs(
+                    cast(OptionContract.timestamp, DateTime) - cast(timestamp, DateTime)
+                )
+            )
+            .limit(1)
         )
-        nearest_result = await db.execute(nearest_stmt)
-        nearest_rows = nearest_result.scalars().all()
-        if nearest_rows:
-            rows = nearest_rows
+        nearest_ts_result = await db.execute(nearest_ts_stmt)
+        nearest_ts = nearest_ts_result.scalar_one_or_none()
+
+        if nearest_ts:
+            # Step 3: Fetch all rows for that nearest timestamp
+            all_at_nearest_stmt = (
+                select(OptionContract)
+                .where(OptionContract.symbol_id == symbol_id)
+                .where(OptionContract.exp == exp)
+                .where(OptionContract.timestamp == nearest_ts)
+            )
+            all_at_nearest_result = await db.execute(all_at_nearest_stmt)
+            rows = all_at_nearest_result.scalars().all()
         else:
             rows = []
-
-
-    # Transform the data into the response format
-    points = []
-    for option in rows:
-
-        points.append(
-            HistoricalPoint(
-                timestamp=option.timestamp,
-                value={
-                    "strike_price": option.strike_price,
-                    "ce_ltp": option.ce_ltp,
-                    "pe_ltp": option.pe_ltp,
-                    "ce_open_interest": option.ce_open_interest,
-                    "pe_open_interest": option.pe_open_interest,
-                    "ce_implied_volatility": option.ce_implied_volatility,
-                    "pe_implied_volatility": option.pe_implied_volatility,
-                    "ce_delta": option.ce_delta,
-                    "pe_delta": option.pe_delta,
-                    "ce_theta": option.ce_theta,
-                    "pe_theta": option.pe_theta,
-                    "ce_gamma": option.ce_gamma,
-                    "pe_gamma": option.pe_gamma,
-                    "ce_rho": option.ce_rho,
-                    "pe_rho": option.pe_rho,
-                    "ce_vega": option.ce_vega,
-                    "pe_vega": option.pe_vega,
-                    "ce_theoretical_price": option.ce_theoretical_price,
-                    "pe_theoretical_price": option.pe_theoretical_price,
-                    "ce_vol_pcr": option.ce_vol_pcr,
-                    "pe_vol_pcr": option.pe_vol_pcr,
-                    "ce_oi_pcr": option.ce_oi_pcr,
-                    "pe_oi_pcr": option.pe_oi_pcr,
-                    "ce_max_pain_loss": option.ce_max_pain_loss,
-                    "pe_max_pain_loss": option.pe_max_pain_loss,
-                    "ce_price_change": option.ce_price_change,
-                    "pe_price_change": option.pe_price_change,
-                    "ce_price_change_percent": option.ce_price_change_percent,
-                    "pe_price_change_percent": option.pe_price_change_percent,
-                    "ce_volume": option.ce_volume,
-                    "pe_volume": option.pe_volume,
-                    "ce_volume_change": option.ce_volume_change,
-                    "pe_volume_change": option.pe_volume_change,
-                    "ce_volume_change_percent": option.ce_volume_change_percent,
-                    "pe_volume_change_percent": option.pe_volume_change_percent,
-                },
-            )
-        )
 
     return HistoricalResponse(
         sid=sid,
         exp=str(exp),
         timestamp=timestamp,
-        points=points,
+        points=get_transformed_data(rows),
         actual_timestamps=[str(option.timestamp) for option in rows],
     )
 
 
 @app.get("/market-snapshot/{inst_id}")
 async def get_market_snapshot(
-    inst_id: str,
+    inst_id: int,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     db=Depends(get_db),
 ):
     stmt = select(MarketSnapshot)
+    if inst_id:
+        stmt = stmt.where(MarketSnapshot.symbol_id == inst_id)
     if start:
         stmt = stmt.where(MarketSnapshot.timestamp >= start)
     if end:
