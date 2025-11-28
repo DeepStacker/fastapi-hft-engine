@@ -12,8 +12,8 @@ from datetime import datetime
 import logging
 
 # Generated from protobuf
-import stockify_pb2
-import stockify_pb2_grpc
+from core.grpc_server import stockify_pb2
+from core.grpc_server import stockify_pb2_grpc
 
 from core.config.settings import get_settings
 from core.database.db import async_session_factory

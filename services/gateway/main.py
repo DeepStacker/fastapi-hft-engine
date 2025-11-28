@@ -93,6 +93,22 @@ except ImportError:
     pass
 
 
+@app.get("/admin/dashboard")
+async def admin_dashboard():
+    """Serve the admin dashboard HTML"""
+    from fastapi.responses import HTMLResponse
+    import os
+    
+    # Read the dashboard HTML file
+    dashboard_path = os.path.join("services", "admin", "dashboard.html")
+    try:
+        with open(dashboard_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Dashboard file not found")
+
+
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint"""

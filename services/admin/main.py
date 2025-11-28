@@ -17,8 +17,12 @@ from services.gateway.auth import get_current_admin_user
 from core.database.db import async_session_factory
 from core.database.models import (
     UserDB, AuditLogDB, APIKeyDB, InstrumentDB,
-    MarketSnapshotDB, OptionContractDB
+    MarketSnapshotDB, OptionContractDB, SystemConfigDB, AlertRuleDB
 )
+import redis.asyncio as redis
+
+# Redis client for Pub/Sub
+redis_pubsub_client: redis.Redis = None
 
 # Pydantic models
 class SystemStats(BaseModel):
@@ -75,6 +79,16 @@ admin_app = FastAPI(
     version="1.0.0"
 )
 
+# Add CORS
+from fastapi.middleware.cors import CORSMiddleware
+admin_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # ==================== SYSTEM MONITORING ====================
 
@@ -90,21 +104,23 @@ async def get_system_stats(admin = Depends(get_current_admin_user)):
     memory = psutil.virtual_memory().percent
     disk = psutil.disk_usage('/').percent
     
-    # Get active WebSocket connections
-    from services.gateway.websocket_manager import manager
-    active_connections = len(manager.active_connections)
+    # Get active WebSocket connections (Mocked for now as we can't access Gateway memory)
+    active_connections = 0
     
     # Get cache hit rate from Redis
     import redis.asyncio as redis
-    redis_client = await redis.from_url("redis://localhost:6379")
-    info = await redis_client.info("stats")
-    hits = info.get("keyspace_hits", 0)
-    misses = info.get("keyspace_misses", 0)
-    cache_hit_rate = (hits / (hits + misses) * 100) if (hits + misses) > 0 else 0
+    try:
+        redis_client = await redis.from_url("redis://redis:6379")
+        info = await redis_client.info("stats")
+        hits = info.get("keyspace_hits", 0)
+        misses = info.get("keyspace_misses", 0)
+        cache_hit_rate = (hits / (hits + misses) * 100) if (hits + misses) > 0 else 0
+        await redis_client.close()
+    except Exception:
+        cache_hit_rate = 0
     
     # Calculate uptime
-    with open("/proc/uptime", "r") as f:
-        uptime_seconds = int(float(f.read().split()[0]))
+    uptime_seconds = int(time.time() - psutil.boot_time())
     
     return {
         "cpu_percent": cpu,
@@ -199,39 +215,72 @@ async def logs_stream(admin = Depends(get_current_admin_user)):
 
 # ==================== ALERT MANAGEMENT ====================
 
-# In-memory store (in production, use database)
-alerts_store = []
-
 @admin_app.get("/alerts", response_model=List[AlertRule])
 async def get_alerts(admin = Depends(get_current_admin_user)):
     """Get all alert rules"""
-    return alerts_store
+    async with async_session_factory() as session:
+        result = await session.execute(select(AlertRuleDB))
+        alerts = result.scalars().all()
+        return alerts
 
 
 @admin_app.post("/alerts", response_model=AlertRule)
 async def create_alert(alert: AlertRule, admin = Depends(get_current_admin_user)):
     """Create new alert rule"""
-    alert.id = len(alerts_store) + 1
-    alerts_store.append(alert)
-    return alert
+    async with async_session_factory() as session:
+        db_alert = AlertRuleDB(
+            name=alert.name,
+            metric=alert.metric if hasattr(alert, 'metric') else "cpu", # Default or from model
+            condition=alert.condition,
+            threshold=alert.threshold,
+            severity=alert.severity,
+            enabled=alert.enabled,
+            notification_channels=alert.notification_channels,
+            created_by=admin.username
+        )
+        session.add(db_alert)
+        await session.commit()
+        await session.refresh(db_alert)
+        return db_alert
 
 
 @admin_app.put("/alerts/{alert_id}")
 async def update_alert(alert_id: int, alert: AlertRule, admin = Depends(get_current_admin_user)):
     """Update alert rule"""
-    for i, a in enumerate(alerts_store):
-        if a.id == alert_id:
-            alerts_store[i] = alert
-            return alert
-    raise HTTPException(status_code=404, detail="Alert not found")
+    async with async_session_factory() as session:
+        stmt = select(AlertRuleDB).where(AlertRuleDB.id == alert_id)
+        result = await session.execute(stmt)
+        db_alert = result.scalar_one_or_none()
+        
+        if not db_alert:
+            raise HTTPException(status_code=404, detail="Alert not found")
+            
+        db_alert.name = alert.name
+        db_alert.condition = alert.condition
+        db_alert.threshold = alert.threshold
+        db_alert.severity = alert.severity
+        db_alert.enabled = alert.enabled
+        db_alert.notification_channels = alert.notification_channels
+        
+        await session.commit()
+        await session.refresh(db_alert)
+        return db_alert
 
 
 @admin_app.delete("/alerts/{alert_id}")
 async def delete_alert(alert_id: int, admin = Depends(get_current_admin_user)):
     """Delete alert rule"""
-    global alerts_store
-    alerts_store = [a for a in alerts_store if a.id != alert_id]
-    return {"message": "Alert deleted"}
+    async with async_session_factory() as session:
+        stmt = select(AlertRuleDB).where(AlertRuleDB.id == alert_id)
+        result = await session.execute(stmt)
+        db_alert = result.scalar_one_or_none()
+        
+        if not db_alert:
+            raise HTTPException(status_code=404, detail="Alert not found")
+            
+        await session.delete(db_alert)
+        await session.commit()
+        return {"message": "Alert deleted"}
 
 
 # ==================== API ANALYTICS ====================
@@ -316,39 +365,63 @@ async def get_user_analytics(admin = Depends(get_current_admin_user)):
 @admin_app.get("/services", response_model=List[ServiceStatus])
 async def get_services(admin = Depends(get_current_admin_user)):
     """Get all service statuses"""
-    import subprocess
+    import aiodocker
     
-    services = ["gateway", "ingestion", "processor", "storage", "realtime"]
+    services = ["gateway", "ingestion", "processor", "storage", "realtime", "admin", "timescaledb", "redis", "kafka", "zookeeper"]
     statuses = []
     
-    for service in services:
-        try:
-            # Check if service is running (simplified)
-            result = subprocess.run(
-                ["docker", "ps", "--filter", f"name=stockify-{service}", "--format", "{{.Status}}"],
-                capture_output=True,
-                text=True
-            )
-            
-            status = "running" if "Up" in result.stdout else "stopped"
-            
-            statuses.append({
-                "name": service,
-                "status": status,
-                "uptime": 3600,  # Placeholder
-                "cpu_percent": 0,
-                "memory_mb": 0,
-                "restart_count": 0
-            })
-        except Exception:
-            statuses.append({
-                "name": service,
-                "status": "error",
-                "uptime": 0,
-                "cpu_percent": 0,
-                "memory_mb": 0,
-                "restart_count": 0
-            })
+    async with aiodocker.Docker() as docker:
+        for service in services:
+            try:
+                # Find container by name
+                container_name = f"stockify-{service}"
+                try:
+                    container = await docker.containers.get(container_name)
+                    info = await container.show()
+                    
+                    state = info.get("State", {})
+                    status = "running" if state.get("Running") else "stopped"
+                    started_at = state.get("StartedAt")
+                    
+                    # Calculate uptime
+                    uptime = 0
+                    if started_at and status == "running":
+                        try:
+                            # Parse Docker timestamp (ISO 8601)
+                            start_dt = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+                            uptime = int((datetime.now(start_dt.tzinfo) - start_dt).total_seconds())
+                        except Exception:
+                            pass
+                            
+                    # Get stats (simplified, just placeholder for now as stats() is a stream)
+                    # For real stats we'd need to stream briefly or use a separate collector
+                    
+                    statuses.append({
+                        "name": service,
+                        "status": status,
+                        "uptime": uptime,
+                        "cpu_percent": 0, # Requires stats stream
+                        "memory_mb": 0,   # Requires stats stream
+                        "restart_count": info.get("RestartCount", 0)
+                    })
+                except aiodocker.exceptions.DockerError:
+                     statuses.append({
+                        "name": service,
+                        "status": "stopped", # Not found means stopped/not created
+                        "uptime": 0,
+                        "cpu_percent": 0,
+                        "memory_mb": 0,
+                        "restart_count": 0
+                    })
+            except Exception as e:
+                statuses.append({
+                    "name": service,
+                    "status": "error",
+                    "uptime": 0,
+                    "cpu_percent": 0,
+                    "memory_mb": 0,
+                    "restart_count": 0
+                })
     
     return statuses
 
@@ -356,16 +429,16 @@ async def get_services(admin = Depends(get_current_admin_user)):
 @admin_app.post("/services/{service_name}/restart")
 async def restart_service(service_name: str, admin = Depends(get_current_admin_user)):
     """Restart a service"""
-    import subprocess
+    import aiodocker
     
-    try:
-        subprocess.run(
-            ["docker", "restart", f"stockify-{service_name}"],
-            check=True
-        )
-        return {"message": f"Service {service_name} restarted successfully"}
-    except subprocess.CalledProcessError:
-        raise HTTPException(status_code=500, detail="Failed to restart service")
+    async with aiodocker.Docker() as docker:
+        try:
+            container_name = f"stockify-{service_name}"
+            container = await docker.containers.get(container_name)
+            await container.restart()
+            return {"message": f"Service {service_name} restarted successfully"}
+        except aiodocker.exceptions.DockerError as e:
+            raise HTTPException(status_code=500, detail=f"Failed to restart service: {str(e)}")
 
 
 # ==================== DATABASE MANAGEMENT ====================
@@ -494,26 +567,22 @@ async def toggle_user_status(user_id: int, admin = Depends(get_current_admin_use
 
 # ==================== CONFIGURATION ====================
 
-# In-memory config store (in production, use database)
-config_store = {
-    "max_websocket_connections": {"value": "10", "category": "performance", "requires_restart": True},
-    "cache_ttl_seconds": {"value": "60", "category": "caching", "requires_restart": False},
-    "rate_limit_per_minute": {"value": "100", "category": "security", "requires_restart": False},
-}
-
 @admin_app.get("/config", response_model=List[ConfigItem])
 async def get_config(admin = Depends(get_current_admin_user)):
     """Get all configuration items"""
-    return [
-        {
-            "key": k,
-            "value": v["value"],
-            "description": f"Configuration for {k}",
-            "category": v["category"],
-            "requires_restart": v["requires_restart"]
-        }
-        for k, v in config_store.items()
-    ]
+    async with async_session_factory() as session:
+        result = await session.execute(select(SystemConfigDB))
+        configs = result.scalars().all()
+        return [
+            {
+                "key": c.key,
+                "value": c.value,
+                "description": c.description or "",
+                "category": c.category,
+                "requires_restart": c.requires_restart
+            }
+            for c in configs
+        ]
 
 
 @admin_app.put("/config/{key}")
@@ -523,10 +592,66 @@ async def update_config(
     admin = Depends(get_current_admin_user)
 ):
     """Update configuration value"""
-    if key in config_store:
-        config_store[key]["value"] = value
-        return {"message": "Configuration updated", "requires_restart": config_store[key]["requires_restart"]}
-    raise HTTPException(status_code=404, detail="Config key not found")
+    global redis_pubsub_client
+    
+    async with async_session_factory() as session:
+        stmt = select(SystemConfigDB).where(SystemConfigDB.key == key)
+        result = await session.execute(stmt)
+        config = result.scalar_one_or_none()
+        
+        if not config:
+            # Create if not exists (upsert)
+            config = SystemConfigDB(
+                key=key,
+                value=value,
+                category="general", # Default
+                updated_by=admin.username
+            )
+            session.add(config)
+        else:
+            config.value = value
+            config.updated_by = admin.username
+            
+        await session.commit()
+        
+        # Broadcast change via Redis Pub/Sub
+        try:
+            if redis_pubsub_client:
+                message = json.dumps({"key": key, "action": "update"})
+                await redis_pubsub_client.publish("config:updates", message)
+        except Exception as e:
+            # Don't fail the update if pub/sub fails
+            pass
+        
+        return {"message": "Configuration updated", "requires_restart": config.requires_restart}
+
+
+@admin_app.on_event("startup")
+async def startup():
+    """Initialize Redis Pub/Sub on startup."""
+    global redis_pubsub_client
+    redis_pubsub_client = await redis.from_url("redis://redis:6379/0", decode_responses=True)
+
+
+
+
+@admin_app.get("/dashboard.html")
+@admin_app.get("/dashboard")
+@admin_app.get("/")
+async def serve_dashboard():
+    """Serve the admin dashboard HTML"""
+    from fastapi.responses import FileResponse
+    import os
+    dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
+    return FileResponse(dashboard_path, media_type="text/html")
+
+
+@admin_app.on_event("shutdown")
+async def shutdown():
+    """Cleanup Redis on shutdown."""
+    global redis_pubsub_client
+    if redis_pubsub_client:
+        await redis_pubsub_client.close()
 
 
 if __name__ == "__main__":

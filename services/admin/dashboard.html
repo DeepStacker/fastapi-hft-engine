@@ -8,7 +8,6 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -66,10 +65,6 @@
             overflow-y: auto;
         }
 
-        [data-theme="dark"] .sidebar {
-            background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
-        }
-
         .logo {
             font-size: 1.5rem;
             font-weight: 700;
@@ -99,7 +94,6 @@
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            font-size: 0.95rem;
         }
 
         .nav-item:hover {
@@ -107,12 +101,7 @@
         }
 
         .nav-item.active {
-            background: var(--primary);
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-        }
-
-        .nav-item i {
-            width: 18px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
         }
 
         .main-content {
@@ -127,10 +116,9 @@
             margin-bottom: 2rem;
         }
 
-        .page-title {
-            font-size: 1.875rem;
+        .header h1 {
+            font-size: 2rem;
             font-weight: 700;
-            color: var(--text);
         }
 
         .header-actions {
@@ -139,191 +127,28 @@
             align-items: center;
         }
 
-        .theme-toggle {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .theme-toggle:hover {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: var(--card-bg);
-            padding: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-            border: 1px solid var(--border);
-        }
-
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        }
-
-        .stat-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.75rem;
-        }
-
-        .stat-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-        }
-
-        .stat-icon.cpu {
-            background: rgba(99, 102, 241, 0.1);
-            color: var(--primary);
-        }
-
-        .stat-icon.memory {
-            background: rgba(139, 92, 246, 0.1);
-            color: var(--secondary);
-        }
-
-        .stat-icon.connections {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success);
-        }
-
-        .stat-icon.cache {
-            background: rgba(245, 158, 11, 0.1);
-            color: var(--warning);
-        }
-
-        .stat-label {
-            color: var(--gray);
-            font-size: 0.875rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        .stat-change {
-            font-size: 0.875rem;
-            margin-top: 0.5rem;
-        }
-
-        .stat-change.positive {
-            color: var(--success);
-        }
-
-        .stat-change.negative {
-            color: var(--danger);
-        }
-
-        .card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            border: 1px solid var(--border);
-        }
-
-        .card-header {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .table th {
-            text-align: left;
-            padding: 0.75rem;
-            background: var(--bg);
-            font-weight: 600;
-            font-size: 0.875rem;
-            color: var(--gray);
-        }
-
-        .table td {
-            padding: 0.75rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .table tr:hover {
-            background: var(--bg);
-        }
-
-        .badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-
-        .badge-success {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .badge-danger {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .badge-warning {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .badge-info {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
         .btn {
-            padding: 0.5rem 1rem;
+            padding: 0.75rem 1.5rem;
             border: none;
             border-radius: 8px;
-            cursor: pointer;
+            font-size: 1rem;
             font-weight: 500;
-            transition: all 0.2s;
-            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .btn-primary {
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
         }
 
-        .btn-primary:hover {
-            background: #4f46e5;
+        .btn-secondary {
+            background: var(--card-bg);
+            color: var(--text);
+            border: 1px solid var(--border);
         }
 
         .btn-success {
@@ -336,106 +161,135 @@
             color: white;
         }
 
-        .btn-secondary {
-            background: var(--gray);
-            color: white;
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
-        .btn-sm {
-            padding: 0.25rem 0.75rem;
-            font-size: 0.75rem;
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
         }
 
-        .log-entry {
-            padding: 0.75rem;
-            border-left: 3px solid var(--primary);
-            background: var(--bg);
-            margin-bottom: 0.5rem;
-            border-radius: 4px;
+        .card-header {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .log-entry.error {
-            border-left-color: var(--danger);
+        .grid {
+            display: grid;
+            gap: 1.5rem;
         }
 
-        .log-entry.warning {
-            border-left-color: var(--warning);
+        .grid-2 {
+            grid-template-columns: repeat(2, 1fr);
         }
 
-        .log-time {
-            font-size: 0.75rem;
+        .grid-3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+
+        .stat-label {
             color: var(--gray);
+            font-size: 0.875rem;
         }
 
-        .search-box {
-            padding: 0.75rem 1rem;
+        .stat-change {
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .badge-success {
+            background: #d1fae5;
+            color: var(--success);
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: var(--warning);
+        }
+
+        .badge-danger {
+            background: #fee2e2;
+            color: var(--danger);
+        }
+
+        .badge-info {
+            background: #dbeafe;
+            color: var(--info);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--gray);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .input-group input,
+        .input-group select,
+        .input-group textarea {
+            width: 100%;
+            padding: 0.75rem;
             border: 1px solid var(--border);
             border-radius: 8px;
-            width: 100%;
-            margin-bottom: 1rem;
+            font-size: 1rem;
             background: var(--card-bg);
             color: var(--text);
-        }
-
-        .chart-container {
-            position: relative;
-            height: 300px;
-            margin-top: 1rem;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid var(--border);
-            border-top: 3px solid var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        .service-status {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        .status-dot.running {
-            background: var(--success);
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-        }
-
-        .status-dot.stopped {
-            background: var(--danger);
-            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.5;
-            }
         }
 
         .modal {
@@ -453,8 +307,8 @@
 
         .modal-content {
             background: var(--card-bg);
-            padding: 2rem;
             border-radius: 12px;
+            padding: 2rem;
             max-width: 600px;
             width: 90%;
             max-height: 80vh;
@@ -463,90 +317,100 @@
 
         .modal-header {
             font-size: 1.5rem;
-            font-weight: 600;
+            font-weight: 700;
             margin-bottom: 1.5rem;
-            color: var(--text);
         }
 
-        .form-group {
-            margin-bottom: 1rem;
+        .modal-footer {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
         }
 
-        .form-label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            color: var(--text);
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--gray);
         }
 
-        .form-input,
-        .form-select {
-            width: 100%;
-            padding: 0.75rem;
+        .spinner {
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--card-bg);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            z-index: 1001;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        .service-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
             border: 1px solid var(--border);
             border-radius: 8px;
-            background: var(--card-bg);
-            color: var(--text);
+            margin-bottom: 0.5rem;
         }
 
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: var(--border);
-            border-radius: 4px;
-            overflow: hidden;
-            margin-top: 0.5rem;
+        .service-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
-        .progress-fill {
-            height: 100%;
-            background: var(--primary);
-            transition: width 0.3s;
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
         }
 
-        .alert {
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
+        .status-running {
+            background: var(--success);
         }
 
-        .alert-success {
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid var(--success);
-            color: var(--success);
+        .status-stopped {
+            background: var(--danger);
         }
 
-        .alert-danger {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid var(--danger);
-            color: var(--danger);
-        }
-
-        .alert-warning {
-            background: rgba(245, 158, 11, 0.1);
-            border: 1px solid var(--warning);
-            color: var(--warning);
-        }
-
-        .grid-2 {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1.5rem;
-        }
-
-        @media (max-width: 1024px) {
-            .dashboard {
-                grid-template-columns: 1fr;
-            }
-
-            .sidebar {
-                position: relative;
-                height: auto;
-            }
-
-            .grid-2 {
-                grid-template-columns: 1fr;
-            }
+        .status-error {
+            background: var(--warning);
         }
     </style>
 </head>
@@ -555,328 +419,585 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useCallback } = React;
 
-        // Theme management
-        const useTheme = () => {
-            const [theme, setTheme] = useState(
-                localStorage.getItem('theme') || 'light'
-            );
+        // API Client
+        const API_BASE = 'http://localhost:8001';
 
-            useEffect(() => {
-                document.documentElement.setAttribute('data-theme', theme);
-                localStorage.setItem('theme', theme);
-            }, [theme]);
+        headers: {
+            'Content-Type': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                        ...options.headers
+        }
+                });
+        if (!response.ok) {
+            if (response.status === 401) {
+                localStorage.removeItem('admin_token');
+                window.location.reload();
+            }
+            throw new Error(`API error: ${response.statusText}`);
+        }
+        return response.json();
+            },
 
-            const toggleTheme = () => {
-                setTheme(theme === 'light' ? 'dark' : 'light');
-            };
+        // System APIs
+        getSystemStats: () => api.request('/system/stats'),
 
-            return [theme, toggleTheme];
+            // Config APIs
+            getConfigs: () => api.request('/config'),
+                updateConfig: (key, value) => api.request(`/config/${key}?value=${encodeURIComponent(value)}`, { method: 'PUT' }),
+
+                    // Alert APIs
+                    getAlerts: () => api.request('/alerts'),
+                        createAlert: (data) => api.request('/alerts', { method: 'POST', body: JSON.stringify(data) }),
+                            updateAlert: (id, data) => api.request(`/alerts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+                                deleteAlert: (id) => api.request(`/alerts/${id}`, { method: 'DELETE' }),
+
+                                    // Service APIs
+                                    getServices: () => api.request('/services'),
+                                        restartService: (name) => api.request(`/services/${name}/restart`, { method: 'POST' })
         };
 
-        function Dashboard() {
-            const [currentPage, setCurrentPage] = useState('overview');
+        // Toast Notification Component
+        function Toast({ message, type = 'info', onClose }) {
+            useEffect(() => {
+                const timer = setTimeout(onClose, 3000);
+                return () => clearTimeout(timer);
+            }, []);
+
+            const icons = {
+                success: 'check-circle',
+                error: 'exclamation-circle',
+                info: 'info-circle',
+                warning: 'exclamation-triangle'
+            };
+
+            return (
+                <div className="toast">
+                    <i className={`fas fa-${icons[type]}`} style={{ color: `var(--${type})` }}></i>
+                    <span>{message}</span>
+                </div>
+            );
+        }
+
+        // Login Component
+        function LoginPage({ onLogin }) {
+            const [username, setUsername] = useState('admin');
+            const [password, setPassword] = useState('admin');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError('');
+                try {
+                    await api.login(username, password);
+                    onLogin();
+                } catch (err) {
+                    setError('Invalid credentials');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
+                    <div style={{ background: 'white', padding: '3rem', borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '400px' }}>
+                        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                            <div className="logo-icon" style={{ margin: '0 auto 1rem' }}>
+                                <i className="fas fa-chart-line"></i>
+                            </div>
+                            <h1 style={{ fontSize: '1.75rem', color: 'var(--dark)' }}>Stockify Admin</h1>
+                            <p style={{ color: 'var(--gray)' }}>Sign in to dashboard</p>
+                        </div>
+                        <form onSubmit={handleSubmit}>
+                            <div className="input-group">
+                                <label>Username</label>
+                                <input
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="input-group">
+                                <label>Password</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', textAlign: 'center' }}>{error}</div>}
+                            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
+                                {loading ? 'Signing in...' : 'Sign In'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // Dashboard Page
+        function DashboardPage() {
             const [stats, setStats] = useState(null);
-            const [theme, toggleTheme] = useTheme();
+            const [loading, setLoading] = useState(true);
 
             useEffect(() => {
-                // Fetch stats every 2 seconds
-                const fetchStats = async () => {
-                    try {
-                        const response = await fetch('http://localhost:8001/system/stats', {
-                            headers: {
-                                'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
-                            }
-                        });
-                        const data = await response.json();
-                        setStats(data);
-                    } catch (error) {
-                        console.error('Failed to fetch stats:', error);
-                    }
-                };
-
-                fetchStats();
-                const interval = setInterval(fetchStats, 2000);
+                loadStats();
+                const interval = setInterval(loadStats, 5000);
                 return () => clearInterval(interval);
             }, []);
 
-            const renderPage = () => {
-                switch (currentPage) {
-                    case 'overview':
-                        return <OverviewPage stats={stats} />;
-                    case 'logs':
-                        return <LogsPage />;
-                    case 'analytics':
-                        return <AnalyticsPage />;
-                    case 'services':
-                        return <ServicesPage />;
-                    case 'alerts':
-                        return <AlertsPage />;
-                    case 'backup':
-                        return <BackupPage />;
-                    case 'benchmark':
-                        return <BenchmarkPage />;
-                    case 'users':
-                        return <UsersPage />;
-                    case 'database':
-                        return <DatabasePage />;
-                    case 'config':
-                        return <ConfigPage />;
-                    default:
-                        return <OverviewPage stats={stats} />;
+            const loadStats = async () => {
+                try {
+                    const data = await api.getSystemStats();
+                    setStats(data);
+                } catch (err) {
+                    console.error('Failed to load stats:', err);
+                } finally {
+                    setLoading(false);
                 }
             };
+
+            if (loading) {
+                return <div className="loading"><div className="spinner"></div>Loading...</div>;
+            }
+
+            return (
+                <>
+                    <div className="header">
+                        <h1>Dashboard</h1>
+                    </div>
+                    <div className="grid grid-4">
+                        <div className="stat-card">
+                            <div className="stat-label">CPU Usage</div>
+                            <div className="stat-value" style={{ color: stats?.cpu_percent > 80 ? 'var(--danger)' : 'var(--primary)' }}>
+                                {stats?.cpu_percent?.toFixed(1) || 0}%
+                            </div>
+                            <div className="stat-change" style={{ color: 'var(--success)' }}>
+                                <i className="fas fa-arrow-down"></i> Normal
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-label">Memory Usage</div>
+                            <div className="stat-value" style={{ color: stats?.memory_percent > 80 ? 'var(--danger)' : 'var(--info)' }}>
+                                {stats?.memory_percent?.toFixed(1) || 0}%
+                            </div>
+                            <div className="stat-change" style={{ color: 'var(--success)' }}>
+                                <i className="fas fa-arrow-down"></i> Optimal
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-label">Disk Usage</div>
+                            <div className="stat-value" style={{ color: stats?.disk_percent > 80 ? 'var(--warning)' : 'var(--success)' }}>
+                                {stats?.disk_percent?.toFixed(1) || 0}%
+                            </div>
+                            <div className="stat-change" style={{ color: 'var(--success)' }}>
+                                <i className="fas fa-check"></i> Healthy
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-label">Cache Hit Rate</div>
+                            <div className="stat-value" style={{ color: 'var(--secondary)' }}>
+                                {stats?.cache_hit_rate?.toFixed(1) || 0}%
+                            </div>
+                            <div className="stat-change" style={{ color: 'var(--success)' }}>
+                                <i className="fas fa-arrow-up"></i> Excellent
+                            </div>
+                        </div>
+                    </div>
+                </>
+            );
+        }
+
+        // Config Page
+        function ConfigPage() {
+            const [configs, setConfigs] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [editingConfig, setEditingConfig] = useState(null);
+            const [showToast, setShowToast] = useState(null);
+
+            useEffect(() => {
+                loadConfigs();
+            }, []);
+
+            const loadConfigs = async () => {
+                try {
+                    const data = await api.getConfigs();
+                    setConfigs(data);
+                } catch (err) {
+                    setShowToast({ type: 'error', message: 'Failed to load configs' });
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleSave = async (key, value) => {
+                try {
+                    await api.updateConfig(key, value);
+                    setShowToast({ type: 'success', message: 'Config updated successfully' });
+                    setEditingConfig(null);
+                    loadConfigs();
+                } catch (err) {
+                    setShowToast({ type: 'error', message: 'Failed to update config' });
+                }
+            };
+
+            if (loading) {
+                return <div className="loading"><div className="spinner"></div>Loading...</div>;
+            }
+
+            return (
+                <>
+                    <div className="header">
+                        <h1>System Configuration</h1>
+                        <div className="header-actions">
+                            <span className="badge badge-info">{configs.length} Configurations</span>
+                        </div>
+                    </div>
+                    <div className="card">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Value</th>
+                                    <th>Category</th>
+                                    <th>Requires Restart</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {configs.map(config => (
+                                    <tr key={config.key}>
+                                        <td><strong>{config.key}</strong><br /><small style={{ color: 'var(--gray)' }}>{config.description}</small></td>
+                                        <td><code>{config.value}</code></td>
+                                        <td><span className="badge badge-info">{config.category}</span></td>
+                                        <td>{config.requires_restart ? <span className="badge badge-warning">Yes</span> : <span className="badge badge-success">No</span>}</td>
+                                        <td>
+                                            <button className="btn btn-secondary" style={{ padding: '0.5rem 1rem' }} onClick={() => setEditingConfig(config)}>
+                                                <i className="fas fa-edit"></i> Edit
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {editingConfig && (
+                        <ConfigEditModal
+                            config={editingConfig}
+                            onSave={handleSave}
+                            onClose={() => setEditingConfig(null)}
+                        />
+                    )}
+
+                    {showToast && (
+                        <Toast
+                            type={showToast.type}
+                            message={showToast.message}
+                            onClose={() => setShowToast(null)}
+                        />
+                    )}
+                </>
+            );
+        }
+
+        // Config Edit Modal
+        function ConfigEditModal({ config, onSave, onClose }) {
+            const [value, setValue] = useState(config.value);
+
+            return (
+                <div className="modal" onClick={onClose}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">Edit Configuration</div>
+                        <div className="input-group">
+                            <label>Key</label>
+                            <input type="text" value={config.key} disabled />
+                        </div>
+                        <div className="input-group">
+                            <label>Value</label>
+                            <input
+                                type="text"
+                                value={value}
+                                onChange={(e) => setValue(e.target.value)}
+                            />
+                        </div>
+                        <div className="input-group">
+                            <label>Description</label>
+                            <textarea value={config.description} disabled rows="2"></textarea>
+                        </div>
+                        {config.requires_restart && (
+                            <div style={{ background: '#fef3c7', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
+                                <strong><i className="fas fa-exclamation-triangle"></i> Warning:</strong> Changing this config requires service restart.
+                            </div>
+                        )}
+                        <div className="modal-footer">
+                            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+                            <button className="btn btn-primary" onClick={() => onSave(config.key, value)}>Save Changes</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Services Page
+        function ServicesPage() {
+            const [services, setServices] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [showToast, setShowToast] = useState(null);
+
+            useEffect(() => {
+                loadServices();
+                const interval = setInterval(loadServices, 5000);
+                return () => clearInterval(interval);
+            }, []);
+
+            const loadServices = async () => {
+                try {
+                    const data = await api.getServices();
+                    setServices(data);
+                } catch (err) {
+                    console.error('Failed to load services:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleRestart = async (name) => {
+                try {
+                    await api.restartService(name);
+                    setShowToast({ type: 'success', message: `Service ${name} restarted` });
+                    setTimeout(loadServices, 2000);
+                } catch (err) {
+                    setShowToast({ type: 'error', message: `Failed to restart ${name}` });
+                }
+            };
+
+            if (loading) {
+                return <div className="loading"><div className="spinner"></div>Loading...</div>;
+            }
+
+            return (
+                <>
+                    <div className="header">
+                        <h1>Services</h1>
+                        <div className="header-actions">
+                            <span className="badge badge-success">{services.filter(s => s.status === 'running').length} Running</span>
+                            <span className="badge badge-danger">{services.filter(s => s.status !== 'running').length} Stopped</span>
+                        </div>
+                    </div>
+                    <div className="grid grid-2">
+                        {services.map(service => (
+                            <div key={service.name} className="service-card">
+                                <div>
+                                    <div className="service-status">
+                                        <div className={`status-dot status-${service.status}`}></div>
+                                        <strong>{service.name}</strong>
+                                    </div>
+                                    <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--gray)' }}>
+                                        Status: <span style={{ textTransform: 'capitalize' }}>{service.status}</span>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button
+                                        className="btn btn-primary"
+                                        style={{ padding: '0.5rem 1rem' }}
+                                        onClick={() => handleRestart(service.name)}
+                                    >
+                                        <i className="fas fa-sync-alt"></i> Restart
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {showToast && (
+                        <Toast
+                            type={showToast.type}
+                            message={showToast.message}
+                            onClose={() => setShowToast(null)}
+                        />
+                    )}
+                </>
+            );
+        }
+
+        // Alerts Page
+        function AlertsPage() {
+            const [alerts, setAlerts] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [showModal, setShowModal] = useState(false);
+            const [showToast, setShowToast] = useState(null);
+
+            useEffect(() => {
+                loadAlerts();
+            }, []);
+
+            const loadAlerts = async () => {
+                try {
+                    const data = await api.getAlerts();
+                    setAlerts(data);
+                } catch (err) {
+                    setShowToast({ type: 'error', message: 'Failed to load alerts' });
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleDelete = async (id) => {
+                if (!confirm('Delete this alert rule?')) return;
+                try {
+                    await api.deleteAlert(id);
+                    setShowToast({ type: 'success', message: 'Alert deleted' });
+                    loadAlerts();
+                } catch (err) {
+                    setShowToast({ type: 'error', message: 'Failed to delete alert' });
+                }
+            };
+
+            if (loading) {
+                return <div className="loading"><div className="spinner"></div>Loading...</div>;
+            }
+
+            return (
+                <>
+                    <div className="header">
+                        <h1>Alert Rules</h1>
+                        <div className="header-actions">
+                            <span className="badge badge-success">{alerts.filter(a => a.enabled).length} Active</span>
+                            <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                                <i className="fas fa-plus"></i> New Alert
+                            </button>
+                        </div>
+                    </div>
+                    <div className="card">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Metric</th>
+                                    <th>Condition</th>
+                                    <th>Severity</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {alerts.map(alert => (
+                                    <tr key={alert.id}>
+                                        <td><strong>{alert.name}</strong></td>
+                                        <td>{alert.metric}</td>
+                                        <td>{alert.condition} {alert.threshold}</td>
+                                        <td><span className={`badge badge-${alert.severity === 'critical' ? 'danger' : 'warning'}`}>{alert.severity}</span></td>
+                                        <td>{alert.enabled ? <span className="badge badge-success">Enabled</span> : <span className="badge badge-secondary">Disabled</span>}</td>
+                                        <td>
+                                            <button className="btn btn-danger" style={{ padding: '0.5rem 1rem' }} onClick={() => handleDelete(alert.id)}>
+                                                <i className="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {showToast && (
+                        <Toast
+                            type={showToast.type}
+                            message={showToast.message}
+                            onClose={() => setShowToast(null)}
+                        />
+                    )}
+                </>
+            );
+        }
+
+        // Main App
+        function App() {
+            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [currentSection, setCurrentSection] = useState('dashboard');
+            const [theme, setTheme] = useState('light');
+
+            useEffect(() => {
+                // Check if already logged in
+                if (api.getToken()) {
+                    setIsAuthenticated(true);
+                }
+
+                // Load theme
+                const savedTheme = localStorage.getItem('theme') || 'light';
+                setTheme(savedTheme);
+                document.documentElement.setAttribute('data-theme', savedTheme);
+            }, []);
+
+            const toggleTheme = () => {
+                const newTheme = theme === 'light' ? 'dark' : 'light';
+                setTheme(newTheme);
+                localStorage.setItem('theme', newTheme);
+                document.documentElement.setAttribute('data-theme', newTheme);
+            };
+
+            const handleLogout = () => {
+                localStorage.removeItem('admin_token');
+                setIsAuthenticated(false);
+            };
+
+            if (!isAuthenticated) {
+                return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+            }
+
+            const navItems = [
+                { id: 'dashboard', label: 'Dashboard', icon: 'tachometer-alt' },
+                { id: 'config', label: 'Configuration', icon: 'cog' },
+                { id: 'services', label: 'Services', icon: 'server' },
+                { id: 'alerts', label: 'Alerts', icon: 'bell' },
+            ];
 
             return (
                 <div className="dashboard">
                     <div className="sidebar">
                         <div className="logo">
-                            <div className="logo-icon">📊</div>
-                            <span>Stockify Admin</span>
+                            <div className="logo-icon">
+                                <i className="fas fa-chart-line"></i>
+                            </div>
+                            <span>Stockify</span>
                         </div>
-                        <nav>
-                            <div className={`nav-item ${currentPage === 'overview' ? 'active' : ''}`} onClick={() => setCurrentPage('overview')}>
-                                <i className="fas fa-home"></i> Overview
+                        {navItems.map(item => (
+                            <div
+                                key={item.id}
+                                className={`nav-item ${currentSection === item.id ? 'active' : ''}`}
+                                onClick={() => setCurrentSection(item.id)}
+                            >
+                                <i className={`fas fa-${item.icon}`}></i>
+                                <span>{item.label}</span>
                             </div>
-                            <div className={`nav-item ${currentPage === 'services' ? 'active' : ''}`} onClick={() => setCurrentPage('services')}>
-                                <i className="fas fa-cogs"></i> Services
+                        ))}
+                        <div style={{ marginTop: 'auto', paddingTop: '2rem' }}>
+                            <div className="nav-item" onClick={toggleTheme}>
+                                <i className={`fas fa-${theme === 'light' ? 'moon' : 'sun'}`}></i>
+                                <span>Theme</span>
                             </div>
-                            <div className={`nav-item ${currentPage === 'logs' ? 'active' : ''}`} onClick={() => setCurrentPage('logs')}>
-                                <i className="fas fa-file-alt"></i> Logs
+                            <div className="nav-item" onClick={handleLogout}>
+                                <i className="fas fa-sign-out-alt"></i>
+                                <span>Logout</span>
                             </div>
-                            <div className={`nav-item ${currentPage === 'analytics' ? 'active' : ''}`} onClick={() => setCurrentPage('analytics')}>
-                                <i className="fas fa-chart-line"></i> Analytics
-                            </div>
-                            <div className={`nav-item ${currentPage === 'alerts' ? 'active' : ''}`} onClick={() => setCurrentPage('alerts')}>
-                                <i className="fas fa-bell"></i> Alerts
-                            </div>
-                            <div className={`nav-item ${currentPage === 'backup' ? 'active' : ''}`} onClick={() => setCurrentPage('backup')}>
-                                <i className="fas fa-database"></i> Backup
-                            </div>
-                            <div className={`nav-item ${currentPage === 'benchmark' ? 'active' : ''}`} onClick={() => setCurrentPage('benchmark')}>
-                                <i className="fas fa-tachometer-alt"></i> Benchmarks
-                            </div>
-                            <div className={`nav-item ${currentPage === 'users' ? 'active' : ''}`} onClick={() => setCurrentPage('users')}>
-                                <i className="fas fa-users"></i> Users
-                            </div>
-                            <div className={`nav-item ${currentPage === 'database' ? 'active' : ''}`} onClick={() => setCurrentPage('database')}>
-                                <i className="fas fa-server"></i> Database
-                            </div>
-                            <div className={`nav-item ${currentPage === 'config' ? 'active' : ''}`} onClick={() => setCurrentPage('config')}>
-                                <i className="fas fa-sliders-h"></i> Configuration
-                            </div>
-                        </nav>
+                        </div>
                     </div>
                     <div className="main-content">
-                        <div className="header">
-                            <h1 className="page-title">{currentPage.charAt(0).toUpperCase() + currentPage.slice(1)}</h1>
-                            <div className="header-actions">
-                                <button className="theme-toggle" onClick={toggleTheme}>
-                                    <i className={`fas fa-${theme === 'light' ? 'moon' : 'sun'}`}></i>
-                                </button>
-                                <button className="btn btn-primary">
-                                    <i className="fas fa-download"></i> Export
-                                </button>
-                            </div>
-                        </div>
-                        {renderPage()}
+                        {currentSection === 'dashboard' && <DashboardPage />}
+                        {currentSection === 'config' && <ConfigPage />}
+                        {currentSection === 'services' && <ServicesPage />}
+                        {currentSection === 'alerts' && <AlertsPage />}
                     </div>
                 </div>
             );
         }
 
-        function OverviewPage({ stats }) {
-            if (!stats) {
-                return <div className="loading"></div>;
-            }
-
-            return (
-                <div>
-                    <div className="stats-grid">
-                        <div className="stat-card">
-                            <div className="stat-header">
-                                <div className="stat-label">CPU Usage</div>
-                                <div className="stat-icon cpu"><i className="fas fa-microchip"></i></div>
-                            </div>
-                            <div className="stat-value">{stats.cpu_percent.toFixed(1)}%</div>
-                            <div className="progress-bar">
-                                <div className="progress-fill" style={{ width: `${stats.cpu_percent}%` }}></div>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-header">
-                                <div className="stat-label">Memory Usage</div>
-                                <div className="stat-icon memory"><i className="fas fa-memory"></i></div>
-                            </div>
-                            <div className="stat-value">{stats.memory_percent.toFixed(1)}%</div>
-                            <div className="progress-bar">
-                                <div className="progress-fill" style={{ width: `${stats.memory_percent}%` }}></div>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-header">
-                                <div className="stat-label">Active Connections</div>
-                                <div className="stat-icon connections"><i className="fas fa-plug"></i></div>
-                            </div>
-                            <div className="stat-value">{stats.active_connections}</div>
-                            <div className="stat-change positive"><i className="fas fa-arrow-up"></i> Realtime</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-header">
-                                <div className="stat-label">Cache Hit Rate</div>
-                                <div className="stat-icon cache"><i className="fas fa-bolt"></i></div>
-                            </div>
-                            <div className="stat-value">{stats.cache_hit_rate.toFixed(1)}%</div>
-                            <div className="stat-change positive"><i className="fas fa-check-circle"></i> Excellent</div>
-                        </div>
-                    </div>
-
-                    <div className="card">
-                        <div className="card-header">
-                            <span>Quick Actions</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                            <button className="btn btn-primary">
-                                <i className="fas fa-sync"></i> Flush Cache
-                            </button>
-                            <button className="btn btn-primary">
-                                <i className="fas fa-download"></i> Run Backup
-                            </button>
-                            <button className="btn btn-primary">
-                                <i className="fas fa-chart-bar"></i> Run Benchmark
-                            </button>
-                            <button className="btn btn-success">
-                                <i className="fas fa-file-export"></i> Export Report
-                            </button>
-                            <button className="btn btn-danger">
-                                <i className="fas fa-exclamation-triangle"></i> Emergency Stop
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="grid-2">
-                        <RealtimeChart />
-                        <SystemHealthScore />
-                    </div>
-                </div>
-            );
-        }
-
-        function RealtimeChart() {
-            const chartRef = useRef(null);
-            const chartInstance = useRef(null);
-
-            useEffect(() => {
-                if (chartRef.current) {
-                    const ctx = chartRef.current.getContext('2d');
-
-                    chartInstance.current = new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: Array.from({ length: 20 }, (_, i) => `${i}s`),
-                            datasets: [{
-                                label: 'CPU %',
-                                data: Array.from({ length: 20 }, () => Math.random() * 100),
-                                borderColor: '#6366f1',
-                                tension: 0.4,
-                                fill: false
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    display: true
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    max: 100
-                                }
-                            }
-                        }
-                    });
-                }
-
-                return () => {
-                    if (chartInstance.current) {
-                        chartInstance.current.destroy();
-                    }
-                };
-            }, []);
-
-            return (
-                <div className="card">
-                    <div className="card-header">Real-time Performance</div>
-                    <div className="chart-container">
-                        <canvas ref={chartRef}></canvas>
-                    </div>
-                </div>
-            );
-        }
-
-        function SystemHealthScore() {
-            return (
-                <div className="card">
-                    <div className="card-header">System Health Score</div>
-                    <div style={{ textAlign: 'center', padding: '2rem' }}>
-                        <div style={{ fontSize: '4rem', fontWeight: 'bold', color: 'var(--success)' }}>
-                            98
-                        </div>
-                        <div style={{ fontSize: '1.25rem', color: 'var(--gray)', marginBottom: '1rem' }}>
-                            Excellent
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                            <span className="badge badge-success"><i className="fas fa-check"></i> Performance</span>
-                            <span className="badge badge-success"><i className="fas fa-check"></i> Uptime</span>
-                            <span className="badge badge-success"><i className="fas fa-check"></i> Security</span>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // Additional page components would go here...
-        function LogsPage() {
-            return <div className="card"><p>Logs page - Implement log viewer here</p></div>;
-        }
-
-        function AnalyticsPage() {
-            return <div className="card"><p>Analytics page - Implement charts here</p></div>;
-        }
-
-        function ServicesPage() {
-            return <div className="card"><p>Services page - Implement service management here</p></div>;
-        }
-
-        function AlertsPage() {
-            return <div className="card"><p>Alerts page - Implement alert management here</p></div>;
-        }
-
-        function BackupPage() {
-            return <div className="card"><p>Backup page - Implement backup controls here</p></div>;
-        }
-
-        function BenchmarkPage() {
-            return <div className="card"><p>Benchmark page - Implement performance testing here</p></div>;
-        }
-
-        function UsersPage() {
-            return <div className="card"><p>Users page - Implement user management here</p></div>;
-        }
-
-        function DatabasePage() {
-            return <div className="card"><p>Database page - Implement query interface here</p></div>;
-        }
-
-        function ConfigPage() {
-            return <div className="card"><p>Config page - Implement settings editor here</p></div>;
-        }
-
-        ReactDOM.render(<Dashboard />, document.getElementById('root'));
+        ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
 

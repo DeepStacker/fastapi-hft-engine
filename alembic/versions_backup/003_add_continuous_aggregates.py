@@ -4,6 +4,15 @@ TimescaleDB Continuous Aggregates for Real-Time Analytics
 Creates materialized views that auto-refresh for instant query results.
 Run with: alembic revision --autogenerate -m "add_continuous_aggregates"
 """
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision = '003'
+down_revision = '002'
+branch_labels = None
+depends_on = None
+
 
 def upgrade() -> None:
     """Create continuous aggregates for real-time analytics"""

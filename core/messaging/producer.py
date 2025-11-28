@@ -20,9 +20,7 @@ class KafkaProducerClient:
             bootstrap_servers=self.bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode('utf-8'),
             compression_type=settings.KAFKA_COMPRESSION_TYPE,  # Enable compression
-            acks='all',  # Wait for all replicas to acknowledge
-            retries=3,   # Retry on failure
-            max_in_flight_requests_per_connection=5
+            acks='all'  # Wait for all replicas to acknowledge
         )
         await self.producer.start()
         logger.info(f"Kafka producer started with {settings.KAFKA_COMPRESSION_TYPE} compression")

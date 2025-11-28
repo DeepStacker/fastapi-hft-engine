@@ -4,6 +4,10 @@ from functools import lru_cache
 from typing import Optional, List
 import secrets
 import os
+from dotenv import load_dotenv, find_dotenv
+
+# Load environment variables from .env file (searching parent directories)
+load_dotenv(find_dotenv())
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Stockify"
@@ -12,7 +16,7 @@ class Settings(BaseSettings):
 
     # Kafka
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
-    KAFKA_COMPRESSION_TYPE: str = "lz4"  # Enable compression for better throughput
+    KAFKA_COMPRESSION_TYPE: str = "gzip"  # Using gzip (no extra deps needed)
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://user:pass@localhost:5432/db"

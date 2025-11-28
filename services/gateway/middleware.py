@@ -94,21 +94,21 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         
-        # NEW: Content Security Policy
+        # Content Security Policy
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; "
             "img-src 'self' data: https:; "
-            "font-src 'self' data:; "
-            "connect-src 'self' wss: https:; "
+            "font-src 'self' data: https://cdnjs.cloudflare.com; "
+            "connect-src 'self' wss: https: http://localhost:8001; "
             "frame-ancestors 'none'"
         )
         
-        # NEW: Referrer Policy
+        # Referrer Policy
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         
-        # NEW: Permissions Policy (formerly Feature-Policy)
+        # Permissions Policy
         response.headers["Permissions-Policy"] = (
             "geolocation=(), "
             "microphone=(), "

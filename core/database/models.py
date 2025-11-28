@@ -304,6 +304,45 @@ class AuditLogDB(Base):
     )
 
 
+class SystemConfigDB(Base):
+    """
+    Dynamic system configuration
+    """
+    __tablename__ = "system_config"
+    
+    key = Column(String(100), primary_key=True, index=True)
+    value = Column(Text, nullable=False)
+    description = Column(String(255), nullable=True)
+    category = Column(String(50), nullable=False, index=True)  # performance, security, trading, etc.
+    data_type = Column(String(20), default="string")  # string, int, float, bool, json
+    is_encrypted = Column(Boolean, default=False)
+    requires_restart = Column(Boolean, default=False)
+    
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(String(50), nullable=True)
+
+
+class AlertRuleDB(Base):
+    """
+    System alert rules
+    """
+    __tablename__ = "alert_rules"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    metric = Column(String(100), nullable=False)  # cpu, memory, error_rate, latency
+    condition = Column(String(20), nullable=False)  # >, <, >=, <=, ==
+    threshold = Column(Float, nullable=False)
+    severity = Column(String(20), default="warning")  # info, warning, critical
+    
+    enabled = Column(Boolean, default=True, index=True)
+    notification_channels = Column(JSON, nullable=True)  # ["email", "slack", "sms"]
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(String(50), nullable=True)
+
+
 class TradingSessionDB(Base):
     """
     Trading session/market hours tracking

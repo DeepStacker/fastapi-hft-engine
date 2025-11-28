@@ -1,5 +1,5 @@
 """
-Optimized Storage Service with Adaptive Batching
+Optimized Storage Service with Adaptive Batching (Dynamic Config)
 
 Implements intelligent batch sizing based on load for 10-100x faster writes.
 """
@@ -15,16 +15,15 @@ from core.messaging.consumer import KafkaConsumerClient
 from core.database.db import async_session_factory
 from core.database.models import MarketSnapshotDB, OptionContractDB
 from core.monitoring.metrics import start_metrics_server, MESSAGES_PROCESSED, DB_WRITE_LATENCY
+from core.config.dynamic_config import get_config_manager
 
 # Configure logging
 configure_logger()
 logger = get_logger("storage-service")
 settings = get_settings()
 
-# Adaptive batching configuration
-MIN_BATCH_SIZE = 100
-MAX_BATCH_SIZE = 5000
-FLUSH_INTERVAL = 1.0  # seconds
+# Dynamic configuration manager
+config_manager = None
 
 # Buffers
 market_buffer: List[Dict[str, Any]] = []
@@ -75,11 +74,14 @@ async def flush_buffers():
 
 def get_adaptive_batch_size() -> int:
     """
-    Calculate adaptive batch size based on buffer fill rate.
+    Calculate adaptive batch size based on buffer fill rate (dynamic config).
     
     High load = larger batches for better throughput
     Low load = smaller batches for lower latency
     """
+    MIN_BATCH_SIZE = config_manager.get_int("storage_min_batch_size", 100)
+    MAX_BATCH_SIZE = config_manager.get_int("storage_max_batch_size", 5000)
+    
     current_size = len(market_buffer) + len(option_buffer)
     time_since_flush = time.time() - last_flush
     
@@ -155,6 +157,12 @@ async def process_message(msg: dict):
 
 async def storage_loop():
     """Main storage service loop with optimized batching"""
+    global config_manager
+    
+    # Initialize ConfigManager
+    config_manager = await get_config_manager()
+    logger.info("ConfigManager initialized")
+    
     start_metrics_server(8000)
     
     consumer = KafkaConsumerClient(topic="market.enriched", group_id="storage-group")
@@ -165,7 +173,8 @@ async def storage_loop():
     # Background flush task
     async def time_based_flush():
         while True:
-            await asyncio.sleep(FLUSH_INTERVAL)
+            flush_interval = config_manager.get_float("storage_flush_interval", 1.0)
+            await asyncio.sleep(flush_interval)
             if market_buffer or option_buffer:
                 await flush_buffers()
     
@@ -178,6 +187,7 @@ async def storage_loop():
     finally:
         flush_task.cancel()
         await consumer.stop()
+        await config_manager.close()
         # Final flush
         await flush_buffers()
         logger.info("Storage service shutdown complete")
