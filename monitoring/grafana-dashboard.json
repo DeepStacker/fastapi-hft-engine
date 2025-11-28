@@ -1,0 +1,109 @@
+# Grafana Dashboard Configuration for Stockify
+
+# Import this JSON into Grafana to create monitoring dashboards
+
+{
+  "dashboard": {
+    "title": "Stockify System Overview",
+    "tags": ["stockify", "production"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "API Request Rate",
+        "targets": [
+          {
+            "expr": "rate(api_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "API Latency (p50, p95, p99)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p99"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Cache Hit Rate",
+        "targets": [
+          {
+            "expr": "sum(rate(cache_hits_total[5m])) / (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m])))",
+            "legendFormat": "Hit Rate %"
+          }
+        ],
+        "type": "gauge"
+      },
+      {
+        "title": "WebSocket Connections",
+        "targets": [
+          {
+            "expr": "websocket_connections_active",
+            "legendFormat": "{{symbol}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Database Query Time",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, rate(database_query_seconds_bucket[5m]))",
+            "legendFormat": "p99"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Kafka Consumer Lag",
+        "targets": [
+          {
+            "expr": "kafka_consumer_lag",
+            "legendFormat": "{{topic}} - {{partition}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Error Rate",
+        "targets": [
+          {
+            "expr": "rate(api_requests_total{status=~\"5..\"}[5m])",
+            "legendFormat": "5xx errors"
+          },
+          {
+            "expr": "rate(api_requests_total{status=~\"4..\"}[5m])",
+            "legendFormat": "4xx errors"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "System Resources",
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total[5m]) * 100",
+            "legendFormat": "CPU %"
+          },
+          {
+            "expr": "process_resident_memory_bytes / 1024 / 1024",
+            "legendFormat": "Memory MB"
+          }
+        ],
+        "type": "graph"
+      }
+    ]
+  }
+}

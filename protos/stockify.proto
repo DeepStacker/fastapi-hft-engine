@@ -1,0 +1,208 @@
+syntax = "proto3";
+
+package stockify;
+
+import "google/protobuf/timestamp.proto";
+
+// Market Data Service
+service MarketDataService {
+  // Unary RPC - Get latest snapshot
+  rpc GetSnapshot(SnapshotRequest) returns (SnapshotResponse);
+  
+  // Server streaming - Subscribe to real-time updates
+  rpc SubscribeSnapshot(SubscribeRequest) returns (stream SnapshotResponse);
+  
+  // Bidirectional streaming - Full duplex communication
+  rpc StreamMarketData(stream MarketDataRequest) returns (stream MarketDataResponse);
+  
+  // Get historical data
+  rpc GetHistorical(HistoricalRequest) returns (HistoricalResponse);
+  
+  // Get option chain
+  rpc GetOptionChain(OptionChainRequest) returns (OptionChainResponse);
+  
+  // Batch operations
+  rpc GetBatchSnapshots(BatchSnapshotRequest) returns (BatchSnapshotResponse);
+}
+
+// Storage Service
+service StorageService {
+  // Write market snapshot
+  rpc WriteSnapshot(WriteSnapshotRequest) returns (WriteResponse);
+  
+  // Batch write (much faster)
+  rpc BatchWrite(stream WriteSnapshotRequest) returns (WriteResponse);
+  
+  // Query data
+  rpc Query(QueryRequest) returns (QueryResponse);
+}
+
+// Realtime Service  
+service RealtimeService {
+  // Publish to Redis
+  rpc Publish(PublishRequest) returns (PublishResponse);
+  
+  // Subscribe to channel
+  rpc Subscribe(SubscribeChannelRequest) returns (stream ChannelMessage);
+}
+
+// Health Service
+service HealthService {
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Watch(HealthCheckRequest) returns (stream HealthCheckResponse);
+}
+
+// Messages
+
+message SnapshotRequest {
+  int32 symbol_id = 1;
+}
+
+message SnapshotResponse {
+  int32 symbol_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  double ltp = 3;
+  int64 volume = 4;
+  int64 oi = 5;
+  string exchange = 6;
+  string segment = 7;
+  MarketDepth depth = 8;
+}
+
+message MarketDepth {
+  repeated PriceLevel bids = 1;
+  repeated PriceLevel asks = 2;
+}
+
+message PriceLevel {
+  double price = 1;
+  int64 quantity = 2;
+  int32 orders = 3;
+}
+
+message SubscribeRequest {
+  repeated int32 symbol_ids = 1;
+}
+
+message MarketDataRequest {
+  enum Action {
+    SUBSCRIBE = 0;
+    UNSUBSCRIBE = 1;
+  }
+  Action action = 1;
+  int32 symbol_id = 2;
+}
+
+message MarketDataResponse {
+  int32 symbol_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  bytes data = 3;  // MessagePack encoded for efficiency
+}
+
+message HistoricalRequest {
+  int32 symbol_id = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+  int32 limit = 4;
+  string interval = 5;  // "1m", "5m", "1h", "1d"
+}
+
+message HistoricalResponse {
+  repeated Candle candles = 1;
+}
+
+message Candle {
+  google.protobuf.Timestamp timestamp = 1;
+  double open = 2;
+  double high = 3;
+  double low = 4;
+  double close = 5;
+  int64 volume = 6;
+}
+
+message OptionChainRequest {
+  int32 symbol_id = 1;
+  string expiry = 2;  // Optional filter
+}
+
+message OptionChainResponse {
+  int32 symbol_id = 1;
+  repeated OptionContract calls = 2;
+  repeated OptionContract puts = 3;
+}
+
+message OptionContract {
+  string expiry = 1;
+  double strike_price = 2;
+  string option_type = 3;  // "CE" or "PE"
+  double ltp = 4;
+  int64 volume = 5;
+  int64 oi = 6;
+  double iv = 7;  // Implied volatility
+  double delta = 8;
+  double gamma = 9;
+  double theta = 10;
+  double vega = 11;
+}
+
+message BatchSnapshotRequest {
+  repeated int32 symbol_ids = 1;
+}
+
+message BatchSnapshotResponse {
+  map<int32, SnapshotResponse> snapshots = 1;
+}
+
+message WriteSnapshotRequest {
+  SnapshotResponse snapshot = 1;
+}
+
+message WriteResponse {
+  bool success = 1;
+  string message = 2;
+  int32 records_written = 3;
+}
+
+message QueryRequest {
+  string query_type = 1;  // "snapshot", "historical", "options"
+  map<string, string> parameters = 2;
+}
+
+message QueryResponse {
+  repeated bytes results = 1;  // MessagePack encoded
+}
+
+message PublishRequest {
+  string channel = 1;
+  bytes message = 2;
+}
+
+message PublishResponse {
+  bool success = 1;
+  int32 subscribers = 2;
+}
+
+message SubscribeChannelRequest {
+  repeated string channels = 1;
+}
+
+message ChannelMessage {
+  string channel = 1;
+  bytes message = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message HealthCheckRequest {
+  string service = 1;
+}
+
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+    SERVICE_UNKNOWN = 3;
+  }
+  ServingStatus status = 1;
+  map<string, string> details = 2;
+}

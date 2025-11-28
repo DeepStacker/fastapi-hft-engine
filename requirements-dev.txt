@@ -1,0 +1,11 @@
+# Development dependencies (install with: pip install -r requirements-dev.txt)
+pre-commit
+black
+ruff
+mypy
+bandit
+isort
+pytest-mock
+pytest-xdist
+locust
+faker
