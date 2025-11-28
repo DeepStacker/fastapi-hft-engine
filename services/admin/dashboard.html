@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stockify Admin Dashboard</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --secondary: #8b5cf6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+            --dark: #1f2937;
+            --light: #f9fafb;
+            --gray: #6b7280;
+            --bg: #f3f4f6;
+            --card-bg: white;
+            --text: #1f2937;
+            --border: #e5e7eb;
+        }
+
+        [data-theme="dark"] {
+            --dark: #f9fafb;
+            --light: #1f2937;
+            --bg: #111827;
+            --card-bg: #1f2937;
+            --text: #f9fafb;
+            --border: #374151;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            color: white;
+            padding: 1.5rem;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        [data-theme="dark"] .sidebar {
+            background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo-icon {
+            width: 35px;
+            height: 35px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .nav-item {
+            padding: 0.75rem 1rem;
+            margin: 0.25rem 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.95rem;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-item.active {
+            background: var(--primary);
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .nav-item i {
+            width: 18px;
+        }
+
+        .main-content {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 1.875rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .theme-toggle {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid var(--border);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .stat-icon.cpu {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+        }
+
+        .stat-icon.memory {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--secondary);
+        }
+
+        .stat-icon.connections {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .stat-icon.cache {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .stat-label {
+            color: var(--gray);
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .stat-change {
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .stat-change.positive {
+            color: var(--success);
+        }
+
+        .stat-change.negative {
+            color: var(--danger);
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border);
+        }
+
+        .card-header {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th {
+            text-align: left;
+            padding: 0.75rem;
+            background: var(--bg);
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--gray);
+        }
+
+        .table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table tr:hover {
+            background: var(--bg);
+        }
+
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #4f46e5;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--gray);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem;
+        }
+
+        .log-entry {
+            padding: 0.75rem;
+            border-left: 3px solid var(--primary);
+            background: var(--bg);
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+        }
+
+        .log-entry.error {
+            border-left-color: var(--danger);
+        }
+
+        .log-entry.warning {
+            border-left-color: var(--warning);
+        }
+
+        .log-time {
+            font-size: 0.75rem;
+            color: var(--gray);
+        }
+
+        .search-box {
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            width: 100%;
+            margin-bottom: 1rem;
+            background: var(--card-bg);
+            color: var(--text);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 1rem;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .service-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-dot.running {
+            background: var(--success);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+        }
+
+        .status-dot.stopped {
+            background: var(--danger);
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.3s;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--warning);
+            color: var(--warning);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 1024px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: relative;
+                height: auto;
+            }
+
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Theme management
+        const useTheme = () => {
+            const [theme, setTheme] = useState(
+                localStorage.getItem('theme') || 'light'
+            );
+
+            useEffect(() => {
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('theme', theme);
+            }, [theme]);
+
+            const toggleTheme = () => {
+                setTheme(theme === 'light' ? 'dark' : 'light');
+            };
+
+            return [theme, toggleTheme];
+        };
+
+        function Dashboard() {
+            const [currentPage, setCurrentPage] = useState('overview');
+            const [stats, setStats] = useState(null);
+            const [theme, toggleTheme] = useTheme();
+
+            useEffect(() => {
+                // Fetch stats every 2 seconds
+                const fetchStats = async () => {
+                    try {
+                        const response = await fetch('http://localhost:8001/system/stats', {
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                            }
+                        });
+                        const data = await response.json();
+                        setStats(data);
+                    } catch (error) {
+                        console.error('Failed to fetch stats:', error);
+                    }
+                };
+
+                fetchStats();
+                const interval = setInterval(fetchStats, 2000);
+                return () => clearInterval(interval);
+            }, []);
+
+            const renderPage = () => {
+                switch (currentPage) {
+                    case 'overview':
+                        return <OverviewPage stats={stats} />;
+                    case 'logs':
+                        return <LogsPage />;
+                    case 'analytics':
+                        return <AnalyticsPage />;
+                    case 'services':
+                        return <ServicesPage />;
+                    case 'alerts':
+                        return <AlertsPage />;
+                    case 'backup':
+                        return <BackupPage />;
+                    case 'benchmark':
+                        return <BenchmarkPage />;
+                    case 'users':
+                        return <UsersPage />;
+                    case 'database':
+                        return <DatabasePage />;
+                    case 'config':
+                        return <ConfigPage />;
+                    default:
+                        return <OverviewPage stats={stats} />;
+                }
+            };
+
+            return (
+                <div className="dashboard">
+                    <div className="sidebar">
+                        <div className="logo">
+                            <div className="logo-icon">📊</div>
+                            <span>Stockify Admin</span>
+                        </div>
+                        <nav>
+                            <div className={`nav-item ${currentPage === 'overview' ? 'active' : ''}`} onClick={() => setCurrentPage('overview')}>
+                                <i className="fas fa-home"></i> Overview
+                            </div>
+                            <div className={`nav-item ${currentPage === 'services' ? 'active' : ''}`} onClick={() => setCurrentPage('services')}>
+                                <i className="fas fa-cogs"></i> Services
+                            </div>
+                            <div className={`nav-item ${currentPage === 'logs' ? 'active' : ''}`} onClick={() => setCurrentPage('logs')}>
+                                <i className="fas fa-file-alt"></i> Logs
+                            </div>
+                            <div className={`nav-item ${currentPage === 'analytics' ? 'active' : ''}`} onClick={() => setCurrentPage('analytics')}>
+                                <i className="fas fa-chart-line"></i> Analytics
+                            </div>
+                            <div className={`nav-item ${currentPage === 'alerts' ? 'active' : ''}`} onClick={() => setCurrentPage('alerts')}>
+                                <i className="fas fa-bell"></i> Alerts
+                            </div>
+                            <div className={`nav-item ${currentPage === 'backup' ? 'active' : ''}`} onClick={() => setCurrentPage('backup')}>
+                                <i className="fas fa-database"></i> Backup
+                            </div>
+                            <div className={`nav-item ${currentPage === 'benchmark' ? 'active' : ''}`} onClick={() => setCurrentPage('benchmark')}>
+                                <i className="fas fa-tachometer-alt"></i> Benchmarks
+                            </div>
+                            <div className={`nav-item ${currentPage === 'users' ? 'active' : ''}`} onClick={() => setCurrentPage('users')}>
+                                <i className="fas fa-users"></i> Users
+                            </div>
+                            <div className={`nav-item ${currentPage === 'database' ? 'active' : ''}`} onClick={() => setCurrentPage('database')}>
+                                <i className="fas fa-server"></i> Database
+                            </div>
+                            <div className={`nav-item ${currentPage === 'config' ? 'active' : ''}`} onClick={() => setCurrentPage('config')}>
+                                <i className="fas fa-sliders-h"></i> Configuration
+                            </div>
+                        </nav>
+                    </div>
+                    <div className="main-content">
+                        <div className="header">
+                            <h1 className="page-title">{currentPage.charAt(0).toUpperCase() + currentPage.slice(1)}</h1>
+                            <div className="header-actions">
+                                <button className="theme-toggle" onClick={toggleTheme}>
+                                    <i className={`fas fa-${theme === 'light' ? 'moon' : 'sun'}`}></i>
+                                </button>
+                                <button className="btn btn-primary">
+                                    <i className="fas fa-download"></i> Export
+                                </button>
+                            </div>
+                        </div>
+                        {renderPage()}
+                    </div>
+                </div>
+            );
+        }
+
+        function OverviewPage({ stats }) {
+            if (!stats) {
+                return <div className="loading"></div>;
+            }
+
+            return (
+                <div>
+                    <div className="stats-grid">
+                        <div className="stat-card">
+                            <div className="stat-header">
+                                <div className="stat-label">CPU Usage</div>
+                                <div className="stat-icon cpu"><i className="fas fa-microchip"></i></div>
+                            </div>
+                            <div className="stat-value">{stats.cpu_percent.toFixed(1)}%</div>
+                            <div className="progress-bar">
+                                <div className="progress-fill" style={{ width: `${stats.cpu_percent}%` }}></div>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-header">
+                                <div className="stat-label">Memory Usage</div>
+                                <div className="stat-icon memory"><i className="fas fa-memory"></i></div>
+                            </div>
+                            <div className="stat-value">{stats.memory_percent.toFixed(1)}%</div>
+                            <div className="progress-bar">
+                                <div className="progress-fill" style={{ width: `${stats.memory_percent}%` }}></div>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-header">
+                                <div className="stat-label">Active Connections</div>
+                                <div className="stat-icon connections"><i className="fas fa-plug"></i></div>
+                            </div>
+                            <div className="stat-value">{stats.active_connections}</div>
+                            <div className="stat-change positive"><i className="fas fa-arrow-up"></i> Realtime</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-header">
+                                <div className="stat-label">Cache Hit Rate</div>
+                                <div className="stat-icon cache"><i className="fas fa-bolt"></i></div>
+                            </div>
+                            <div className="stat-value">{stats.cache_hit_rate.toFixed(1)}%</div>
+                            <div className="stat-change positive"><i className="fas fa-check-circle"></i> Excellent</div>
+                        </div>
+                    </div>
+
+                    <div className="card">
+                        <div className="card-header">
+                            <span>Quick Actions</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                            <button className="btn btn-primary">
+                                <i className="fas fa-sync"></i> Flush Cache
+                            </button>
+                            <button className="btn btn-primary">
+                                <i className="fas fa-download"></i> Run Backup
+                            </button>
+                            <button className="btn btn-primary">
+                                <i className="fas fa-chart-bar"></i> Run Benchmark
+                            </button>
+                            <button className="btn btn-success">
+                                <i className="fas fa-file-export"></i> Export Report
+                            </button>
+                            <button className="btn btn-danger">
+                                <i className="fas fa-exclamation-triangle"></i> Emergency Stop
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid-2">
+                        <RealtimeChart />
+                        <SystemHealthScore />
+                    </div>
+                </div>
+            );
+        }
+
+        function RealtimeChart() {
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+
+            useEffect(() => {
+                if (chartRef.current) {
+                    const ctx = chartRef.current.getContext('2d');
+
+                    chartInstance.current = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: Array.from({ length: 20 }, (_, i) => `${i}s`),
+                            datasets: [{
+                                label: 'CPU %',
+                                data: Array.from({ length: 20 }, () => Math.random() * 100),
+                                borderColor: '#6366f1',
+                                tension: 0.4,
+                                fill: false
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    max: 100
+                                }
+                            }
+                        }
+                    });
+                }
+
+                return () => {
+                    if (chartInstance.current) {
+                        chartInstance.current.destroy();
+                    }
+                };
+            }, []);
+
+            return (
+                <div className="card">
+                    <div className="card-header">Real-time Performance</div>
+                    <div className="chart-container">
+                        <canvas ref={chartRef}></canvas>
+                    </div>
+                </div>
+            );
+        }
+
+        function SystemHealthScore() {
+            return (
+                <div className="card">
+                    <div className="card-header">System Health Score</div>
+                    <div style={{ textAlign: 'center', padding: '2rem' }}>
+                        <div style={{ fontSize: '4rem', fontWeight: 'bold', color: 'var(--success)' }}>
+                            98
+                        </div>
+                        <div style={{ fontSize: '1.25rem', color: 'var(--gray)', marginBottom: '1rem' }}>
+                            Excellent
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <span className="badge badge-success"><i className="fas fa-check"></i> Performance</span>
+                            <span className="badge badge-success"><i className="fas fa-check"></i> Uptime</span>
+                            <span className="badge badge-success"><i className="fas fa-check"></i> Security</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Additional page components would go here...
+        function LogsPage() {
+            return <div className="card"><p>Logs page - Implement log viewer here</p></div>;
+        }
+
+        function AnalyticsPage() {
+            return <div className="card"><p>Analytics page - Implement charts here</p></div>;
+        }
+
+        function ServicesPage() {
+            return <div className="card"><p>Services page - Implement service management here</p></div>;
+        }
+
+        function AlertsPage() {
+            return <div className="card"><p>Alerts page - Implement alert management here</p></div>;
+        }
+
+        function BackupPage() {
+            return <div className="card"><p>Backup page - Implement backup controls here</p></div>;
+        }
+
+        function BenchmarkPage() {
+            return <div className="card"><p>Benchmark page - Implement performance testing here</p></div>;
+        }
+
+        function UsersPage() {
+            return <div className="card"><p>Users page - Implement user management here</p></div>;
+        }
+
+        function DatabasePage() {
+            return <div className="card"><p>Database page - Implement query interface here</p></div>;
+        }
+
+        function ConfigPage() {
+            return <div className="card"><p>Config page - Implement settings editor here</p></div>;
+        }
+
+        ReactDOM.render(<Dashboard />, document.getElementById('root'));
+    </script>
+</body>
+
+</html>
