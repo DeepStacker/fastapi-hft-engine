@@ -1,4 +1,4 @@
-from prometheus_client import Counter, Histogram, start_http_server
+from prometheus_client import Counter, Histogram, Gauge, start_http_server
 from core.config.settings import get_settings
 from core.logging.logger import get_logger
 
@@ -34,6 +34,30 @@ INGESTION_ERRORS = Counter(
     "ingestion_errors_total",
     "Total number of ingestion errors",
     ["type"]
+)
+
+# Processor Metrics
+PROCESSOR_MESSAGES_TOTAL = Counter(
+    "processor_messages_total",
+    "Total messages processed by processor service",
+    ["status"]  # success, error
+)
+
+PROCESSOR_ERRORS_TOTAL = Counter(
+    "processor_errors_total",
+    "Total processor errors",
+    ["error_type"]  # processing_error, analysis_error, etc.
+)
+
+PROCESSOR_LATENCY = Histogram(
+    "processor_latency_seconds",
+    "Processor message processing time"
+)
+
+DATA_QUALITY_ISSUES = Counter(
+    "data_quality_issues_total",
+    "Data quality issues detected",
+    ["issue_type"]  # no_valid_options, high_illiquidity, etc.
 )
 
 def start_metrics_server(port: int = 8000):

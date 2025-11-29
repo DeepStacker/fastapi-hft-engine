@@ -155,18 +155,62 @@ async def process_instrument(instrument: dict, dhan_client: DhanApiClient, produ
             if chain_response and 'data' in chain_response:
                 data = chain_response['data']
                 chain_data = data.get('oc', {})
-                spot_price = data.get('sltp')
                 
                 if chain_data:
-                    # Construct message payload
+                    # Construct COMPLETE message payload with ALL API fields
                     message = {
                         "symbol": symbol,
                         "symbol_id": symbol_id,
                         "segment_id": segment_id,
                         "expiry": target_expiry,
                         "timestamp": datetime.utcnow().isoformat(),
+                        
+                        # Option chain data
                         "option_chain": chain_data,
-                        "spot_data": {"ltp": spot_price} if spot_price else {}
+                        
+                        # Futures data (CRITICAL for Futures-Spot Basis analysis)
+                        "futures_list": data.get('fl', {}),
+                        
+                        # Global context & summary metrics
+                        "global_context": {
+                            # Spot data
+                            "spot_ltp": data.get('sltp'),
+                            "spot_volume": data.get('svol'),
+                            "spot_change": data.get('SChng'),
+                            "spot_pct_change": data.get('SPerChng'),
+                            "spot_exchange": data.get('s_xch'),
+                            "spot_segment": data.get('s_seg'),
+                            "spot_sid": data.get('s_sid'),
+                            
+                            # IV Metrics (CRITICAL for VIX-IV Divergence)
+                            "atm_iv": data.get('atmiv'),
+                            "atm_iv_pct_change": data.get('aivperchng'),
+                            
+                            # OI & PCR Metrics
+                            "total_call_oi": data.get('OIC'),
+                            "total_put_oi": data.get('OIP'),
+                            "pcr_ratio": data.get('Rto'),
+                            
+                            # Contract Specifications
+                            "option_lot_size": data.get('olot'),
+                            "option_tick_size": data.get('otick'),
+                            "option_multiplier": data.get('omulti'),
+                            
+                            # Instrument Details
+                            "futures_inst": data.get('finst'),
+                            "options_inst": data.get('oinst'),
+                            "spot_inst": data.get('sinst'),
+                            "exchange": data.get('exch'),
+                            "segment": data.get('seg'),
+                            "underlying_id": data.get('u_id'),
+                            
+                            # Expiry & Timing
+                            "days_to_expiry": data.get('dte'),
+                            "expiry_list": data.get('explst', []),
+                            
+                            # Additional Analytics
+                            "max_pain_strike": data.get('mxpn_strk')
+                        }
                     }
                     
                     # Publish to Kafka
@@ -256,7 +300,7 @@ async def main():
             logger.info(f"Cycle completed in {elapsed:.2f}s")
             
             # Dynamic sleep based on config
-            sleep_time = config_manager.get("ingestion_interval", 1.0)
+            sleep_time = config_manager.get("fetch_interval", 1.0)
             
             # Adjust sleep time to maintain fixed interval if possible
             actual_sleep = max(0, sleep_time - elapsed)

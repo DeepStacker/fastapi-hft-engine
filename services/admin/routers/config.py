@@ -108,6 +108,57 @@ SYSTEM_CONFIGS = {
         "requires_restart": True
     },
     
+    # Processor Service
+    "processor_enabled": {
+        "value": "true",
+        "description": "Enable/disable processor service",
+        "category": "processor",
+        "data_type": "bool",
+        "requires_restart": False
+    },
+    "risk_free_rate": {
+        "value": "0.065",
+        "description": "Risk-free rate for BSM calculations (annual rate)",
+        "category": "processor",
+        "data_type": "float",
+        "requires_restart": False
+    },
+    "india_vix": {
+        "value": "12.5",
+        "description": "India VIX current value (%)",
+        "category": "processor",
+        "data_type": "float",
+        "requires_restart": False
+    },
+    "enable_bsm_calculation": {
+        "value": "true",
+        "description": "Enable Black-Scholes theoretical price calculation",
+        "category": "processor",
+        "data_type": "bool",
+        "requires_restart": False
+    },
+    "enable_futures_basis": {
+        "value": "true",
+        "description": "Enable Futures-Spot Basis analysis",
+        "category": "processor",
+        "data_type": "bool",
+        "requires_restart": False
+    },
+    "enable_vix_divergence": {
+        "value": "true",
+        "description": "Enable VIX-IV Divergence analysis",
+        "category": "processor",
+        "data_type": "bool",
+        "requires_restart": False
+    },
+    "enable_gamma_analysis": {
+        "value": "true",
+        "description": "Enable Gamma Exposure analysis",
+        "category": "processor",
+        "data_type": "bool",
+        "requires_restart": False
+    },
+    
     # Storage Service
     "storage_min_batch_size": {
         "value": "100",

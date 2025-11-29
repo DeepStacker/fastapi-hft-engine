@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"  # Docker internal network
     KAFKA_COMPRESSION_TYPE: str = "gzip"  # Using gzip (no extra deps needed)
     KAFKA_TOPIC_MARKET_RAW: str = "market.raw"
+    KAFKA_TOPIC_ENRICHED: str = "market.enriched"
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://user:pass@localhost:5432/db"

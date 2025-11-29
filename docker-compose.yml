@@ -85,7 +85,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_NUM_PARTITIONS: 12
-      KAFKA_COMPRESSION_TYPE: lz4
+      KAFKA_COMPRESSION_TYPE: gzip
       KAFKA_LOG_RETENTION_HOURS: 168
     volumes:
       - kafka_data:/var/lib/kafka/data
@@ -151,19 +151,49 @@ services:
     container_name: stockify-processor
     command: python -m services.processor.main
     environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SECRET_KEY: ${SECRET_KEY}
       ENVIRONMENT: production
     depends_on:
       kafka:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
     networks:
       - stockify-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/metrics"]
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  json-saver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-json-saver
+    command: python -m scripts.save_ingestion_to_json
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: production
+    volumes:
+      - ./data/enriched_ingestion:/app/data/enriched_ingestion
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - stockify-network
     restart: unless-stopped
     logging:
       driver: "json-file"
