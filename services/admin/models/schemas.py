@@ -108,23 +108,22 @@ class KafkaTopicCreate(BaseModel):
 class Instrument(BaseModel):
     id: int
     symbol_id: int
-    name: str
-    exchange: str
-    instrument_type: str
+    symbol: str
+    segment_id: int  # 0=Indices, 1=Stocks, 5=Commodities
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
 class InstrumentCreate(BaseModel):
     symbol_id: int
-    name: str
-    exchange: str
-    instrument_type: str
+    symbol: str
+    segment_id: int
     is_active: bool = True
 
 class InstrumentUpdate(BaseModel):
-    name: Optional[str] = None
+    symbol: Optional[str] = None
     is_active: Optional[bool] = None
+
 
 # Database Models
 class TableInfo(BaseModel):

@@ -12,9 +12,8 @@ interface InstrumentFormProps {
 export default function InstrumentForm({ initialData, onSubmit, onCancel }: InstrumentFormProps) {
   const [formData, setFormData] = useState({
     symbol_id: '',
-    name: '',
-    exchange: 'NSE',
-    instrument_type: 'EQ',
+    symbol: '',
+    segment_id: 0,
     is_active: true
   });
   const [loading, setLoading] = useState(false);
@@ -23,9 +22,8 @@ export default function InstrumentForm({ initialData, onSubmit, onCancel }: Inst
     if (initialData) {
       setFormData({
         symbol_id: initialData.symbol_id,
-        name: initialData.name,
-        exchange: initialData.exchange,
-        instrument_type: initialData.instrument_type,
+        symbol: initialData.symbol,
+        segment_id: initialData.segment_id,
         is_active: initialData.is_active
       });
     }
@@ -51,46 +49,46 @@ export default function InstrumentForm({ initialData, onSubmit, onCancel }: Inst
           value={formData.symbol_id}
           onChange={(e) => setFormData({ ...formData, symbol_id: e.target.value })}
           disabled={!!initialData} // Cannot change ID on edit
-          placeholder="e.g. 12345"
+          placeholder="e.g. 13"
         />
-        <p className="text-xs text-muted-foreground mt-1">Unique identifier for the instrument</p>
+        <p className="text-xs text-muted-foreground mt-1">Dhan API symbol ID (unique identifier)</p>
       </div>
       
       <div>
-        <label className="text-sm font-medium">Name</label>
+        <label className="text-sm font-medium">Symbol</label>
         <Input
           required
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="e.g. RELIANCE"
+          value={formData.symbol}
+          onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
+          placeholder="e.g. NIFTY, RELIANCE, BANKNIFTY"
         />
+        <p className="text-xs text-muted-foreground mt-1">Trading symbol name</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="text-sm font-medium">Exchange</label>
-          <Select
-            value={formData.exchange}
-            onChange={(e) => setFormData({ ...formData, exchange: e.target.value })}
-          >
-            <option value="NSE">NSE</option>
-            <option value="BSE">BSE</option>
-            <option value="MCX">MCX</option>
-          </Select>
-        </div>
+      <div>
+        <label className="text-sm font-medium">Segment</label>
+        <Select
+          value={formData.segment_id.toString()}
+          onChange={(e) => setFormData({ ...formData, segment_id: parseInt(e.target.value) })}
+        >
+          <option value="0">Indices (0)</option>
+          <option value="1">Stocks (1)</option>
+          <option value="5">Commodities (5)</option>
+        </Select>
+        <p className="text-xs text-muted-foreground mt-1">0 = Indices, 1 = Stocks, 5 = Commodities</p>
+      </div>
 
-        <div>
-          <label className="text-sm font-medium">Type</label>
-          <Select
-            value={formData.instrument_type}
-            onChange={(e) => setFormData({ ...formData, instrument_type: e.target.value })}
-          >
-            <option value="EQ">Equity</option>
-            <option value="FUT">Future</option>
-            <option value="OPT">Option</option>
-            <option value="INDEX">Index</option>
-          </Select>
-        </div>
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="is_active"
+          checked={formData.is_active}
+          onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+          className="rounded border-gray-300"
+        />
+        <label htmlFor="is_active" className="text-sm font-medium">
+          Active (enable for data ingestion)
+        </label>
       </div>
 
       <div className="flex justify-end space-x-2 pt-4">

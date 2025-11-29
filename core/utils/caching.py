@@ -111,6 +111,7 @@ class MultiTierCache:
 snapshot_multi_cache = MultiTierCache("snapshot", l1_ttl=1, l2_ttl=10)
 instrument_multi_cache = MultiTierCache("instrument", l1_ttl=3600, l2_ttl=7200)
 user_multi_cache = MultiTierCache("user", l1_ttl=300, l2_ttl=600)
+expiry_multi_cache = MultiTierCache("expiry", l1_ttl=3600, l2_ttl=86400)
 
 
 def cached(cache: MultiTierCache, key_func=None):

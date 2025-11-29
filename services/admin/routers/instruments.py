@@ -45,9 +45,8 @@ async def list_instruments(
             Instrument(
                 id=inst.id,
                 symbol_id=inst.symbol_id,
-                name=inst.symbol,  # Map symbol -> name
-                exchange=inst.exchange,
-                instrument_type=inst.segment,  # Map segment -> instrument_type
+                symbol=inst.symbol,
+                segment_id=inst.segment_id,
                 is_active=inst.is_active,
                 created_at=inst.created_at,
                 updated_at=inst.updated_at
@@ -89,9 +88,8 @@ async def get_instrument(
         response_data = Instrument(
             id=instrument.id,
             symbol_id=instrument.symbol_id,
-            name=instrument.symbol,  # Map symbol -> name
-            exchange=instrument.exchange,
-            instrument_type=instrument.segment,  # Map segment -> instrument_type
+            symbol=instrument.symbol,
+            segment_id=instrument.segment_id,
             is_active=instrument.is_active,
             created_at=instrument.created_at,
             updated_at=instrument.updated_at
@@ -122,9 +120,8 @@ async def create_instrument(
         
         new_instrument = InstrumentDB(
             symbol_id=instrument.symbol_id,
-            symbol=instrument.name,  # Map name -> symbol
-            exchange=instrument.exchange,
-            segment=instrument.instrument_type,  # Map instrument_type -> segment
+            symbol=instrument.symbol,
+            segment_id=instrument.segment_id,
             is_active=instrument.is_active
         )
         
@@ -132,7 +129,7 @@ async def create_instrument(
         await session.commit()
         await session.refresh(new_instrument)
         
-        logger.info(f"Created instrument: {instrument.name} (ID: {new_instrument.id})")
+        logger.info(f"Created instrument: {instrument.symbol} (ID: {new_instrument.id})")
         
         # Invalidate list caches
         await cache_service.invalidate_pattern("instruments:list:*")
@@ -140,9 +137,8 @@ async def create_instrument(
         return Instrument(
             id=new_instrument.id,
             symbol_id=new_instrument.symbol_id,
-            name=new_instrument.symbol,
-            exchange=new_instrument.exchange,
-            instrument_type=new_instrument.segment,
+            symbol=new_instrument.symbol,
+            segment_id=new_instrument.segment_id,
             is_active=new_instrument.is_active,
             created_at=new_instrument.created_at,
             updated_at=new_instrument.updated_at
@@ -166,8 +162,8 @@ async def update_instrument(
             raise HTTPException(status_code=404, detail="Instrument not found")
         
         # Update fields
-        if instrument.name is not None:
-            db_instrument.symbol = instrument.name  # Map name -> symbol
+        if instrument.symbol is not None:
+            db_instrument.symbol = instrument.symbol
         if instrument.is_active is not None:
             db_instrument.is_active = instrument.is_active
         
@@ -183,9 +179,8 @@ async def update_instrument(
         return Instrument(
             id=db_instrument.id,
             symbol_id=db_instrument.symbol_id,
-            name=db_instrument.symbol,
-            exchange=db_instrument.exchange,
-            instrument_type=db_instrument.segment,
+            symbol=db_instrument.symbol,
+            segment_id=db_instrument.segment_id,
             is_active=db_instrument.is_active,
             created_at=db_instrument.created_at,
             updated_at=db_instrument.updated_at
@@ -321,9 +316,8 @@ async def websocket_instruments(
                             {
                                 "id": inst.id,
                                 "symbol_id": inst.symbol_id,
-                                "name": inst.symbol,  # Map symbol -> name
-                                "exchange": inst.exchange,
-                                "instrument_type": inst.segment,  # Map segment -> instrument_type
+                                "symbol": inst.symbol,
+                                "segment_id": inst.segment_id,
                                 "is_active": inst.is_active,
                                 "updated_at": inst.updated_at.isoformat() if inst.updated_at else None
                             }

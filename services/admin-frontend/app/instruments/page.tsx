@@ -113,19 +113,35 @@ export default function InstrumentsPage() {
     }
   };
 
+  const getSegmentName = (segmentId: number) => {
+    switch(segmentId) {
+      case 0: return 'Indices';
+      case 1: return 'Stocks';
+      case 5: return 'Commodities';
+      default: return `Unknown (${segmentId})`;
+    }
+  };
+
   const columns = [
     { header: 'ID', accessorKey: 'id' },
     { 
-      header: 'Symbol', 
+      header: 'Symbol ID', 
       accessorKey: 'symbol_id',
-      cell: (row: any) => <span className="font-mono font-medium">{row.symbol_id}</span>
+      cell: (row: any) => <span className="font-mono font-medium text-blue-600">{row.symbol_id}</span>
     },
-    { header: 'Name', accessorKey: 'name' },
-    { header: 'Exchange', accessorKey: 'exchange' },
     { 
-      header: 'Type', 
-      accessorKey: 'instrument_type',
-      cell: (row: any) => <Badge variant="outline">{row.instrument_type}</Badge>
+      header: 'Symbol', 
+      accessorKey: 'symbol',
+      cell: (row: any) => <span className="font-semibold">{row.symbol}</span>
+    },
+    { 
+      header: 'Segment', 
+      accessorKey: 'segment_id',
+      cell: (row: any) => (
+        <Badge variant="outline">
+          {getSegmentName(row.segment_id)} ({row.segment_id})
+        </Badge>
+      )
     },
     {
       header: 'Status',

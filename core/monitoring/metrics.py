@@ -24,6 +24,18 @@ DB_WRITE_LATENCY = Histogram(
     ["table"]
 )
 
+INGESTION_COUNT = Counter(
+    "ingestion_messages_total",
+    "Total number of messages ingested",
+    ["symbol"]
+)
+
+INGESTION_ERRORS = Counter(
+    "ingestion_errors_total",
+    "Total number of ingestion errors",
+    ["type"]
+)
+
 def start_metrics_server(port: int = 8000):
     """Start the Prometheus metrics server."""
     try:

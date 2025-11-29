@@ -12,21 +12,16 @@ from core.database.db import Base
 class InstrumentDB(Base):
     """
     Instrument (Stock/Index) master data
+    
+    Matches Dhan API structure exactly.
     """
     __tablename__ = "instruments"
     
     id = Column(Integer, primary_key=True, index=True)
-    symbol_id = Column(Integer, unique=True, nullable=False, index=True)
-    symbol = Column(String(50), nullable=False, index=True)
-    exchange = Column(String(10), nullable=False, index=True)  # NSE, BSE, etc.
-    segment = Column(String(10), nullable=False)  # EQ, FO, etc.
-    isin = Column(String(20), unique=True, nullable=True)
-    company_name = Column(String(200), nullable=True)
-    sector = Column(String(100), nullable=True)
-    industry = Column(String(100), nullable=True)
-    is_active = Column(Boolean, default=1, nullable=False, index=True)
-    lot_size = Column(Integer, default=1)
-    tick_size = Column(Float, default=0.05)
+    symbol_id = Column(Integer, unique=True, nullable=False, index=True)  # Dhan's symbol ID
+    symbol = Column(String(50), nullable=False, index=True)  # NIFTY, BANKNIFTY, etc.
+    segment_id = Column(Integer, nullable=False, index=True)  # 0=Indices, 1=Stocks, 5=Commodities
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -38,12 +33,12 @@ class InstrumentDB(Base):
     # Indexes
     __table_args__ = (
         Index('idx_instrument_active_symbol', 'is_active', 'symbol_id'),
-        Index('idx_instrument_exchange_segment', 'exchange', 'segment'),
-        CheckConstraint('lot_size > 0', name='chk_lot_size_positive'),
+        Index('idx_instrument_segment', 'segment_id'),
+        CheckConstraint('segment_id IN (0, 1, 5)', name='chk_valid_segment'),
     )
     
     def __repr__(self):
-        return f"<Instrument(symbol={self.symbol}, exchange={self.exchange})>"
+        return f"<Instrument(symbol={self.symbol}, segment_id={self.segment_id})>"
 
 
 class MarketSnapshotDB(Base):

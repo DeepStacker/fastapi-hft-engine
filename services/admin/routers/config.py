@@ -58,6 +58,41 @@ SYSTEM_CONFIGS = {
         "data_type": "int",
         "requires_restart": False
     },
+    "bypass_trading_hours": {
+        "value": "false",
+        "description": "Force data fetching regardless of time/holiday (Testing Mode)",
+        "category": "ingestion",
+        "data_type": "bool",
+        "requires_restart": False
+    },
+    "enable_weekend_trading": {
+        "value": "false",
+        "description": "Allow data fetching on Saturday and Sunday",
+        "category": "ingestion",
+        "data_type": "bool",
+        "requires_restart": False
+    },
+    "commodity_trading_start_time": {
+        "value": "09:00",
+        "description": "Commodity trading start time (HH:MM)",
+        "category": "ingestion",
+        "data_type": "string",
+        "requires_restart": False
+    },
+    "commodity_trading_end_time": {
+        "value": "23:55",
+        "description": "Commodity trading end time (HH:MM)",
+        "category": "ingestion",
+        "data_type": "string",
+        "requires_restart": False
+    },
+    "holidays": {
+        "value": "[]",
+        "description": "List of trading holidays (YYYY-MM-DD)",
+        "category": "ingestion",
+        "data_type": "json",
+        "requires_restart": False
+    },
     "api_max_retries": {
         "value": "3",
         "description": "Max retries for Dhan API calls",

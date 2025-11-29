@@ -10,14 +10,20 @@ import { Input } from '@/components/ui/Input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { Switch } from '@/components/ui/Switch';
 import { RefreshCw, Save, X, Edit2, RotateCcw, Power } from 'lucide-react';
+import { TradingSchedule } from '@/components/TradingSchedule';
 
 export default function ConfigPage() {
-  const [configs, setConfigs] = useState<any[]>([]);
+  const [allConfigs, setAllConfigs] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>(['all']);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [loading, setLoading] = useState(true);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+
+  // Filter configs for the table view
+  const tableConfigs = selectedCategory === 'all' || selectedCategory === 'trading'
+    ? allConfigs 
+    : allConfigs.filter(c => c.category === selectedCategory);
 
   useEffect(() => {
     loadCategories();
@@ -39,10 +45,7 @@ export default function ConfigPage() {
         if (message.type === 'config_update') {
           // Update local state if we are not editing
           if (!editingKey) {
-             const data = selectedCategory === 'all'
-              ? message.data
-              : message.data.filter((c: any) => c.category === selectedCategory);
-            setConfigs(data);
+            setAllConfigs(message.data);
           }
         }
       } catch (err) {
@@ -50,10 +53,12 @@ export default function ConfigPage() {
       }
     };
 
+    ws.onclose = () => console.log('WS Closed');
+
     return () => {
       ws.close();
     };
-  }, [selectedCategory, editingKey]);
+  }, [editingKey]); // Removed selectedCategory dependency as we filter on render
 
   const loadCategories = async () => {
     try {
@@ -67,8 +72,9 @@ export default function ConfigPage() {
   const loadConfigs = async () => {
     setLoading(true);
     try {
-      const res = await api.getConfigs(selectedCategory === 'all' ? undefined : selectedCategory);
-      setConfigs(res.data);
+      // Always fetch all configs
+      const res = await api.getConfigs();
+      setAllConfigs(res.data);
     } catch (err) {
       console.error('Failed to load configs:', err);
     } finally {
@@ -249,6 +255,7 @@ export default function ConfigPage() {
 
       <Tabs defaultValue="all" value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
         <TabsList className="mb-4 flex flex-wrap h-auto">
+          <TabsTrigger value="trading">Trading Schedule</TabsTrigger>
           {categories.map(cat => (
             <TabsTrigger key={cat} value={cat} className="capitalize">
               {cat}
@@ -256,16 +263,20 @@ export default function ConfigPage() {
           ))}
         </TabsList>
 
+        <TabsContent value="trading">
+          <TradingSchedule configs={allConfigs} onUpdate={loadConfigs} />
+        </TabsContent>
+
         <TabsContent value={selectedCategory}>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="capitalize">{selectedCategory} Settings</CardTitle>
                 <CardDescription>
-                  {configs.length} configuration items found
+                  {tableConfigs.length} configuration items found
                 </CardDescription>
               </div>
-              {selectedCategory !== 'all' && (
+              {selectedCategory !== 'all' && selectedCategory !== 'trading' && (
                  <Button 
                    variant="secondary" 
                    size="sm" 
@@ -278,7 +289,7 @@ export default function ConfigPage() {
             </CardHeader>
             <CardContent>
               <DataTable 
-                data={configs} 
+                data={tableConfigs} 
                 columns={columns} 
                 searchKey="key"
               />

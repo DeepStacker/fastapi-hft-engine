@@ -1,13 +1,17 @@
 import asyncio
 import signal
 import time
-from datetime import datetime
+import json
+from datetime import datetime, time as dt_time
+import pytz
+from aiokafka import AIOKafkaProducer
 from core.config.settings import get_settings
 from core.logging.logger import configure_logger, get_logger
 from core.messaging.producer import kafka_producer
 from services.ingestion.dhan_client import DhanApiClient
-from core.monitoring.metrics import start_metrics_server, MESSAGES_PROCESSED, PROCESSING_TIME
+from core.monitoring.metrics import start_metrics_server, MESSAGES_PROCESSED, PROCESSING_TIME, INGESTION_COUNT, INGESTION_ERRORS
 from core.config.dynamic_config import get_config_manager
+from core.utils.caching import instrument_multi_cache, expiry_multi_cache, cached
 
 # Configure logging
 configure_logger()
@@ -17,167 +21,258 @@ settings = get_settings()
 # Dynamic configuration manager
 config_manager = None
 
-async def get_active_instruments():
-    """Fetch active instruments from DB."""
+@cached(instrument_multi_cache, key_func=lambda: "active_list")
+async def get_active_instruments_cached():
+    """Fetch active instruments from DB with caching."""
     from core.database.db import async_session_factory
     from core.database.models import InstrumentDB
     from sqlalchemy import select
 
     async with async_session_factory() as session:
-        result = await session.execute(select(InstrumentDB).where(InstrumentDB.is_active == True))
-        return [row.symbol_id for row in result.scalars().all()]
+        result = await session.execute(
+            select(InstrumentDB).where(InstrumentDB.is_active == True)
+        )
+        instruments = result.scalars().all()
+        
+        # Serialize for cache
+        return [
+            {
+                "symbol": i.symbol,
+                "symbol_id": i.symbol_id,
+                "segment_id": i.segment_id
+            }
+            for i in instruments
+        ]
 
-def is_trading_hours():
-    """Check if current time is within trading hours (dynamic config)."""
-    from datetime import time as dt_time
-    import pytz
+async def get_expiry_dates_cached(client: DhanApiClient, symbol_id: int, segment_id: int):
+    """Get expiry dates with caching (manual check to allow client usage)."""
+    key = str(symbol_id)
     
+    # Try cache
+    cached_expiries = await expiry_multi_cache.get(key)
+    if cached_expiries:
+        return cached_expiries
+        
+    # Fetch from API
+    expiries = await client.fetch_expiry_dates(symbol_id, segment_id)
+    
+    # Update cache
+    if expiries:
+        await expiry_multi_cache.set(key, expiries)
+        
+    return expiries
+
+def is_market_open(segment_id: int) -> bool:
+    """
+    Check if market is open for a specific segment.
+    
+    Segments:
+    0 = Indices (Equity)
+    1 = Equity (Stocks)
+    5 = Commodities
+    """
+    if not config_manager:
+        return False
+        
+    # 1. Check Bypass (Testing Mode)
+    if config_manager.get("bypass_trading_hours", False):
+        return True
+        
     ist = pytz.timezone('Asia/Kolkata')
     now = datetime.now(ist)
     current_time = now.time()
+    today_str = now.strftime("%Y-%m-%d")
     
-    # Weekends check
-    if now.weekday() >= 5:
+    # 2. Check Holidays
+    holidays = config_manager.get("holidays", [])
+    if isinstance(holidays, str):
+        try:
+            holidays = json.loads(holidays)
+        except Exception:
+            holidays = []
+            
+    if today_str in holidays:
         return False
-
-    # Get trading hours from config (default to 09:15 - 15:30)
-    start_str = config_manager.get("trading_start_time", "09:15")
-    end_str = config_manager.get("trading_end_time", "15:30")
     
-    # Parse time strings (HH:MM)
+    # 3. Check Weekends
+    if now.weekday() >= 5:
+        if not config_manager.get("enable_weekend_trading", False):
+            return False
+
+    # 4. Check Time based on Segment
+    if segment_id == 5: # Commodity
+        start_str = config_manager.get("commodity_trading_start_time", "09:00")
+        end_str = config_manager.get("commodity_trading_end_time", "23:55")
+    else: # Equity / Indices
+        start_str = config_manager.get("trading_start_time", "09:15")
+        end_str = config_manager.get("trading_end_time", "15:30")
+    
     try:
         start_hour, start_min = map(int, start_str.split(":"))
         end_hour, end_min = map(int, end_str.split(":"))
+        
         start_time = dt_time(start_hour, start_min)
         end_time = dt_time(end_hour, end_min)
-    except (ValueError, AttributeError):
-        # Fallback to defaults if parsing fails
-        start_time = dt_time(9, 15)
-        end_time = dt_time(15, 30)
-    
-    return start_time <= current_time <= end_time
+        
+        return start_time <= current_time <= end_time
+    except Exception:
+        # Fallback defaults
+        if segment_id == 5:
+            return dt_time(9, 0) <= current_time <= dt_time(23, 55)
+        return dt_time(9, 15) <= current_time <= dt_time(15, 30)
 
-async def fetch_and_publish(client: DhanApiClient, symbol_id: int):
-    """
-    Fetch data from Dhan API and publish to Kafka with retry logic (dynamic retries).
-    """
-    max_retries = config_manager.get_int("api_max_retries", 3)
+async def process_instrument(instrument: dict, dhan_client: DhanApiClient, producer: AIOKafkaProducer, semaphore: asyncio.Semaphore):
+    """Process a single instrument: fetch data and publish to Kafka."""
+    symbol = instrument['symbol']
+    symbol_id = instrument['symbol_id']
+    segment_id = instrument['segment_id']
     
-    for attempt in range(max_retries):
-        try:
-            # Fetch option chain data
-            response = await client.fetch_option_chain(symbol_id)
-            
-            if not response:
-                logger.warning(f"Empty response for symbol_id {symbol_id}")
-                return
-            
-            # Wrap in envelope for Kafka
-            message = {
-                "symbol_id": symbol_id,
-                "payload": response,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-            
-            # Publish to Kafka
-            await kafka_producer.send("market.raw", message)
-            MESSAGES_PROCESSED.labels(service="ingestion", status="success").inc()
-            
-            logger.debug(f"Published data for symbol_id {symbol_id}")
+    async with semaphore:
+        # FAST CHECK: Is market still open?
+        # This handles the case where config changed while this task was waiting in the queue
+        if not is_market_open(segment_id):
             return
+
+        try:
+            # 1. Fetch Expiry Dates (Cached)
+            expiries = await get_expiry_dates_cached(dhan_client, symbol_id, segment_id)
+            
+            if not expiries:
+                logger.warning(f"No expiries found for {symbol}")
+                return
+                
+            # For now, just fetch the nearest expiry (first one)
+            target_expiry = expiries[0]
+            
+            # 2. Fetch Option Chain (Direct API - Realtime)
+            # This response contains both Option Chain ('oc') and Spot Data ('sltp')
+            chain_response = await dhan_client.fetch_option_chain(
+                symbol_id, 
+                target_expiry, 
+                segment_id
+            )
+            
+            if chain_response and 'data' in chain_response:
+                data = chain_response['data']
+                chain_data = data.get('oc', {})
+                spot_price = data.get('sltp')
+                
+                if chain_data:
+                    # Construct message payload
+                    message = {
+                        "symbol": symbol,
+                        "symbol_id": symbol_id,
+                        "segment_id": segment_id,
+                        "expiry": target_expiry,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "option_chain": chain_data,
+                        "spot_data": {"ltp": spot_price} if spot_price else {}
+                    }
+                    
+                    # Publish to Kafka
+                    await producer.send_and_wait(
+                        settings.KAFKA_TOPIC_MARKET_RAW,
+                        message
+                    )
+                    
+                    INGESTION_COUNT.labels(symbol=symbol).inc()
+                    logger.debug(f"Published data for {symbol} ({target_expiry})")
             
         except Exception as e:
-            logger.error(f"Failed to fetch/publish symbol_id {symbol_id} (attempt {attempt + 1}/{max_retries}): {e}")
-            MESSAGES_PROCESSED.labels(service="ingestion", status="error").inc()
-            
-            if attempt < max_retries - 1:
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
-            else:
-                logger.error(f"Max retries reached for symbol_id {symbol_id}")
+            INGESTION_ERRORS.labels(type="fetch_error").inc()
+            logger.error(f"Error processing {symbol}: {e}")
 
-async def ingestion_loop():
+async def main():
+    """Main ingestion loop"""
+    logger.info("Starting Ingestion Service")
+    
     global config_manager
-    
-    # Initialize ConfigManager
     config_manager = await get_config_manager()
-    logger.info("ConfigManager initialized")
     
-    # Subscribe to config changes
-    async def on_config_change(key: str, new_value):
-        logger.info(f"Config updated: {key} = {new_value}")
+    # Initialize Kafka producer
+    producer = AIOKafkaProducer(
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+    await producer.start()
     
-    await config_manager.subscribe_to_changes(on_config_change)
+    dhan_client = DhanApiClient()
     
-    # Start metrics server
-    start_metrics_server(8000)
+    # Limit concurrent API calls to prevent circuit breaker tripping
+    # Dhan API likely has rate limits (e.g., 10 req/sec)
+    semaphore = asyncio.Semaphore(5)
     
-    client = DhanApiClient()
-    await kafka_producer.start()
+    # Event to interrupt sleep on config change
+    config_updated_event = asyncio.Event()
     
-    logger.info("Starting ingestion loop...")
+    async def on_config_update(key, value):
+        logger.info(f"Config updated: {key} = {value}")
+        config_updated_event.set()
+        
+    await config_manager.subscribe_to_changes(on_config_update)
     
-    # Get dynamic configs
-    fallback_symbols = config_manager.get_list("fallback_symbols", [13, 25, 27, 442])
-    instruments = fallback_symbols
-    last_instrument_refresh = time.time()
+    # Helper for interruptible sleep
+    async def interruptible_sleep(seconds: float):
+        try:
+            await asyncio.wait_for(config_updated_event.wait(), timeout=seconds)
+            config_updated_event.clear()
+            logger.info("Sleep interrupted by config change")
+        except asyncio.TimeoutError:
+            pass
     
     try:
         while True:
-            # Get dynamic refresh interval
-            refresh_interval = config_manager.get_int("instrument_refresh_interval", 60)
+            # Get active instruments (Cached)
+            instruments = await get_active_instruments_cached()
             
-            # Refresh instruments list periodically
-            if time.time() - last_instrument_refresh > refresh_interval:
-                try:
-                    db_instruments = await get_active_instruments()
-                    if db_instruments:
-                        instruments = db_instruments
-                        logger.info(f"Refreshed instruments list: {len(instruments)} active instruments")
-                    last_instrument_refresh = time.time()
-                except Exception as e:
-                    logger.error(f"Failed to refresh instruments: {e}")
-            
-            if is_trading_hours():
-                if instruments:
-                    tasks = [fetch_and_publish(client, sid) for sid in instruments]
-                    await asyncio.gather(*tasks, return_exceptions=True)
-                else:
-                    logger.warning("No active instruments found.")
-            else:
-                logger.info("Outside trading hours. Sleeping...")
-                sleep_duration = config_manager.get_int("sleep_outside_hours", 60)
-                await asyncio.sleep(sleep_duration)
+            if not instruments:
+                logger.warning("No active instruments found")
+                await interruptible_sleep(10)
                 continue
-
-            # Get dynamic fetch interval
-            fetch_interval = config_manager.get_int("fetch_interval", 1)
-            await asyncio.sleep(fetch_interval)
-    except asyncio.CancelledError:
-        logger.info("Ingestion loop cancelled")
+                
+            # Filter instruments based on market hours
+            instruments_to_process = [
+                i for i in instruments 
+                if is_market_open(i['segment_id'])
+            ]
+            
+            if not instruments_to_process:
+                logger.info("Markets closed for all active instruments, sleeping...")
+                await interruptible_sleep(60)
+                continue
+                
+            logger.info(f"Processing {len(instruments_to_process)} active instruments concurrently (limit: 5)")
+            
+            # Process all instruments concurrently with semaphore
+            start_time = datetime.now()
+            
+            tasks = [
+                process_instrument(instrument, dhan_client, producer, semaphore)
+                for instrument in instruments_to_process
+            ]
+            await asyncio.gather(*tasks)
+            
+            elapsed = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Cycle completed in {elapsed:.2f}s")
+            
+            # Dynamic sleep based on config
+            sleep_time = config_manager.get("ingestion_interval", 1.0)
+            
+            # Adjust sleep time to maintain fixed interval if possible
+            actual_sleep = max(0, sleep_time - elapsed)
+            if actual_sleep > 0:
+                await interruptible_sleep(actual_sleep)
+            
+    except Exception as e:
+        logger.critical(f"Critical error in ingestion service: {e}")
     finally:
-        await kafka_producer.stop()
-        await config_manager.close()
-
-def main():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    ingest_task = loop.create_task(ingestion_loop())
-    
-    # Graceful Shutdown
-    def shutdown():
-        logger.info("Shutting down...")
-        ingest_task.cancel()
-    
-    loop.add_signal_handler(signal.SIGTERM, shutdown)
-    loop.add_signal_handler(signal.SIGINT, shutdown)
-    
-    try:
-        loop.run_until_complete(ingest_task)
-    except asyncio.CancelledError:
-        pass
-    finally:
-        loop.close()
+        await producer.stop()
+        if config_manager:
+            await config_manager.close()
 
 if __name__ == "__main__":
-    main()
+    # Start metrics server
+    start_metrics_server(8000)
+    
+    # Run main loop
+    asyncio.run(main())

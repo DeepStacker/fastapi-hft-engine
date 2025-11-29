@@ -11,6 +11,23 @@ interface TabsProps {
   className?: string;
 }
 
+interface TabsListProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+interface TabsTriggerProps {
+  value: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+interface TabsContentProps {
+  value: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
 const TabsContext = React.createContext<{
   value: string;
   setValue: (value: string) => void;
