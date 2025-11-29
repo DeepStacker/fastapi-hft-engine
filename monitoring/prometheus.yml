@@ -1,17 +1,9 @@
-# Prometheus Configuration
-
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    cluster: 'stockify-production'
+    cluster: 'stockify'
     environment: 'production'
-
-# Alerting configuration
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets: ['alertmanager:9093']
 
 # Load alert rules
 rule_files:
@@ -19,76 +11,55 @@ rule_files:
 
 # Scrape configurations
 scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
   # Gateway Service
   - job_name: 'gateway'
     static_configs:
       - targets: ['gateway-service:8000']
     metrics_path: '/metrics'
-    scrape_interval: 10s
 
   # Ingestion Service
   - job_name: 'ingestion'
     static_configs:
-      - targets: ['ingestion-service:8000']
+      - targets: ['ingestion-service:9090']
     metrics_path: '/metrics'
-    scrape_interval: 10s
-
+  
   # Processor Service
   - job_name: 'processor'
     static_configs:
-      - targets: ['processor-service:8000']
+      - targets: ['processor-service:9090 ']
     metrics_path: '/metrics'
-    scrape_interval: 10s
-
+  
   # Storage Service
   - job_name: 'storage'
     static_configs:
-      - targets: ['storage-service:8000']
+      - targets: ['storage-service:9090']
     metrics_path: '/metrics'
-    scrape_interval: 10s
-
+  
   # Realtime Service
   - job_name: 'realtime'
     static_configs:
-      - targets: ['realtime-service:8000']
+      - targets: ['realtime-service:9090']
     metrics_path: '/metrics'
-    scrape_interval: 10s
 
-  # gRPC Server
-  - job_name: 'grpc'
-    static_configs:
-      - targets: ['grpc-server:50051']
-    metrics_path: '/metrics'
-    scrape_interval: 10s
-
-  # TimescaleDB
+  # PostgreSQL/TimescaleDB Exporter (if configured)
   - job_name: 'postgres'
     static_configs:
-      - targets: ['timescaledb:5432']
-    metrics_path: '/metrics'
-    scrape_interval: 30s
+      - targets: ['timescaledb:9187']
+    # Note: Requires postgres_exporter sidecar
 
-  # Redis
+  # Redis Exporter (if configured)
   - job_name: 'redis'
     static_configs:
-      - targets: ['redis:6379']
-    metrics_path: '/metrics'
-    scrape_interval: 30s
+      - targets: ['redis:9121']
+    # Note: Requires redis_exporter sidecar
 
-  # Kafka
+  # Kafka JMX Exporter (if configured)
   - job_name: 'kafka'
     static_configs:
-      - targets: ['kafka:9092']
-    metrics_path: '/metrics'
-    scrape_interval: 30s
-
-  # Node Exporters (if deployed)
-  - job_name: 'node'
-    static_configs:
-      - targets: ['node-exporter:9100']
-    scrape_interval: 30s
-
-  # Self-monitoring
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
+      - targets: ['kafka:7071']
+    # Note: Requires JMX exporter configuration

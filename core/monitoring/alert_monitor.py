@@ -192,17 +192,42 @@ class AlertMonitor:
             await session.commit()
     
     async def send_email(self, addresses: List[str], subject: str, body: str):
-        """Send email notification"""
-        # This is a placeholder - configure with actual SMTP settings
-        msg = MIMEMultipart()
-        msg['From'] = "alerts@stockify.local"
-        msg['To'] = ", ".join(addresses)
-        msg['Subject'] = f"[STOCKIFY ALERT] {subject}"
+        """Send email notification via SMTP"""
+        import aiosmtplib
+        from core.config.settings import get_settings
         
-        msg.attach(MIMEText(body, 'plain'))
+        settings = get_settings()
         
-        # Would actually send via SMTP here
-        logger.info(f"Email notification sent to {addresses}")
+        # Check if SMTP is configured
+        if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+            logger.warning("SMTP not configured. Email notification skipped.")
+            logger.info(f"Would send email to {addresses}: {subject}")
+            return
+        
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = settings.SMTP_FROM_EMAIL
+            msg['To'] = ", ".join(addresses)
+            msg['Subject'] = f"[STOCKIFY ALERT] {subject}"
+            
+            msg.attach(MIMEText(body, 'plain'))
+            
+            # Send via SMTP
+            async with aiosmtplib.SMTP(
+                hostname=settings.SMTP_HOST,
+                port=settings.SMTP_PORT,
+                use_tls=False  # We'll use STARTTLS
+            ) as smtp:
+                if settings.SMTP_USE_TLS:
+                    await smtp.starttls()
+                await smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                await smtp.send_message(msg)
+            
+            logger.info(f"Email notification sent successfully to {addresses}")
+            
+        except Exception as e:
+            logger.error(f"Failed to send email to {addresses}: {e}")
+            raise
     
     async def send_slack(self, webhook_url: str, title: str, message: str):
         """Send Slack notification"""

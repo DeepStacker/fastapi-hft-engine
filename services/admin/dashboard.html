@@ -424,38 +424,43 @@
         // API Client
         const API_BASE = 'http://localhost:8001';
 
-        headers: {
-            'Content-Type': 'application/json',
+        const api = {
+            request: async (endpoint, options = {}) => {
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
                         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
                         ...options.headers
-        }
+                    }
                 });
-        if (!response.ok) {
-            if (response.status === 401) {
-                localStorage.removeItem('admin_token');
-                window.location.reload();
-            }
-            throw new Error(`API error: ${response.statusText}`);
-        }
-        return response.json();
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        localStorage.removeItem('admin_token');
+                        window.location.reload();
+                    }
+                    throw new Error(`API error: ${response.statusText}`);
+                }
+                return response.json();
             },
 
-        // System APIs
-        getSystemStats: () => api.request('/system/stats'),
+            // System APIs
+            getSystemStats: () => api.request('/system/stats'),
 
             // Config APIs
             getConfigs: () => api.request('/config'),
-                updateConfig: (key, value) => api.request(`/config/${key}?value=${encodeURIComponent(value)}`, { method: 'PUT' }),
+            updateConfig: (key, value) => api.request(`/config/${key}?value=${encodeURIComponent(value)}`, { method: 'PUT' }),
 
-                    // Alert APIs
-                    getAlerts: () => api.request('/alerts'),
-                        createAlert: (data) => api.request('/alerts', { method: 'POST', body: JSON.stringify(data) }),
-                            updateAlert: (id, data) => api.request(`/alerts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-                                deleteAlert: (id) => api.request(`/alerts/${id}`, { method: 'DELETE' }),
+            // Alert APIs
+            getAlerts: () => api.request('/alerts'),
+            createAlert: (data) => api.request('/alerts', { method: 'POST', body: JSON.stringify(data) }),
+            updateAlert: (id, data) => api.request(`/alerts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+            deleteAlert: (id) => api.request(`/alerts/${id}`, { method: 'DELETE' }),
 
-                                    // Service APIs
-                                    getServices: () => api.request('/services'),
-                                        restartService: (name) => api.request(`/services/${name}/restart`, { method: 'POST' })
+            // Service APIs
+            getServices: () => api.request('/services'),
+            restartService: (name) => api.request(`/services/${name}/restart`, { method: 'POST' })
         };
 
         // Toast Notification Component
@@ -482,8 +487,8 @@
 
         // Login Component
         function LoginPage({ onLogin }) {
-            const [username, setUsername] = useState('admin');
-            const [password, setPassword] = useState('admin');
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState('');
 

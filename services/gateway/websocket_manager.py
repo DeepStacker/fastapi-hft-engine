@@ -73,6 +73,15 @@ class OptimizedWebSocketManager:
             self.channels[symbol_id] = asyncio.Queue(maxsize=1000)
             asyncio.create_task(self._channel_broadcaster(symbol_id))
         
+        # Track connection count in Redis for admin dashboard
+        try:
+            if not self.redis:
+                self.redis = await redis.from_url(settings.REDIS_URL)
+            await self.redis.incr("ws:total_connections")
+            await self.redis.expire("ws:total_connections", 300)  # 5 minute TTL
+        except Exception as e:
+            logger.warning(f"Failed to update Redis connection count: {e}")
+        
         logger.info(f"WebSocket connected: symbol={symbol_id}, user={username}, total={len(self.connections[symbol_id])}")
         return True
     
@@ -85,6 +94,13 @@ class OptimizedWebSocketManager:
             username = self.ws_to_user[websocket]
             self.user_connections[username].discard(websocket)
             del self.ws_to_user[websocket]
+        
+        # Decrement connection count in Redis
+        try:
+            if self.redis:
+                asyncio.create_task(self.redis.decr("ws:total_connections"))
+        except Exception as e:
+            logger.warning(f"Failed to update Redis connection count: {e}")
         
         logger.info(f"WebSocket disconnected: symbol={symbol_id}, remaining={len(self.connections[symbol_id])}")
     

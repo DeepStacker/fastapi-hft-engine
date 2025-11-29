@@ -14,7 +14,9 @@ from core.database.models import (
     UserDB,
     APIKeyDB,
     AuditLogDB,
-    TradingSessionDB
+    TradingSessionDB,
+    SystemConfigDB,
+    AlertRuleDB
 )
 
 async def init_database():

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # Kafka
-    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
+    KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"  # Docker internal network
     KAFKA_COMPRESSION_TYPE: str = "gzip"  # Using gzip (no extra deps needed)
 
     # Database
@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     
     # Monitoring
     METRICS_PORT: int = 9090
+    PROMETHEUS_URL: str = "http://prometheus:9090"
     
     # Security
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
@@ -55,6 +56,17 @@ class Settings(BaseSettings):
     
     # WebSocket
     MAX_WEBSOCKET_CONNECTIONS_PER_USER: int = 10
+    
+    # Admin
+    DEFAULT_ADMIN_PASSWORD: str = "ChangeMe123!"
+    
+    # SMTP Email Configuration
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: str = "alerts@stockify.local"
+    SMTP_USE_TLS: bool = True
 
     class Config:
         env_file = ".env"

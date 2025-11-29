@@ -84,24 +84,42 @@ This project uses an event-driven microservices architecture:
 ### Project Structure
 
 ```
-DB_Ingestion/
-├── core/                    # Shared library
-│   ├── config/             # Configuration management
-│   ├── database/           # Database models & setup
-│   ├── logging/            # Structured logging
-│   ├── messaging/          # Kafka producer/consumer
-│   ├── models/             # Pydantic schemas & domain models
-│   ├── monitoring/         # Prometheus metrics
-│   └── utils/              # Data transformation utilities
-├── services/               # Microservices
-│   ├── gateway/            # API Gateway (REST + WebSocket)
-│   ├── ingestion/          # Data ingestion from Dhan API
-│   ├── processor/          # Stream processing & enrichment
-│   ├── storage/            # TimescaleDB persistence
-│   └── realtime/           # Redis pub/sub distribution
-├── tests/                  # Test suite
-├── scripts/                # Utility scripts
-└── docker-compose.yml      # Service orchestration
+fastapi-hft-engine/
+├── core/                      # Shared library
+│   ├── config/               # Configuration management
+│   ├── database/             # Database models & connection
+│   ├── grpc_server/          # gRPC server implementation
+│   ├── logging/              # Structured logging
+│   ├── messaging/            # Kafka producer/consumer
+│   ├── models/               # Pydantic schemas & domain models
+│   ├── monitoring/           # Prometheus metrics & alerts
+│   ├── storage/              # Storage adapters
+│   └── utils/                # Data transformation utilities
+├── services/                  # Microservices
+│   ├── admin/                # Admin dashboard & management API
+│   ├── gateway/              # API Gateway (REST + WebSocket)
+│   ├── ingestion/            # Data ingestion from Dhan API
+│   ├── processor/            # Stream processing & enrichment
+│   ├── realtime/             # Real-time Redis Pub/Sub
+│   └── storage/              # TimescaleDB persistence
+├── tests/                     # Test suite
+│   ├── integration/          # Integration tests
+│   └── unit/                 # Unit tests
+├── scripts/                   # Utility scripts
+│   ├── backup_database.sh    # Manual backup
+│   ├── schedule_backup.sh    # Automated backup with cron
+│   └── load_test.py          # Load testing
+├── monitoring/                # Monitoring infrastructure
+│   ├── grafana/              # Grafana dashboards & config
+│   ├── prometheus.yml        # Prometheus configuration
+│   └── prometheus-alerts.yml # Alert rules
+├── alembic/                   # Database migrations
+├── protos/                    # gRPC Protocol Buffers
+├── docker-compose.yml         # Docker orchestration
+├── Dockerfile                 # Multi-stage build
+├── requirements.txt           # Python dependencies
+└── .env.example              # Environment variables template
+```
 
 ## API Endpoints
 

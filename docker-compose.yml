@@ -128,11 +128,15 @@ services:
         condition: service_healthy
     networks:
       - stockify-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # Removed health check - this is a Kafka consumer without HTTP server
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -250,6 +254,14 @@ services:
         condition: service_healthy
     networks:
       - stockify-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -282,6 +294,14 @@ services:
         condition: service_healthy
     networks:
       - stockify-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     healthcheck:
       test: ["CMD", "grpc_health_probe", "-addr=:50051"]
       interval: 30s
@@ -299,10 +319,12 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: stockify-admin
+    user: root
     volumes:
       - .:/app
       - /var/run/docker.sock:/var/run/docker.sock
-    user: root
+    # SECURITY FIX: Removed Docker socket mount and root user
+    # For Docker stats/management, use external Docker API connection or separate monitoring service
     command: uvicorn services.admin.main:admin_app --host 0.0.0.0 --port 8001
     environment:
       DATABASE_URL: ${DATABASE_URL}
@@ -318,6 +340,14 @@ services:
         condition: service_healthy
     networks:
       - stockify-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -349,7 +379,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: 'false'
     ports:
-      - "3000:3000"
+      - "3001:3000"  # Changed to 3001 to free port 3000 for admin frontend
     volumes:
       - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
@@ -360,6 +390,28 @@ services:
     networks:
       - stockify-network
     restart: unless-stopped
+
+  # Admin Frontend - Next.js Application
+  admin-frontend:
+    build:
+      context: ./services/admin-frontend
+      dockerfile: Dockerfile
+    container_name: stockify-admin-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://admin-service:8001
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - admin-service
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   timescaledb_data:

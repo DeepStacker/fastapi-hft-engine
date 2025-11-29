@@ -29,7 +29,22 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     libpq5 \
     curl \
+    wget \
+    docker.io \
     && rm -rf /var/lib/apt/lists/*
+
+# Install grpc_health_probe for gRPC health checks
+RUN GRPC_HEALTH_PROBE_VERSION=v0.4.24 && \
+    wget -qO/bin/grpc_health_probe \
+    https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
+    chmod +x /bin/grpc_health_probe
+
+# Install docker-compose plugin
+RUN DOCKER_COMPOSE_VERSION=v2.24.5 && \
+    mkdir -p /usr/local/lib/docker/cli-plugins && \
+    wget -qO /usr/local/lib/docker/cli-plugins/docker-compose \
+    https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-x86_64 && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages

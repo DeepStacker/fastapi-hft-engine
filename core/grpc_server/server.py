@@ -215,6 +215,152 @@ class MarketDataServicer(stockify_pb2_grpc.MarketDataServiceServicer):
                 )
         
         return stockify_pb2.BatchSnapshotResponse(snapshots=snapshots)
+    
+    async def GetHistorical(
+        self,
+        request: stockify_pb2.HistoricalRequest,
+        context: grpc.aio.ServicerContext
+    ) -> stockify_pb2.HistoricalResponse:
+        """
+        Get historical candlestick data from TimescaleDB
+        
+        OPTIMIZED: Uses TimescaleDB continuous aggregates for fast queries
+        """
+        try:
+            async with async_session_factory() as session:
+                # Build query based on interval
+                interval_map = {
+                    "1m": "1 minute",
+                    "5m": "5 minutes",
+                    "15m": "15 minutes",
+                    "1h": "1 hour",
+                    "1d": "1 day"
+                }
+                
+                interval = interval_map.get(request.interval, "5 minutes")
+                
+                # Query using time_bucket for aggregation
+                from sqlalchemy import text
+                query = text("""
+                    SELECT
+                        time_bucket(:interval, timestamp) as bucket,
+                        first(ltp, timestamp) as open,
+                        max(ltp) as high,
+                        min(ltp) as low,
+                        last(ltp, timestamp) as close,
+                        sum(volume) as volume
+                    FROM market_snapshots
+                    WHERE symbol_id = :symbol_id
+                        AND timestamp >= :start_time
+                        AND timestamp <= :end_time
+                    GROUP BY bucket
+                    ORDER BY bucket DESC
+                    LIMIT :limit
+                """)
+                
+                # Convert protobuf timestamps to datetime
+                from google.protobuf.timestamp_pb2 import Timestamp
+                start_time = datetime.fromtimestamp(request.start_time.seconds)
+                end_time = datetime.fromtimestamp(request.end_time.seconds)
+                
+                result = await session.execute(
+                    query,
+                    {
+                        "interval": interval,
+                        "symbol_id": request.symbol_id,
+                        "start_time": start_time,
+                        "end_time": end_time,
+                        "limit": request.limit or 100
+                    }
+                )
+                
+                candles = []
+                for row in result:
+                    timestamp = Timestamp()
+                    timestamp.FromDatetime(row.bucket)
+                    
+                    candles.append(stockify_pb2.Candle(
+                        timestamp=timestamp,
+                        open=float(row.open or 0),
+                        high=float(row.high or 0),
+                        low=float(row.low or 0),
+                        close=float(row.close or 0),
+                        volume=int(row.volume or 0)
+                    ))
+                
+                return stockify_pb2.HistoricalResponse(candles=candles)
+                
+        except Exception as e:
+            logger.error(f"GetHistorical error: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return stockify_pb2.HistoricalResponse()
+    
+    async def GetOptionChain(
+        self,
+        request: stockify_pb2.OptionChainRequest,
+        context: grpc.aio.ServicerContext
+    ) -> stockify_pb2.OptionChainResponse:
+        """
+        Get option chain data from database
+        
+        Returns latest option contracts for a symbol
+        """
+        try:
+            async with async_session_factory() as session:
+                # Get latest option contracts
+                from sqlalchemy import and_
+                
+                # Build base query
+                query = select(OptionContractDB).where(
+                    OptionContractDB.symbol_id == request.symbol_id
+                ).order_by(desc(OptionContractDB.timestamp))
+                
+                # Filter by expiry if provided
+                if request.expiry:
+                    query = query.where(OptionContractDB.expiry == request.expiry)
+                
+                # Get latest 1000 contracts
+                query = query.limit(1000)
+                
+                result = await session.execute(query)
+                contracts = result.scalars().all()
+                
+                # Separate calls and puts
+                calls = []
+                puts = []
+                
+                for contract in contracts:
+                    option_data = stockify_pb2.OptionContract(
+                        expiry=contract.expiry or "",
+                        strike_price=float(contract.strike_price),
+                        option_type=contract.option_type,
+                        ltp=float(contract.ltp),
+                        volume=int(contract.volume),
+                        oi=int(contract.oi),
+                        iv=float(contract.iv) if contract.iv else 0.0,
+                        delta=0.0,  # TODO: Calculate Greeks
+                        gamma=0.0,
+                        theta=0.0,
+                        vega=0.0
+                    )
+                    
+                    if contract.option_type == "CE":
+                        calls.append(option_data)
+                    else:
+                        puts.append(option_data)
+                
+                return stockify_pb2.OptionChainResponse(
+                    symbol_id=request.symbol_id,
+                    calls=calls,
+                    puts=puts
+                )
+                
+        except Exception as e:
+            logger.error(f"GetOptionChain error: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return stockify_pb2.OptionChainResponse()
 
 
 class HealthServicer(stockify_pb2_grpc.HealthServiceServicer):

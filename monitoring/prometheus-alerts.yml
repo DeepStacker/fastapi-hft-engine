@@ -1,106 +1,83 @@
-# Prometheus Alert Rules for Stockify
-
 groups:
   - name: stockify_alerts
     interval: 30s
     rules:
-      # High Priority Alerts
-      - alert: HighAPILatency
-        expr: histogram_quantile(0.99, rate(api_request_duration_seconds_bucket[5m])) > 0.01
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.8
         for: 5m
         labels:
-          severity: critical
+          severity: warning
         annotations:
-          summary: "API latency is too high"
-          description: "P99 latency is {{ $value }}s (threshold: 10ms)"
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for {{ $labels.job }}"
 
-      - alert: HighErrorRate
-        expr: rate(api_requests_total{status=~"5.."}[5m]) / rate(api_requests_total[5m]) > 0.01
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 / 1024 > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 2GB for {{ $labels.job }}"
+
+      # Service Down
+      - alert: ServiceDown
+        expr: up == 0
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "High error rate detected"
-          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 1%)"
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 2 minutes"
 
-      - alert: LowCacheHitRate
-        expr: sum(rate(cache_hits_total[5m])) / (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m]))) < 0.80
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Cache hit rate is low"
-          description: "Hit rate is {{ $value | humanizePercentage }} (threshold: 80%)"
-
-      - alert: DatabaseSlowQueries
-        expr: histogram_quantile(0.99, rate(database_query_seconds_bucket[5m])) > 0.05
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: rate(messages_processed_total{status="error"}[5m]) / rate(messages_processed_total[5m]) > 0.05
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Database queries are slow"
-          description: "P99 query time is {{ $value }}s (threshold: 50ms)"
+          summary: "High error rate detected"
+          description: "Error rate is above 5% for {{ $labels.service }}"
 
-      - alert: KafkaConsumerLag
+      # Slow Processing
+      - alert: SlowProcessing
+        expr: rate(processing_time_seconds_sum[5m]) / rate(processing_time_seconds_count[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow processing detected"
+          description: "Average processing time is above 1 second for {{ $labels.service }}"
+
+      # Database Connection Pool Exhausted
+      - alert: DBPoolExhausted
+        expr: db_pool_size - db_pool_available < 2
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Less than 2 database connections available"
+
+      # Kafka Consumer Lag
+      - alert: HighKafkaLag
         expr: kafka_consumer_lag > 1000
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Kafka consumer lag is high"
-          description: "Consumer lag is {{ $value }} messages (threshold: 1000)"
+          summary: "High Kafka consumer lag"
+          description: "Kafka consumer lag is above 1000 messages for {{ $labels.consumer_group }}"
 
-      - alert: ServiceDown
-        expr: up == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Service is down"
-          description: "{{ $labels.job }} is down"
-
-      - alert: HighMemoryUsage
-        expr: process_resident_memory_bytes / 1024 / 1024 / 1024 > 8
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High memory usage"
-          description: "Memory usage is {{ $value }}GB (threshold: 8GB)"
-
-      - alert: HighCPUUsage
-        expr: rate(process_cpu_seconds_total[5m]) * 100 > 80
+      # Low Cache Hit Rate
+      - alert: LowCacheHitRate
+        expr: cache_hit_rate < 0.7
         for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High CPU usage"
-          description: "CPU usage is {{ $value }}% (threshold: 80%)"
-
-      - alert: WebSocketConnectionsDrop
-        expr: delta(websocket_connections_active[5m]) < -1000
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Large drop in WebSocket connections"
-          description: "{{ $value }} connections dropped in 5 minutes"
-
-      - alert: DatabaseConnectionPoolExhaustion
-        expr: db_connection_pool_usage > 0.90
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Database connection pool nearly exhausted"
-          description: "Pool usage is {{ $value | humanizePercentage }}"
-
-      # Info level alerts
-      - alert: HighThroughput
-        expr: rate(api_requests_total[1m]) > 10000
-        for: 1m
         labels:
           severity: info
         annotations:
-          summary: "High traffic detected"
-          description: "Request rate is {{ $value }}/s (celebrating! 🎉)"
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is below 70%"
