@@ -10,7 +10,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/
 lib64/
 parts/
 sdist/
@@ -77,3 +77,5 @@ secrets/
 
 # Pre-commit
 .pre-commit-config.yaml.backup
+
+.next
