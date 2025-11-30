@@ -63,10 +63,11 @@ services:
     networks:
       - stockify-network
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "2181"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "pgrep", "-f", "scripts.save_ingestion_to_json"]
+      interval: 30s
+      timeout: 10s
       retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   kafka:
@@ -333,10 +334,11 @@ services:
           cpus: '0.5'
           memory: 512M
     healthcheck:
-      test: ["CMD", "grpc_health_probe", "-addr=:50051"]
+      test: ["CMD", "sh", "-c", "pgrep -f 'core.grpc_server.server' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
     restart: unless-stopped
     logging:
       driver: "json-file"
