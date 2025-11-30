@@ -6,7 +6,7 @@ Endpoints for managing Docker containers - restart, stop, start, logs, stats.
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
-from services.gateway.auth import get_current_admin_user
+from services.api_gateway.auth import get_current_admin_user
 from services.admin.services.docker_manager import docker_manager
 
 router = APIRouter(prefix="/docker", tags=["docker"])

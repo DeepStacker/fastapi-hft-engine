@@ -22,6 +22,10 @@ from slowapi.errors import RateLimitExceeded
 import httpx
 import brotli
 
+# Import performance optimizations
+from core.database.cache_layer import cache_manager
+from core.utils.redis_pipeline import RedisPipeline
+
 settings = get_settings()
 
 # Initialize rate limiter
@@ -29,6 +33,11 @@ limiter = Limiter(key_func=get_remote_address)
 
 # Redis connection pool (singleton)
 redis_pool = None
+
+# Query cache instances
+snapshot_cache = None
+historical_cache = None
+redis_pipeline = None
 
 async def get_redis_pool():
     """Get or create Redis connection pool"""
@@ -45,13 +54,26 @@ async def get_redis_pool():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown"""
+    global snapshot_cache, historical_cache, redis_pipeline
+    
     # Startup
     asyncio.create_task(manager.broadcast_loop())
+    
+    # Initialize caches
+    snapshot_cache = cache_manager.get_cache("snapshots", maxsize=5000, ttl=30)
+    historical_cache = cache_manager.get_cache("historical", maxsize=1000, ttl=300)
+    
+    # Initialize Redis pipeline
+    redis_client = await get_redis_pool()
+    redis_pipeline = RedisPipeline(redis_client)
+    
     yield
+    
     # Shutdown
     global redis_pool
     if redis_pool:
         await redis_pool.disconnect()
+    await cache_manager.clear_all()
 
 
 # Create FastAPI app
@@ -93,20 +115,7 @@ except ImportError:
     pass
 
 
-@app.get("/admin/dashboard")
-async def admin_dashboard():
-    """Serve the admin dashboard HTML"""
-    from fastapi.responses import HTMLResponse
-    import os
-    
-    # Read the dashboard HTML file
-    dashboard_path = os.path.join("services", "admin", "dashboard.html")
-    try:
-        with open(dashboard_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(content=content)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Dashboard file not found")
+
 
 
 @app.get("/metrics")
@@ -282,17 +291,16 @@ async def get_snapshot(request: Request, symbol_id: str):
     """
     Get the latest market snapshot for a symbol.
     
-    Uses multi-tier caching for optimal performance.
+    Uses query caching for optimal performance.
     Rate limited to 100 requests per minute.
     """
-    from core.utils.caching import cached
+    cache_key = f"snapshot:{symbol_id}"
     
-    @cached(ttl=1)  # Cache for 1 second
-    async def _get_snapshot_cached(sid: str):
+    async def fetch_snapshot():
         redis_client = await get_redis_pool()
         try:
             import json
-            data = await redis_client.get(f"latest:{sid}")
+            data = await redis_client.get(f"latest:{symbol_id}")
             if not data:
                 # Fallback to database
                 from core.database.db import async_session_factory
@@ -301,7 +309,7 @@ async def get_snapshot(request: Request, symbol_id: str):
                 
                 async with async_session_factory() as session:
                     stmt = select(MarketSnapshotDB).where(
-                        MarketSnapshotDB.symbol_id == int(sid)
+                        MarketSnapshotDB.symbol_id == int(symbol_id)
                     ).order_by(desc(MarketSnapshotDB.timestamp)).limit(1)
                     
                     result = await session.execute(stmt)
@@ -318,17 +326,20 @@ async def get_snapshot(request: Request, symbol_id: str):
                 
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"No data found for symbol {sid}"
+                    detail=f"No data found for symbol {symbol_id}"
                 )
             
             return json.loads(data)
-        except json.JSONDecodeError:
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid data format in cache"
+                detail=f"Error fetching snapshot: {str(e)}"
             )
     
-    return await _get_snapshot_cached(symbol_id)
+    # Use query cache
+    return await snapshot_cache.get_or_fetch(cache_key, fetch_snapshot)
 
 
 @app.get("/historical/{symbol_id}")

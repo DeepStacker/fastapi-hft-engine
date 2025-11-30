@@ -4,7 +4,7 @@ System Monitoring Router
 Handles system statistics, health monitoring, and real-time metrics.
 """
 from fastapi import APIRouter, Depends
-from services.gateway.auth import get_current_admin_user
+from services.api_gateway.auth import get_current_admin_user
 from services.admin.models import SystemStats
 from services.admin.services.metrics_collector import metrics_collector
 from services.admin.services.cache import cache_service
@@ -87,7 +87,7 @@ async def health_check():
 # WebSocket for real-time updates
 from fastapi import WebSocket, WebSocketDisconnect, Query, status
 import asyncio
-from services.gateway.auth import get_current_admin_user, get_current_user
+from services.api_gateway.auth import get_current_admin_user, get_current_user
 from jose import jwt, JWTError
 
 @router.websocket("/ws")

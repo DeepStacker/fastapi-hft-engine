@@ -109,3 +109,5 @@ def get_settings():
     
     return settings
 
+# Export settings instance for easy import
+settings = get_settings()

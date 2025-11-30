@@ -6,15 +6,29 @@ Handles instrument CRUD operations and activation for ingestion.
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from sqlalchemy import select, update, delete
-from services.gateway.auth import get_current_admin_user
+from services.api_gateway.auth import get_current_admin_user
 from services.admin.models import Instrument, InstrumentCreate, InstrumentUpdate
 from core.database.db import async_session_factory
 from core.database.models import InstrumentDB
 from services.admin.services.cache import cache_service
 import logging
+import json
 
 logger = logging.getLogger("stockify.admin.instruments")
 router = APIRouter(prefix="/instruments", tags=["instruments"])
+
+async def notify_instrument_update():
+    """Notify other services about instrument updates"""
+    # 1. Invalidate Ingestion Service L2 Cache
+    # Key format from core.utils.caching: prefix + ":" + key
+    await cache_service.delete("instrument:active_list")
+    
+    # 2. Publish Event for L1 Cache Invalidation
+    if not cache_service.redis:
+        await cache_service.connect()
+    
+    await cache_service.redis.publish("events:instrument_update", "update")
+    logger.info("Published instrument update event")
 
 
 @router.get("", response_model=List[Instrument])
@@ -133,6 +147,7 @@ async def create_instrument(
         
         # Invalidate list caches
         await cache_service.invalidate_pattern("instruments:list:*")
+        await notify_instrument_update()
         
         return Instrument(
             id=new_instrument.id,
@@ -175,6 +190,7 @@ async def update_instrument(
         # Invalidate caches
         await cache_service.delete(f"instruments:detail:{instrument_id}")
         await cache_service.invalidate_pattern("instruments:list:*")
+        await notify_instrument_update()
         
         return Instrument(
             id=db_instrument.id,
@@ -212,6 +228,7 @@ async def delete_instrument(
         # Invalidate caches
         await cache_service.delete(f"instruments:detail:{instrument_id}")
         await cache_service.invalidate_pattern("instruments:list:*")
+        await notify_instrument_update()
         
         return {"message": f"Instrument {instrument_id} deleted successfully"}
 
@@ -235,6 +252,7 @@ async def activate_instrument(
         # Invalidate caches
         await cache_service.delete(f"instruments:detail:{instrument_id}")
         await cache_service.invalidate_pattern("instruments:list:*")
+        await notify_instrument_update()
         
         return {"message": f"Instrument {instrument_id} activated"}
 
@@ -258,6 +276,7 @@ async def deactivate_instrument(
         # Invalidate caches
         await cache_service.delete(f"instruments:detail:{instrument_id}")
         await cache_service.invalidate_pattern("instruments:list:*")
+        await notify_instrument_update()
         
         return {"message": f"Instrument {instrument_id} deactivated"}
 
@@ -331,13 +350,18 @@ async def websocket_instruments(
                             "type": "instruments_update",
                             "data": data
                         })
+            except (WebSocketDisconnect, RuntimeError):
+                logger.info("WebSocket disconnected")
+                break
             except Exception as e:
                 logger.error(f"Error fetching instruments: {e}")
+                # Don't break loop on transient errors, but sleep to avoid spam
+                await asyncio.sleep(5)
             
             # Poll every 2 seconds
             await asyncio.sleep(2)
             
     except WebSocketDisconnect:
-        pass
+        logger.info("WebSocket disconnected")
     except Exception as e:
         logger.error(f"WebSocket error in instruments: {e}")

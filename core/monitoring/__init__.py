@@ -1,14 +1,16 @@
 # Monitoring module
 from .metrics import (
-    start_metrics_server,
-    MESSAGES_PROCESSED,
-    PROCESSING_TIME,
-    DB_WRITE_LATENCY
+    track_request,
+    track_db_query,
+    track_cache_operation,
+    track_pattern,
+    update_pool_metrics,
 )
 
 __all__ = [
-    "start_metrics_server",
-    "MESSAGES_PROCESSED",
-    "PROCESSING_TIME",
-    "DB_WRITE_LATENCY"
+    'track_request',
+    'track_db_query',
+    'track_cache_operation',
+    'track_pattern',
+    'update_pool_metrics',
 ]

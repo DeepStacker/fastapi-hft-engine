@@ -7,7 +7,7 @@ from datetime import timedelta
 # Add project root to path
 sys.path.append("/app")
 
-from services.gateway.auth import create_access_token
+from services.api_gateway.auth import create_access_token
 
 async def test_api():
     # 1. Generate Token

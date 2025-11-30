@@ -8,6 +8,7 @@ from core.logging.logger import configure_logger, get_logger
 from core.messaging.consumer import KafkaConsumerClient
 from core.monitoring.metrics import start_metrics_server, MESSAGES_PROCESSED, PROCESSING_TIME
 from core.config.dynamic_config import get_config_manager
+from core.utils.redis_pipeline import RedisPipeline
 
 # Configure logging
 configure_logger()
@@ -19,49 +20,89 @@ redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 # Dynamic configuration manager
 config_manager = None
 
+# Redis pipeline for batch operations
+redis_pipeline = None
+message_buffer = []
+BATCH_SIZE = 50  # Process messages in batches of 50
+
 async def process_message(msg: dict):
     """
-    Publish enriched data to Redis Pub/Sub with dynamic cache TTL.
+    Buffer messages and publish in batches using Redis pipeline.
     """
+    global message_buffer
+    
+    message_buffer.append(msg)
+    
+    # Process batch when buffer is full
+    if len(message_buffer) >= BATCH_SIZE:
+        await process_batch()
+
+async def process_batch():
+    """
+    Process buffered messages in a single Redis pipeline operation.
+    """
+    global message_buffer
+    
+    if not message_buffer:
+        return
+    
     start_time = time.time()
+    batch = message_buffer.copy()
+    message_buffer.clear()
+    
     try:
-        symbol_id = msg.get("symbol_id")
-        if symbol_id:
-            # Publish to Redis channel
-            await redis_client.publish(f"live:{symbol_id}", json.dumps(msg))
-            
-            # Get dynamic cache TTL (default 1 hour = 3600s)
-            cache_ttl = config_manager.get_int("realtime_cache_ttl", 3600)
-            
-            # Cache latest state with dynamic TTL
-            await redis_client.set(f"latest:{symbol_id}", json.dumps(msg), ex=cache_ttl)
-            
-            MESSAGES_PROCESSED.labels(service="realtime", status="success").inc()
-            
+        # Use pipeline for atomic batch operations
+        await redis_pipeline.cache_update_and_publish(
+            updates=batch,
+            cache_key_prefix="latest:",
+            channel_prefix="live:"
+        )
+        
+        MESSAGES_PROCESSED.labels(service="realtime", status="success").inc(len(batch))
+        logger.debug(f"Processed batch of {len(batch)} messages")
+        
     except Exception as e:
-        MESSAGES_PROCESSED.labels(service="realtime", status="error").inc()
-        logger.error(f"Realtime processing failed: {e}")
+        MESSAGES_PROCESSED.labels(service="realtime", status="error").inc(len(batch))
+        logger.error(f"Batch processing failed: {e}")
     finally:
         PROCESSING_TIME.labels(service="realtime").observe(time.time() - start_time)
 
 async def realtime_loop():
-    global config_manager
+    global config_manager, redis_pipeline
     
     # Initialize ConfigManager
     config_manager = await get_config_manager()
     logger.info("ConfigManager initialized")
+    
+    # Initialize Redis pipeline
+    redis_pipeline = RedisPipeline(redis_client)
+    logger.info("Redis pipeline initialized")
     
     start_metrics_server(8000)
     
     consumer = KafkaConsumerClient(topic="market.enriched", group_id="realtime-group")
     await consumer.start()
     
-    logger.info("Starting realtime loop...")
+    # Periodic batch flushing task
+    async def flush_batches():
+        """Flush remaining messages every second"""
+        while True:
+            await asyncio.sleep(1)
+            if message_buffer:
+                await process_batch()
+    
+    flush_task = asyncio.create_task(flush_batches())
+    
+    logger.info("Starting realtime loop with batch processing...")
     try:
         await consumer.consume(process_message)
     except asyncio.CancelledError:
         logger.info("Realtime loop cancelled")
+        flush_task.cancel()
     finally:
+        # Flush any remaining messages
+        if message_buffer:
+            await process_batch()
         await consumer.stop()
         await redis_client.close()
         await config_manager.close()

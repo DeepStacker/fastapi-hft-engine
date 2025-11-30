@@ -13,7 +13,7 @@ from core.database.models import SystemConfigDB
 from sqlalchemy import select, update
 from datetime import datetime
 
-from services.gateway.auth import get_current_admin_user
+from services.api_gateway.auth import get_current_admin_user
 
 router = APIRouter(prefix="/dhan-tokens", tags=["Dhan API Tokens"])
 logger = get_logger("admin.dhan_tokens")
@@ -53,18 +53,16 @@ async def get_dhan_tokens(admin = Depends(get_current_admin_user)):
         )
         authz_config = authz_result.scalar_one_or_none()
         
-        if not auth_config or not authz_config:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Dhan API tokens not configured"
-            )
+        # Return empty strings if not configured, instead of 404
+        auth_val = auth_config.value if auth_config else ""
+        authz_val = authz_config.value if authz_config else ""
         
         return DhanTokensResponse(
-            auth_token=auth_config.value,
-            authorization_token=authz_config.value,
-            auth_token_preview=auth_config.value[:50] + "..." if len(auth_config.value) > 50 else auth_config.value,
-            authorization_token_preview=authz_config.value[:50] + "..." if len(authz_config.value) > 50 else authz_config.value,
-            last_updated=auth_config.updated_at
+            auth_token=auth_val,
+            authorization_token=authz_val,
+            auth_token_preview=auth_val[:50] + "..." if len(auth_val) > 50 else auth_val,
+            authorization_token_preview=authz_val[:50] + "..." if len(authz_val) > 50 else authz_val,
+            last_updated=auth_config.updated_at if auth_config else None
         )
 
 
@@ -88,25 +86,36 @@ async def update_dhan_tokens(
     async with async_session_factory() as session:
         updated_tokens = []
         
+        # Helper to upsert
+        async def upsert_config(key: str, value: str):
+            result = await session.execute(select(SystemConfigDB).where(SystemConfigDB.key == key))
+            existing = result.scalar_one_or_none()
+            
+            if existing:
+                existing.value = value
+                existing.updated_at = datetime.utcnow()
+            else:
+                new_config = SystemConfigDB(
+                    key=key,
+                    value=value,
+                    category="dhan",
+                    is_encrypted=True,
+                    description="Dhan API Token",
+                    updated_at=datetime.utcnow()
+                )
+                session.add(new_config)
+        
         # Update auth token
         if request.auth_token:
-            await session.execute(
-                update(SystemConfigDB)
-                .where(SystemConfigDB.key == "dhan_auth_token")
-                .values(value=request.auth_token, updated_at=datetime.utcnow())
-            )
+            await upsert_config("dhan_auth_token", request.auth_token)
             updated_tokens.append("auth_token")
-            logger.info(f"Dhan auth_token updated by admin {admin.get('username', 'unknown')}")
+            logger.info(f"Dhan auth_token updated by admin {admin.username}")
         
         # Update authorization token
         if request.authorization_token:
-            await session.execute(
-                update(SystemConfigDB)
-                .where(SystemConfigDB.key == "dhan_authorization_token")
-                .values(value=request.authorization_token, updated_at=datetime.utcnow())
-            )
+            await upsert_config("dhan_authorization_token", request.authorization_token)
             updated_tokens.append("authorization_token")
-            logger.info(f"Dhan authorization_token updated by admin {admin.get('username', 'unknown')}")
+            logger.info(f"Dhan authorization_token updated by admin {admin.username}")
         
         await session.commit()
         
@@ -122,7 +131,7 @@ async def update_dhan_tokens(
                 "dhan:tokens:updated",
                 json.dumps({
                     "timestamp": datetime.utcnow().isoformat(),
-                    "updated_by": admin.get('username', 'admin'),
+                    "updated_by": admin.username,
                     "updated_tokens": updated_tokens
                 })
             )

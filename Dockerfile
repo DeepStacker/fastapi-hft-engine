@@ -33,6 +33,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     docker.io \
+    postgresql-client \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install grpc_health_probe for gRPC health checks

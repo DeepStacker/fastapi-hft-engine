@@ -123,7 +123,12 @@ class DhanApiClient:
                 
                 # Extract expiry list from 'opsum' keys (logic from Utils.filter_fut_data)
                 # The API returns expiries as keys in 'opsum' dictionary
-                opsum = data.get('data', {}).get('opsum', {})
+                response_data = data.get('data', {})
+                if isinstance(response_data, str):
+                    logger.warning(f"Unexpected data format for {symbol_id}: {response_data}")
+                    return []
+                    
+                opsum = response_data.get('opsum', {})
                 if not opsum:
                     return []
                     

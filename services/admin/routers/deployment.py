@@ -5,7 +5,7 @@ Endpoints for service orchestration - deploy, scale, update.
 """
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from services.gateway.auth import get_current_admin_user
+from services.api_gateway.auth import get_current_admin_user
 from services.admin.services.orchestrator import orchestrator
 
 router = APIRouter(prefix="/deployment", tags=["deployment"])

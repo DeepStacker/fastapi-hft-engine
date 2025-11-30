@@ -177,6 +177,7 @@ class EnrichedMarketData(BaseModel):
     """
     # Metadata
     symbol: str
+    expiry: str  # Expiry date for the option chain
     timestamp: datetime
     processing_timestamp: datetime = Field(default_factory=lambda: datetime.now())
     

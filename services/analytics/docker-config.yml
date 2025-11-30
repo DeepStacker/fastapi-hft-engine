@@ -1,0 +1,47 @@
+# Analytics Service Configuration
+
+# Add to docker-compose.yml:
+
+analytics-service:
+  build:
+    context: .
+    dockerfile: Dockerfile
+  container_name: stockify-analytics
+  command: python -m services.analytics.main
+  environment:
+    DATABASE_URL: ${DATABASE_URL}
+    REDIS_URL: redis://redis:6379/0
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    SECRET_KEY: ${SECRET_KEY}
+    ENVIRONMENT: production
+  depends_on:
+    kafka:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    timescaledb:
+      condition: service_healthy
+    storage-service:
+      condition: service_healthy  # Wait for data to be stored
+  networks:
+    - stockify-network
+  deploy:
+    resources:
+      limits:
+        cpus: '2.0'
+        memory: 2G
+      reservations:
+        cpus: '0.5'
+        memory: 512M
+  healthcheck:
+    test: ["CMD", "pgrep", "-f", "services.analytics.main"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 15s
+  restart: unless-stopped
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "5"

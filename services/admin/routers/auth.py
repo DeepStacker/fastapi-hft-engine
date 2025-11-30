@@ -6,7 +6,7 @@ Public endpoints for admin login & authentication.
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from services.gateway.auth import authenticate_user, create_access_token, create_refresh_token, get_current_admin_user
+from services.api_gateway.auth import authenticate_user, create_access_token, create_refresh_token, get_current_admin_user
 from datetime import timedelta
 from core.config.settings import get_settings
 

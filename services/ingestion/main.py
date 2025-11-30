@@ -220,11 +220,11 @@ async def process_instrument(instrument: dict, dhan_client: DhanApiClient, produ
                         message
                     )
                     
-                    INGESTION_COUNT.labels(symbol=symbol).inc()
+                    INGESTION_COUNT.labels(source=symbol).inc()
                     logger.debug(f"Published data for {symbol} ({target_expiry})")
             
         except Exception as e:
-            INGESTION_ERRORS.labels(type="fetch_error").inc()
+            INGESTION_ERRORS.labels(error_type="fetch_error").inc()
             logger.error(f"Error processing {symbol}: {e}")
 
 async def main():
@@ -262,6 +262,28 @@ async def main():
         config_updated_event.set()
         
     await config_manager.subscribe_to_changes(on_config_update)
+    
+    # Subscribe to Instrument Updates (Redis Pub/Sub)
+    # This ensures we clear L1 cache immediately when Admin updates instruments
+    async def listen_for_updates():
+        try:
+            from core.utils.caching import get_redis_client, instrument_multi_cache
+            redis = await get_redis_client()
+            pubsub = redis.pubsub()
+            await pubsub.subscribe("events:instrument_update")
+            
+            logger.info("Listening for instrument updates...")
+            async for message in pubsub.listen():
+                if message['type'] == 'message':
+                    logger.info("Received instrument update event - clearing L1 cache")
+                    instrument_multi_cache.l1_cache.clear()
+                    # Also interrupt sleep to process immediately
+                    config_updated_event.set()
+        except Exception as e:
+            logger.error(f"Error in update listener: {e}")
+
+    # Start listener in background
+    asyncio.create_task(listen_for_updates())
     
     # Helper for interruptible sleep
     async def interruptible_sleep(seconds: float):

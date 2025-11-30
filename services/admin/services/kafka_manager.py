@@ -98,7 +98,16 @@ class KafkaManager:
         try:
             # List all consumer groups
             groups = await self.admin_client.list_consumer_groups()
-            group_ids = [g.group_id for g in groups]
+            
+            # Handle both object and tuple return types from aiokafka
+            group_ids = []
+            for g in groups:
+                if hasattr(g, 'group_id'):
+                    group_ids.append(g.group_id)
+                elif isinstance(g, tuple) and len(g) > 0:
+                    group_ids.append(g[0]) # Assuming first element is group_id
+                else:
+                    logger.warning(f"Unknown consumer group format: {g}")
             
             consumer_groups = []
             

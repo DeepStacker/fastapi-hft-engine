@@ -5,7 +5,7 @@ Handles Kafka topic and consumer group management.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
-from services.gateway.auth import get_current_admin_user
+from services.api_gateway.auth import get_current_admin_user
 from services.admin.models import KafkaTopic, KafkaConsumerGroup, KafkaTopicCreate
 from services.admin.services.kafka_manager import kafka_manager
 from services.admin.services.cache import cache_service
@@ -157,8 +157,10 @@ async def websocket_kafka(
                 await websocket.send_json({
                     "type": "kafka_update",
                     "data": {
-                        "topics": [t.dict() for t in topics],
-                        "groups": [g.dict() for g in groups]
+                    "data": {
+                        "topics": topics,
+                        "groups": groups
+                    }
                     }
                 })
             except Exception as e:

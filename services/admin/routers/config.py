@@ -12,7 +12,7 @@ Exposes ALL system configurations for admin control including:
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any
 from sqlalchemy import select, update
-from services.gateway.auth import get_current_admin_user
+from services.api_gateway.auth import get_current_admin_user
 from services.admin.models import ConfigItem, ConfigUpdate
 from core.database.db import async_session_factory
 from core.database.models import SystemConfigDB

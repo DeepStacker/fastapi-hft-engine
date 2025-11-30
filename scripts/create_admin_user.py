@@ -4,7 +4,7 @@ Create admin user for dashboard access
 import asyncio
 from core.database.db import async_session_factory
 from core.database.models import UserDB
-from services.gateway.auth import get_password_hash
+from services.api_gateway.auth.admin_auth import get_password_hash
 
 async def create_admin_user():
     async with async_session_factory() as session:

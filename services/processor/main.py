@@ -130,6 +130,9 @@ class ProcessorService:
                 logger.debug("Processor is disabled, skipping message")
                 return
             
+            # Extract expiry from raw message
+            expiry = raw_data.get('expiry', 'unknown')
+            
             # 1. Clean data
             cleaned = await self.cleaner.clean(raw_data)
             
@@ -175,7 +178,7 @@ class ProcessorService:
             
             # PCR Analysis
             if self.config_manager.get('enable_pcr_analysis', True):
-                tasks.append(self._analyze_pcr(cleaned))
+                tasks.append(self._analyze_pcr(cleaned, expiry))
                 
             # IV Skew Analysis
             if self.config_manager.get('enable_iv_skew_analysis', True):
@@ -184,7 +187,7 @@ class ProcessorService:
             # Gamma Exposure
             if self.config_manager.get('enable_gamma_analysis', True):
                 tasks.append(self._analyze_gamma_exposure(cleaned))
-                \n            # Order Flow Toxicity
+            # Order Flow Toxicity
             if self.config_manager.get('enable_order_flow_analysis', True):
                 tasks.append(self._analyze_order_flow(cleaned))
                 
@@ -209,7 +212,7 @@ class ProcessorService:
                         analyses.update(result)
             
             # 4. Construct enriched message
-            enriched_data = self._build_enriched_message(cleaned, analyses)
+            enriched_data = self._build_enriched_message(cleaned, analyses, expiry)
             
             # 5. Publish to Kafka using shared producer
             await kafka_producer.send(settings.KAFKA_TOPIC_ENRICHED, enriched_data)
@@ -258,14 +261,14 @@ class ProcessorService:
             logger.error(f"VIX divergence analysis failed: {e}")
             return {}
             
-    async def _analyze_pcr(self, cleaned: dict) -> Dict:
+    async def _analyze_pcr(self, cleaned: dict, expiry: str) -> Dict:
         """Run PCR analysis with caching"""
         try:
             # Try cache first
             cache_key_data = {
-                "symbol_id": cleaned['context'].security_id,
-                "expiry": cleaned['options'][0].expiry_date if cleaned['options'] else "unknown",
-                "strikes": [o.strike_price for o in cleaned['options']]
+                "symbol_id": cleaned['context'].symbol_id,
+                "expiry": expiry,  # Use expiry from raw message
+                "strikes": [o.strike for o in cleaned['options']]
             }
             
             cached = self.cache_manager.get_cached_analysis(
@@ -373,7 +376,7 @@ class ProcessorService:
             logger.error(f"Liquidity stress analysis failed: {e}")
             return {}
     
-    def _build_enriched_message(self, cleaned: dict, analyses: dict) -> dict:
+    def _build_enriched_message(self, cleaned: dict, analyses: dict, expiry: str) -> dict:
         """
         Build final enriched message for Kafka
         
@@ -385,7 +388,7 @@ class ProcessorService:
             Enriched message dict
         """
         # Convert Pydantic models to dicts (handling datetime serialization)
-        context_dict = cleaned['context'].dict()
+        context_dict = cleaned['context'].model_dump()
         
         # Capture original timestamp for top-level field
         original_timestamp = cleaned['context'].timestamp
@@ -396,11 +399,11 @@ class ProcessorService:
             
         futures_dict = None
         if cleaned['futures']:
-            futures_dict = cleaned['futures'].dict()
+            futures_dict = cleaned['futures'].model_dump()
             
         options_list = []
         for opt in cleaned['options']:
-            opt_dict = opt.dict()
+            opt_dict = opt.model_dump()
             options_list.append(opt_dict)
         
         # Calculate data quality metrics
@@ -411,6 +414,7 @@ class ProcessorService:
         return {
             'symbol': context_dict['symbol'],
             'symbol_id': context_dict['symbol_id'],
+            'expiry': expiry,  # Include expiry date
             'timestamp': original_timestamp.isoformat(),
             'processing_timestamp': datetime.now(timezone.utc).isoformat(),
             

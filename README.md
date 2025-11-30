@@ -25,45 +25,42 @@ This project uses an event-driven microservices architecture:
 
 ### Prerequisites
 
-- Docker & Docker Compose
+- Docker & Docker Compose (v20.10+)
 - 8GB+ RAM recommended
-- Ports available: 8000, 5432, 6379, 9092, 9090, 3000
+- Ports available: 8000, 8001, 3000, 5432, 6379, 9092
 
-### Quick Start
+### Quick Start (One Command!)
 
-1. **Environment Setup**:
-   ```bash
-   # Copy example environment file
-   cp .env.example .env
-   
-   # Edit .env and add your Dhan API credentials
-   DHAN_CLIENT_ID=your_id
-   DHAN_ACCESS_TOKEN=your_token
-   ```
+```bash
+# Clone the repository
+git clone <repository-url>
+cd fastapi-hft-engine
 
-2. **Build & Start**:
-   ```bash
-   make build  # Build Docker images
-   make up     # Start all services
-   ```
+# Run the automated setup script
+./setup.sh
+```
 
-3. **Initialize Database**:
-   ```bash
-   make init-db # Runs migration script inside Docker
-   ```
+The setup script will:
+- ✅ Check all prerequisites
+- ✅ Create `.env` configuration if needed
+- ✅ Build Docker images
+- ✅ Start all services in the correct order
+- ✅ Initialize the database automatically
+- ✅ Display all access points
 
-4. **Create First User**:
-   ```bash
-   # Use the API to register (see API docs below)
-   curl -X POST http://localhost:8000/register \
-     -H "Content-Type: application/json" \
-     -d '{"username":"admin","email":"admin@stockify.io","password":"securepassword"}'
-   ```
+### Manual Setup (Alternative)
 
-5. **Run Tests**:
-   ```bash
-   make test   # Runs pytest inside Docker container
-   ```
+If you prefer manual setup, see detailed instructions in [DOCKER_SETUP.md](DOCKER_SETUP.md).
+
+### Next Steps After Setup
+
+1. **Access the API**: http://localhost:8000/docs
+2. **Admin Dashboard**: http://localhost:3000
+3. **Check Service Status**: `docker compose ps`
+4. **View Logs**: `docker compose logs -f`
+
+For detailed Docker configuration, troubleshooting, and advanced features, see [DOCKER_SETUP.md](DOCKER_SETUP.md).
+
 
 ### Access Services
 

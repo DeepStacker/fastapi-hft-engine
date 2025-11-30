@@ -6,7 +6,7 @@ Handles database operations, table browsing, and statistics.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Dict, Any
 from sqlalchemy import text, inspect
-from services.gateway.auth import get_current_admin_user
+from services.api_gateway.auth import get_current_admin_user
 from services.admin.models import TableInfo, DatabaseStats
 from core.database.db import async_session_factory
 from services.admin.services.cache import cache_service
