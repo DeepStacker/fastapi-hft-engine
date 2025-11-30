@@ -79,8 +79,27 @@ class MarketSnapshotDB(Base):
     lower_circuit = Column(Float, nullable=True)
     vwap = Column(Float, nullable=True)
     
+    # Global context fields
+    spot_change = Column(Float, nullable=True)
+    spot_change_pct = Column(Float, nullable=True)
+    total_call_oi = Column(BigInteger, nullable=True)
+    total_put_oi = Column(BigInteger, nullable=True)
+    pcr_ratio = Column(Float, nullable=True)
+    atm_iv = Column(Float, nullable=True)
+    atm_iv_change = Column(Float, nullable=True)
+    max_pain_strike = Column(Float, nullable=True)
+    days_to_expiry = Column(Integer, nullable=True)
+    lot_size = Column(Integer, nullable=True)
+    tick_size = Column(Float, nullable=True)
+    
     # Raw data for reference
     raw_data = Column(JSON, nullable=True)
+    
+    # Aggregate analysis results
+    gex_analysis = Column(JSON, nullable=True)
+    iv_skew_analysis = Column(JSON, nullable=True)
+    pcr_analysis = Column(JSON, nullable=True)
+    market_wide_analysis = Column(JSON, nullable=True)
     
     # Relationships
     instrument = relationship("InstrumentDB", back_populates="snapshots")
@@ -119,11 +138,22 @@ class OptionContractDB(Base):
     low = Column(Float, nullable=True)
     close = Column(Float, nullable=True)
     prev_close = Column(Float, nullable=True)
+    bid = Column(Float, nullable=True)
+    ask = Column(Float, nullable=True)
+    mid_price = Column(Float, nullable=True)
+    price_change = Column(Float, nullable=True)
+    price_change_pct = Column(Float, nullable=True)
+    avg_traded_price = Column(Float, nullable=True)
     
     # Volume & OI
     volume = Column(BigInteger, default=0)
+    prev_volume = Column(BigInteger, nullable=True)
+    volume_change = Column(BigInteger, nullable=True)
+    volume_change_pct = Column(Float, nullable=True)
     oi = Column(BigInteger, default=0)
+    prev_oi = Column(BigInteger, nullable=True)
     oi_change = Column(BigInteger, default=0)
+    oi_change_pct = Column(Float, nullable=True)
     
     # Greeks
     iv = Column(Float, nullable=True)  # Implied Volatility
@@ -138,6 +168,34 @@ class OptionContractDB(Base):
     ask_price = Column(Float, nullable=True)
     bid_qty = Column(BigInteger, default=0)
     ask_qty = Column(BigInteger, default=0)
+    
+    # Calculated fields from analysis
+    theoretical_price = Column(Float, nullable=True)
+    intrinsic_value = Column(Float, nullable=True)
+    time_value = Column(Float, nullable=True)
+    moneyness = Column(Float, nullable=True)
+    moneyness_type = Column(String(3), nullable=True)  # ITM/OTM/ATM
+    
+    # Classification
+    buildup_type = Column(String(2), nullable=True)  # LB/SB/LU/SU
+    buildup_name = Column(String(50), nullable=True)
+    
+    # Reversal & Support/Resistance
+    reversal_price = Column(Float, nullable=True)
+    support_price = Column(Float, nullable=True)
+    resistance_price = Column(Float, nullable=True)
+    resistance_range_price = Column(Float, nullable=True)
+    weekly_reversal_price = Column(Float, nullable=True)
+    future_reversal_price = Column(Float, nullable=True)
+    
+    # Flags
+    is_liquid = Column(Boolean, default=True)
+    is_valid = Column(Boolean, default=True)
+    
+    # Analysis data (JSON for flexibility and performance)
+    order_flow_analysis = Column(JSON, nullable=True)
+    smart_money_analysis = Column(JSON, nullable=True)
+    liquidity_analysis = Column(JSON, nullable=True)
     
     # Relationships
     instrument = relationship("InstrumentDB", back_populates="options")

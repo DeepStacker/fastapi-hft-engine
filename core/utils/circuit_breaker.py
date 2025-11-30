@@ -80,10 +80,27 @@ class CircuitBreaker:
             logger.error(
                 f"Circuit breaker opened after {self.failure_count} failures"
             )
+    
+    def reset(self):
+        """Manually reset circuit breaker to closed state"""
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.state = "closed"
+        logger.info("Circuit breaker manually reset to closed state")
 
 
 # Global circuit breakers for different services
-dhan_api_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=60)
+# OPTIMIZED: Increased thresholds to handle higher concurrency
+dhan_api_breaker = CircuitBreaker(
+    failure_threshold=15,  # Increased from 5 to handle 12 concurrent requests
+    recovery_timeout=30  # Reduced from 60 for faster recovery
+)
+
+# Per-endpoint circuit breakers for better isolation
+dhan_option_chain_breaker = CircuitBreaker(failure_threshold=20, recovery_timeout=30)
+dhan_expiry_breaker = CircuitBreaker(failure_threshold=10, recovery_timeout=30)
+dhan_spot_breaker = CircuitBreaker(failure_threshold=10, recovery_timeout=30)
+
 database_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
 kafka_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=60)
 redis_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=30)

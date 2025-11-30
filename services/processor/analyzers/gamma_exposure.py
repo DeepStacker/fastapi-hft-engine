@@ -114,7 +114,8 @@ class GammaExposureAnalyzer:
             {
                 'strike': strike,
                 'gex': data['net_gex'],
-                'distance_pct': round(data['distance_pct'], 2)
+                'distance_pct': round(data['distance_pct'], 2),
+                'squeeze_risk': self._calculate_squeeze_risk(data['net_gex'], data['distance_pct'])
             }
             for strike, data in sorted_gex[:5]  # Top 5
         ]
@@ -176,6 +177,24 @@ class GammaExposureAnalyzer:
             prev_gex = curr_gex
         
         return None  # No flip found
+    
+    def _calculate_squeeze_risk(self, gex: float, distance_pct: float) -> str:
+        """
+        Calculate squeeze risk based on GEX and distance
+        """
+        # Gamma wall strength (decay with distance)
+        strength = abs(gex) * (1 / (1 + distance_pct))
+        
+        if distance_pct < 1.0:
+            if strength > 1000:  # Thresholds need tuning based on lot size/price
+                return 'EXTREME'
+            elif strength > 500:
+                return 'HIGH'
+        elif distance_pct < 2.0:
+            if strength > 500:
+                return 'MODERATE'
+                
+        return 'LOW'
     
     def get_strike_detail(
         self,

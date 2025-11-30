@@ -15,7 +15,8 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
-  Menu
+  Menu,
+  Key
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,6 +31,7 @@ const navItems = [
   { name: 'Instruments', href: '/instruments', icon: BarChart3 },
   { name: 'Database', href: '/database', icon: Database },
   { name: 'Configuration', href: '/config', icon: Settings },
+  { name: 'Dhan Tokens', href: '/dhan-tokens', icon: Key },
 ];
 
 export default function Sidebar() {

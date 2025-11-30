@@ -12,6 +12,7 @@ from services.ingestion.dhan_client import DhanApiClient
 from core.monitoring.metrics import start_metrics_server, MESSAGES_PROCESSED, PROCESSING_TIME, INGESTION_COUNT, INGESTION_ERRORS
 from core.config.dynamic_config import get_config_manager
 from core.utils.caching import instrument_multi_cache, expiry_multi_cache, cached
+from core.utils.token_cache import TokenCacheManager
 
 # Configure logging
 configure_logger()
@@ -233,6 +234,11 @@ async def main():
     global config_manager
     config_manager = await get_config_manager()
     
+    # Initialize TokenCacheManager for ultra-fast token access
+    token_cache = TokenCacheManager(config_manager)
+    await token_cache.initialize()
+    logger.info("TokenCacheManager initialized with cached tokens")
+    
     # Initialize Kafka producer
     producer = AIOKafkaProducer(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -240,11 +246,13 @@ async def main():
     )
     await producer.start()
     
-    dhan_client = DhanApiClient()
-    
+    # Initialize Dhan API client with token cache
+    dhan_client = DhanApiClient(token_cache)
+    await dhan_client.initialize()  # Load tokens from cache
     # Limit concurrent API calls to prevent circuit breaker tripping
-    # Dhan API likely has rate limits (e.g., 10 req/sec)
-    semaphore = asyncio.Semaphore(5)
+    # Conservative: 8 concurrent (ensures no rate limit errors)
+    # Previous attempts: 5 (too slow), 20 (too fast - rate limits), 12 (still some issues)
+    semaphore = asyncio.Semaphore(8)
     
     # Event to interrupt sleep on config change
     config_updated_event = asyncio.Event()

@@ -20,6 +20,8 @@ class CleanedOptionData(BaseModel):
     bid: Optional[float] = None
     ask: Optional[float] = None  
     mid_price: Optional[float] = None  # Calculated from bid/ask
+    bid_qty: int = 0
+    ask_qty: int = 0
     prev_close: float = 0.0
     price_change: float = 0.0
     price_change_pct: float = 0.0
@@ -99,6 +101,7 @@ class CleanedGlobalContext(BaseModel):
     Cleaned global market context
     """
     symbol: str  # NIFTY, BANKNIFTY, etc.
+    symbol_id: int
     spot_price: float
     spot_change: float
     spot_change_pct: float

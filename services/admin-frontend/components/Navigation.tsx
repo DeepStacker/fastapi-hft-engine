@@ -13,6 +13,7 @@ const navItems = [
   { name: 'Kafka', href: '/kafka' },
   { name: 'Instruments', href: '/instruments' },
   { name: 'Database', href: '/database' },
+  { name: 'Dhan Tokens', href: '/dhan-tokens' },
 ];
 
 export default function Navigation() {

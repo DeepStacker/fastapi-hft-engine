@@ -105,6 +105,12 @@ export const api = {
   // SQL Query
   executeQuery: (query: string, readOnly: boolean = true) =>
     apiClient.post('/database/query', { query, read_only: readOnly }),
+
+  // Dhan API Tokens
+  getDhanTokens: () => apiClient.get('/dhan-tokens'),
+  updateDhanTokens: (data: { auth_token?: string, authorization_token?: string }) =>
+    apiClient.put('/dhan-tokens', data),
+  testDhanTokens: () => apiClient.post('/dhan-tokens/test'),
 };
 
 // Export as both 'api' and 'adminAPI' for compatibility

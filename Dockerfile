@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     make \
     libpq-dev \
+    liblz4-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
@@ -28,6 +29,7 @@ WORKDIR /app
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
     libpq5 \
+    liblz4-1 \
     curl \
     wget \
     docker.io \

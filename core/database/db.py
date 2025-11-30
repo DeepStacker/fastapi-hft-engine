@@ -9,11 +9,14 @@ settings = get_settings()
 # Create async engine with proper connection pooling
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.LOG_LEVEL == "DEBUG",
-    pool_size=settings.DB_POOL_SIZE,           # Max connections in pool
-    max_overflow=settings.DB_MAX_OVERFLOW,     # Additional connections beyond pool_size
-    pool_pre_ping=settings.DB_POOL_PRE_PING,   # Test connections before use
-    pool_recycle=settings.DB_POOL_RECYCLE,     # Recycle connections after 1 hour
+    echo=False,
+    pool_pre_ping=True,
+    
+    # HIGH-PERFORMANCE SETTINGS for storage service
+    pool_size=30,  # Increased from 10 for concurrent writes
+    max_overflow=60,  # Increased from 20 for burst capacity
+    pool_recycle=3600,  # Recycle connections after 1 hour
+    query_cache_size=1200,  # Cache prepared statements
     connect_args={
         "server_settings": {"jit": "off"},  # Disable JIT for better compatibility
         "command_timeout": 60,               # 60 second timeout

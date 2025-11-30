@@ -34,7 +34,16 @@ class KafkaConsumerClient:
                     enable_auto_commit=True,
                     auto_commit_interval_ms=5000,
                     # Retry settings for transient failures
-                    metadata_max_age_ms=30000
+                    metadata_max_age_ms=30000,
+                    # HIGH-PERFORMANCE: Throughput optimizations
+                    # Fetch more data per request (default: 1MB)
+                    fetch_max_bytes=5242880,  # 5MB - fetch up to 5MB total per request
+                    max_partition_fetch_bytes=2097152,  # 2MB - max per partition
+                    # Prefetch batches for better throughput
+                    fetch_min_bytes=1024,  # Wait for at least 1KB before returning
+                    fetch_max_wait_ms=500,  # Max wait time for fetch_min_bytes
+                    # Increase buffer for better batching
+                    max_poll_records=500,  # Process up to 500 records per poll
                 )
                 await self.consumer.start()
                 logger.info(f"Kafka Consumer started for topic {self.topic}")
@@ -64,11 +73,39 @@ class KafkaConsumerClient:
             logger.info("Kafka Consumer stopped")
 
     async def consume(self, callback: Callable[[dict], Awaitable[None]]):
+        """Consume messages with concurrent batch processing for high throughput"""
         if not self.consumer:
             raise RuntimeError("Consumer not started")
         try:
+            import asyncio
+            # Limit concurrent processing to prevent overwhelming the system
+            semaphore = asyncio.Semaphore(10)  # Process up to 10 messages concurrently
+            
+            async def process_message(msg_value):
+                """Process a single message with semaphore control"""
+                async with semaphore:
+                    try:
+                        await callback(msg_value)
+                    except Exception as e:
+                        logger.error(f"Error processing message: {e}")
+            
+            # Batch collection for concurrent processing
+            batch = []
+            batch_size = 10  # Process in batches of 10
+            
             async for msg in self.consumer:
-                await callback(msg.value)
+                # Add message to batch
+                batch.append(process_message(msg.value))
+                
+                # Process batch when full
+                if len(batch) >= batch_size:
+                    await asyncio.gather(*batch, return_exceptions=True)
+                    batch = []
+            
+            # Process remaining messages
+            if batch:
+                await asyncio.gather(*batch, return_exceptions=True)
+                
         except Exception as e:
             logger.error(f"Consumer error: {e}")
             raise

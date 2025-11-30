@@ -38,7 +38,11 @@ from services.processor.analyzers.vix_divergence import VIXDivergenceAnalyzer
 from services.processor.analyzers.gamma_exposure import GammaExposureAnalyzer
 from services.processor.analyzers.pcr_analyzer import PCRAnalyzer
 from services.processor.analyzers.iv_skew_analyzer import IVSkewAnalyzer
+from services.processor.analyzers.iv_skew_analyzer import IVSkewAnalyzer
 from services.processor.analyzers.reversal import ReversalAnalyzer
+from services.processor.analyzers.order_flow import OrderFlowToxicityAnalyzer
+from services.processor.analyzers.smart_money import SmartMoneyAnalyzer
+from services.processor.analyzers.liquidity import LiquidityStressAnalyzer
 
 # Configure logging
 configure_logger()
@@ -63,7 +67,11 @@ class ProcessorService:
         self.vix_analyzer = None
         self.gamma_analyzer = None
         self.pcr_analyzer = None
+        self.pcr_analyzer = None
         self.iv_skew_analyzer = None
+        self.order_flow_analyzer = None
+        self.smart_money_analyzer = None
+        self.liquidity_analyzer = None
         
         # Service state
         self.running = False
@@ -87,7 +95,11 @@ class ProcessorService:
         self.gamma_analyzer = GammaExposureAnalyzer()
         self.pcr_analyzer = PCRAnalyzer()
         self.iv_skew_analyzer = IVSkewAnalyzer()
-        self.reversal_analyzer = ReversalAnalyzer() # Initialize here
+        self.iv_skew_analyzer = IVSkewAnalyzer()
+        self.reversal_analyzer = ReversalAnalyzer()
+        self.order_flow_analyzer = OrderFlowToxicityAnalyzer()
+        self.smart_money_analyzer = SmartMoneyAnalyzer()
+        self.liquidity_analyzer = LiquidityStressAnalyzer()
         
         # Initialize Kafka components using shared infrastructure
         self.consumer = KafkaConsumerClient(
@@ -168,6 +180,18 @@ class ProcessorService:
             # IV Skew Analysis
             if self.config_manager.get('enable_iv_skew_analysis', True):
                 tasks.append(self._analyze_iv_skew(cleaned))
+                
+            # Order Flow Toxicity
+            if self.config_manager.get('enable_order_flow_analysis', True):
+                tasks.append(self._analyze_order_flow(cleaned))
+                
+            # Smart Money
+            if self.config_manager.get('enable_smart_money_analysis', True):
+                tasks.append(self._analyze_smart_money(cleaned))
+                
+            # Liquidity Stress
+            if self.config_manager.get('enable_liquidity_analysis', True):
+                tasks.append(self._analyze_liquidity(cleaned))
             
             # Run all analyses concurrently
             if tasks:
@@ -274,6 +298,49 @@ class ProcessorService:
         except Exception as e:
             logger.error(f"Gamma exposure analysis failed: {e}")
             return {}
+
+    async def _analyze_order_flow(self, cleaned: dict) -> Dict:
+        """Run order flow toxicity analysis"""
+        try:
+            # Calculate minutes since open (approximate)
+            # Market opens at 9:15 IST (03:45 UTC)
+            now = datetime.now(timezone.utc)
+            market_open = now.replace(hour=3, minute=45, second=0, microsecond=0)
+            if now < market_open:
+                market_open = market_open.replace(day=now.day - 1)
+            
+            minutes_since_open = int((now - market_open).total_seconds() / 60)
+            
+            result = self.order_flow_analyzer.analyze(
+                options=cleaned['options'],
+                minutes_since_open=minutes_since_open
+            )
+            return {'order_flow': result}
+        except Exception as e:
+            logger.error(f"Order flow analysis failed: {e}")
+            return {}
+
+    async def _analyze_smart_money(self, cleaned: dict) -> Dict:
+        """Run smart money analysis"""
+        try:
+            result = self.smart_money_analyzer.analyze(
+                options=cleaned['options']
+            )
+            return {'smart_money': result}
+        except Exception as e:
+            logger.error(f"Smart money analysis failed: {e}")
+            return {}
+
+    async def _analyze_liquidity(self, cleaned: dict) -> Dict:
+        """Run liquidity stress analysis"""
+        try:
+            result = self.liquidity_analyzer.analyze(
+                options=cleaned['options']
+            )
+            return {'liquidity_stress': result}
+        except Exception as e:
+            logger.error(f"Liquidity stress analysis failed: {e}")
+            return {}
     
     def _build_enriched_message(self, cleaned: dict, analyses: dict) -> dict:
         """
@@ -312,6 +379,7 @@ class ProcessorService:
         
         return {
             'symbol': context_dict['symbol'],
+            'symbol_id': context_dict['symbol_id'],
             'timestamp': original_timestamp.isoformat(),
             'processing_timestamp': datetime.now(timezone.utc).isoformat(),
             

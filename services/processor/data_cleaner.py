@@ -89,9 +89,11 @@ class DataCleaner:
         
         # Determine symbol from message or underlying ID
         symbol = raw_data.get('symbol', 'NIFTY')
+        symbol_id = int(raw_data.get('symbol_id', 0))
         
         return CleanedGlobalContext(
             symbol=symbol,
+            symbol_id=symbol_id,
             spot_price=float(gc.get('spot_ltp', 0)),
             spot_change=float(gc.get('spot_change', 0)),
             spot_change_pct=float(gc.get('spot_pct_change', 0)),
@@ -306,6 +308,8 @@ class DataCleaner:
             bid=bid,
             ask=ask,
             mid_price=mid_price,
+            bid_qty=int(raw_opt.get('bid_qty', 0)),
+            ask_qty=int(raw_opt.get('ask_qty', 0)),
             prev_close=float(raw_opt.get('pc', 0)),
             price_change=float(raw_opt.get('p_chng', 0)),
             price_change_pct=float(raw_opt.get('p_pchng', 0)),

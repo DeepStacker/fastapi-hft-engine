@@ -13,24 +13,68 @@ logger = get_logger("dhan_client")
 class DhanApiClient:
     """
     Client for Dhan API (ScanX) with circuit breaker protection.
-    Matches the implementation from option-chain-d/Backend/Urls.py
+    Uses TokenCacheManager for high-performance token access.
     """
     
-    def __init__(self):
+    def __init__(self, token_cache=None):
         self.base_url = "https://scanx.dhan.co/scanx"
-        # Token provided by user
-        self.auth_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwiZXhwIjoxNzY0NDc2Nzg2LCJjbGllbnRfaWQiOiIxMTAwMjExMTIwIn0.wIWBFdg9q5MmQm7H3t7d8_jR-XQ7OYEb2_N7u5yXkfUleX9kXys826HgIKx2saLFqvkAdqwJopvDVW90Yzc9xg"
+        self.token_cache = token_cache
+        
+        # Initialize with default tokens (will be updated async)
+        self.auth_token = self._get_default_auth_token()
+        self.authorization_token = self._get_default_authorization_token()
         
         self.headers = {
             "accept": "application/json, text/plain, */*",
             "accept-encoding": "gzip, deflate, br, zstd",
-            "accept-language": "en-US,en;q=0.7",
+            "accept-language": "en-GB,en-US;q=0.9,en;q=0.8,hi;q=0.7",
             "auth": self.auth_token,
+            "authorisation": self.authorization_token,
             "content-type": "application/json",
+            "cache-control": "no-cache",
+            "pragma": "no-cache",
             "origin": "https://web.dhan.co",
             "referer": "https://web.dhan.co/",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
         }
+    
+    async def initialize(self):
+        """Load tokens from cache (called after construction)."""
+        if self.token_cache:
+            await self._reload_tokens()
+    
+    async def _reload_tokens(self):
+        """Reload tokens from cache (ultra-fast L1 access)."""
+        if not self.token_cache:
+            return
+        
+        tokens = await self.token_cache.get_dhan_tokens()
+        self.auth_token = tokens["auth_token"]
+        self.authorization_token = tokens["authorization_token"]
+        
+        # Update headers
+        self.headers["auth"] = self.auth_token
+        self.headers["authorisation"] = self.authorization_token
+        
+        logger.debug("Tokens reloaded from cache")
+    
+    def _get_default_auth_token(self):
+        """Get default auth token (updated Nov 30, 2025)"""
+        return "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwiZXhwIjoxNzY0NTM0ODgzLCJjbGllbnRfaWQiOiIxMTAwMjExMTIwIn0.Ka1DziA0M2U0UO0O8JWWBPvWZvd1uNPJK_4OfLfW4wdomRyaijkZZcXNKrHqHYSlfK5QC6f5JLkM8SMN6KawKQ"
+    
+    def _get_default_authorization_token(self):
+        """Get default authorization token (updated Nov 30, 2025)"""
+        return "Token eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiI3MjA5NjgzNjk5Iiwicm9sZSI6IkFkbWluIiwiZXhwIjoxNzY0NTYzNjgzfQ.w8ypo185JaWrrL3zvqbh9leO6kVRknQF37oYy9wqss2sw7r5BWpxcxMw7FSh3ICmOju2OTll4aWJwpEoKPANAA"
+        
+    def update_tokens(self, auth_token: str = None, authorization_token: str = None):
+        """Update API tokens dynamically"""
+        if auth_token:
+            self.auth_token = auth_token
+            self.headers["auth"] = auth_token
+        if authorization_token:
+            self.authorization_token = authorization_token
+            self.headers["authorisation"] = authorization_token
+        logger.info("Dhan API tokens updated successfully")
         
     def _create_payload(self, symbol_id: int, exp: int, seg: int) -> Dict:
         return {"Data": {"Seg": seg, "Sid": symbol_id, "Exp": exp}}
