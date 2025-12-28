@@ -112,8 +112,22 @@ class DhanTicksService:
         logger.info(f"DhanTicksService initialized (token will be loaded dynamically)")
     
     async def _get_auth_token(self) -> str:
-        """Get auth token from config service (Redis -> DB -> settings fallback)"""
+        """Get auth token from Redis dhan:tokens -> config service -> settings fallback"""
         try:
+            # Try Redis dhan:tokens first (dynamic token)
+            try:
+                from app.cache.redis import get_redis
+                cache = await get_redis()
+                import json
+                token_data = await cache.get("dhan:tokens")
+                if token_data:
+                    tokens = json.loads(token_data) if isinstance(token_data, str) else token_data
+                    if tokens and tokens.get("auth_token"):
+                        # logger.debug("Got ticks auth token from Redis dhan:tokens")
+                        return tokens["auth_token"]
+            except Exception as e:
+                logger.warning(f"Failed to get token from Redis: {e}")
+
             from app.services.config_service import get_config
             token = await get_config("DHAN_AUTH_TOKEN", self._static_auth_token)
             return token or self._static_auth_token or ""

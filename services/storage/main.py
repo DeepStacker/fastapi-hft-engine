@@ -58,6 +58,8 @@ async def flush_buffers():
         return
     
     start_time = time.time()
+    market_count = 0
+    option_count = 0
     
     # UPDATED: Use write_session for connection pooling (1000 clients → 20 connections)
     from core.database.pool import write_session
@@ -66,6 +68,7 @@ async def flush_buffers():
         try:
             # Flush market snapshots
             if market_buffer:
+                market_count = len(market_buffer)
                 stmt = text("""
                     INSERT INTO market_snapshots (
                         timestamp, symbol_id, exchange, segment, ltp, volume, oi,
@@ -96,13 +99,13 @@ async def flush_buffers():
                 ]
                 
                 await session.execute(stmt, prepared_market)
-                market_count = len(market_buffer)
                 MESSAGES_PROCESSED.labels(service="storage", status="success").inc(market_count)
                 logger.info(f"Flushed {market_count} market snapshots")
                 market_buffer.clear()
             
             # Flush option contracts
             if option_buffer:
+                option_count = len(option_buffer)
                 stmt = text("""
                     INSERT INTO option_contracts (
                         timestamp, symbol_id, expiry, strike_price, option_type,
@@ -144,7 +147,6 @@ async def flush_buffers():
                 ]
                 
                 await session.execute(stmt, prepared_options)
-                option_count = len(option_buffer)
                 MESSAGES_PROCESSED.labels(service="storage", status="success").inc(option_count)
                 logger.info(f"Flushed {option_count} option contracts")
                 option_buffer.clear()
@@ -155,9 +157,10 @@ async def flush_buffers():
             DB_WRITE_LATENCY.labels(table="executemany").observe(latency)
             last_flush = time.time()
             
-            if market_buffer or option_buffer:
-                throughput = (len(market_buffer) + len(option_buffer)) / max(latency, 0.001)
-                logger.info(f"Flush completed: {latency:.3f}s, throughput: {throughput:.0f} records/sec")
+            total_count = market_count + option_count
+            if total_count > 0:
+                throughput = total_count / max(latency, 0.001)
+                logger.info(f"Flush completed: {latency:.3f}s, throughput: {throughput:.0f} records/sec (Batch: {total_count})")
             
         except Exception as e:
             MESSAGES_PROCESSED.labels(service="storage", status="error").inc()
@@ -171,8 +174,8 @@ def get_adaptive_batch_size() -> int:
     
     OPTIMIZED: More aggressive batching for high throughput
     """
-    MIN_BATCH_SIZE = config_manager.get_int("storage_min_batch_size", 500)
-    MAX_BATCH_SIZE = config_manager.get_int("storage_max_batch_size", 10000)
+    MIN_BATCH_SIZE = config_manager.get_int("storage_min_batch_size", 2000)   # Increased from 500
+    MAX_BATCH_SIZE = config_manager.get_int("storage_max_batch_size", 50000)  # Increased from 10000
     
     time_since_flush = time.time() - last_flush
     
@@ -369,8 +372,8 @@ async def storage_loop():
         enable_auto_commit=True,
         value_deserializer=avro_deserializer(settings.KAFKA_TOPIC_ENRICHED),
         # Performance tuning for batch writes
-        fetch_max_wait_ms=1000,
-        fetch_min_bytes=10240,
+        fetch_max_wait_ms=100,      # Reduced from 1000ms for smoother ingestion
+        fetch_min_bytes=102400,     # Increased to 100KB to clear buffer faster
         fetch_max_bytes=52428800,
     )
     
@@ -390,7 +393,7 @@ async def storage_loop():
     async def time_based_flush():
         """Periodic flush based on time"""
         while True:
-            flush_interval = config_manager.get_float("storage_flush_interval", 1.0)
+            flush_interval = config_manager.get_float("storage_flush_interval", 0.5)  # Reduced from 1.0s
             await asyncio.sleep(flush_interval)
             await flush_buffers()
     

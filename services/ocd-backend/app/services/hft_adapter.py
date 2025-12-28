@@ -152,11 +152,12 @@ def _format_expiry_date(expiry: str, expiry_list: List[int] = None) -> str:
                 nearest = min(future_expiries)
                 return datetime.fromtimestamp(nearest).strftime("%Y-%m-%d")
         
-        # Default to today's date if nothing works
-        return datetime.now().strftime("%Y-%m-%d")
+        # Return empty string if no valid expiry found
+        # Do not default to today as it creates "Ghost Expiries"
+        return ""
         
     except Exception:
-        return datetime.now().strftime("%Y-%m-%d")
+        return ""
 
 # Symbol ID mapping - defaults only, will be populated dynamically from Redis
 _DEFAULT_SYMBOL_ID_MAP = {
@@ -330,8 +331,10 @@ class HFTDataAdapter:
         if self._connected and self.redis_client:
             await _load_symbols_from_redis(self.redis_client)
     
-    def _get_symbol_id(self, symbol: str) -> Optional[int]:
-        """Get symbol ID from symbol name"""
+    async def get_symbol_id(self, symbol: str) -> Optional[int]:
+        """Get symbol ID from symbol name (ensures symbols are loaded)"""
+        if not self._connected:
+            await self.connect()
         return SYMBOL_ID_MAP.get(symbol.upper())
     
     def _get_symbol_name(self, symbol_id: int) -> Optional[str]:
@@ -350,7 +353,7 @@ class HFTDataAdapter:
         Returns:
             List of expiry timestamps (sorted, nearest first)
         """
-        symbol_id = self._get_symbol_id(symbol)
+        symbol_id = await self.get_symbol_id(symbol)
         if not symbol_id:
             logger.debug(f"Unknown symbol for expiry dates: {symbol}")
             return []
@@ -498,7 +501,7 @@ class HFTDataAdapter:
         Returns:
             Normalized option chain in option-chain-d format
         """
-        symbol_id = self._get_symbol_id(symbol)
+        symbol_id = await self.get_symbol_id(symbol)
         if not symbol_id:
             logger.debug(f"Unknown symbol for option chain: {symbol}")
             return {"error": f"Unknown symbol: {symbol}"}
@@ -615,7 +618,7 @@ class HFTDataAdapter:
                             datetime.fromtimestamp(e).strftime("%Y-%m-%d") 
                             for e in converted_expiries[:10]  # Show up to 10 expiries
                         ]
-                        logger.info(f"Converted {len(converted_expiries)} expiry dates for {symbol}: {hft_data['expiry_dates'][:3]}...")
+                        logger.debug(f"Converted {len(converted_expiries)} expiry dates for {symbol}: {hft_data['expiry_dates'][:3]}...")
             except Exception as e:
                 logger.warning(f"Failed to fetch expiry list for {symbol}: {e}")
             
@@ -1025,7 +1028,7 @@ class HFTDataAdapter:
             symbol: Trading symbol
             callback: Async function to call with normalized data
         """
-        symbol_id = self._get_symbol_id(symbol)
+        symbol_id = await self.get_symbol_id(symbol)
         if not symbol_id:
             logger.error(f"Cannot subscribe: unknown symbol {symbol}")
             return

@@ -45,6 +45,8 @@ const useChartSocket = (onTickReceived, options = {}) => {
         heartbeatInterval = 15000,
     } = options;
 
+    const isDisconnectingRef = useRef(false);
+
     // Keep callback ref updated
     useEffect(() => {
         onTickReceivedRef.current = onTickReceived;
@@ -104,6 +106,7 @@ const useChartSocket = (onTickReceived, options = {}) => {
         logger.log('🔌 Charts WS connecting to:', wsUrl);
 
         try {
+            isDisconnectingRef.current = false;
             socketRef.current = new WebSocket(wsUrl);
 
             socketRef.current.onopen = () => {
@@ -147,7 +150,8 @@ const useChartSocket = (onTickReceived, options = {}) => {
                 stopHeartbeat();
 
                 // Auto-reconnect with exponential backoff
-                if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+                // Don't auto-reconnect if intentionally disconnected
+                if (!isDisconnectingRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
                     const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
                     const jitter = Math.random() * 1000;
 
@@ -156,15 +160,18 @@ const useChartSocket = (onTickReceived, options = {}) => {
                         logger.log(`🔄 Charts WS reconnecting (attempt ${reconnectAttemptsRef.current})...`);
                         connect();
                     }, delay + jitter);
-                } else {
+                } else if (!isDisconnectingRef.current) {
                     setError('Max reconnection attempts reached');
                     setConnectionQuality('disconnected');
                 }
             };
 
             socketRef.current.onerror = (event) => {
-                logger.error('Charts WS error:', event);
-                setError('WebSocket connection error');
+                // Ignore errors if we are intentionally disconnecting
+                if (!isDisconnectingRef.current) {
+                    logger.error('Charts WS error:', event);
+                    setError('WebSocket connection error');
+                }
             };
         } catch (err) {
             logger.error('Charts WS connection failed:', err);
@@ -174,6 +181,7 @@ const useChartSocket = (onTickReceived, options = {}) => {
 
     // Disconnect from WebSocket
     const disconnect = useCallback(() => {
+        isDisconnectingRef.current = true;
         stopHeartbeat();
 
         if (reconnectTimeoutRef.current) {

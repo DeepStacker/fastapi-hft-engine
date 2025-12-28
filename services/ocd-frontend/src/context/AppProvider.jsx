@@ -47,6 +47,15 @@ export const AppProvider = ({ children }) => {
     exp_sid,
   } = useSelector(selectAppState);
 
+  // Sync theme to DOM when state changes (including rehydration)
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
   // Get selected symbol and expiry for global WebSocket subscription
   const selectedSymbol = useSelector(selectSelectedSymbol);
   const selectedExpiry = useSelector(selectSelectedExpiry);

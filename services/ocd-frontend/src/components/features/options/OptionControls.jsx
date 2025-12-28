@@ -1,7 +1,7 @@
 import { memo, useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectSid, selectSelectedExpiry, selectExpiryList } from '../../../context/selectors';
+import { selectSid, selectSelectedExpiry, selectExpDates } from '../../../context/selectors';
 import { setSidAndFetchData, setExp_sid, fetchLiveData } from '../../../context/dataSlice';
 import { setSymbols } from '../../../context/chartSlice';
 import { analyticsService } from '../../../services/analyticsService';
@@ -151,7 +151,7 @@ const OptionControls = memo(({ showChart, onToggleChart }) => {
     const dispatch = useDispatch();
     const sid = useSelector(selectSid);
     const expiry = useSelector(selectSelectedExpiry);
-    const expiryList = useSelector(selectExpiryList);
+    const expiryList = useSelector(selectExpDates);
     const theme = useSelector((state) => state.theme.theme);
     const symbols = useSelector((state) => state.chart.symbols);
 

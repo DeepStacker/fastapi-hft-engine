@@ -104,10 +104,9 @@ class DhanClient:
     async def _get_hft_adapter(self):
         """Get or create HFT Engine data adapter (lazy initialization)"""
         if self._hft_adapter is None:
-            from app.services.hft_adapter import HFTDataAdapter
-            self._hft_adapter = HFTDataAdapter()
-            await self._hft_adapter.connect()
-            logger.info("HFT Engine adapter initialized")
+            from app.services.hft_adapter import get_hft_adapter
+            self._hft_adapter = await get_hft_adapter()
+            logger.debug("HFT Engine adapter retrieved (singleton)")
         return self._hft_adapter
     
     async def _get_client(self) -> httpx.AsyncClient:
@@ -272,7 +271,10 @@ class DhanClient:
         # ====== HFT ENGINE MODE ======
         if self.use_hft_source:
             adapter = await self._get_hft_adapter()
-            return await adapter.get_expiry_dates(symbol)
+            data = await adapter.get_expiry_dates(symbol)
+            if data and len(data) > 0:
+                return data
+            logger.warning(f"No expiries from HFT Engine for {symbol}, falling back to Direct API")
         
         # ====== DIRECT DHAN API MODE ======
         seg = self._get_segment(symbol)
@@ -312,12 +314,33 @@ class DhanClient:
             # opsum keys are the expiry timestamps as strings
             exp_list = list(opsum.keys())
             
-            # Convert to integers - accept all valid numeric values
+            # Convert to integers with Year Normalization (Dhan uses old years)
             int_exp_list = []
+            
+            now = datetime.now()
+            current_year = now.year
+            
             for exp in exp_list:
                 try:
-                    exp_int = int(exp)
-                    int_exp_list.append(exp_int)
+                    # Logic matches ingestion service
+                    old_ts = int(exp)
+                    old_dt = datetime.fromtimestamp(old_ts)
+                    
+                    # 1. Replace with current year
+                    try:
+                        new_dt = old_dt.replace(year=current_year)
+                    except ValueError:
+                        new_dt = old_dt.replace(year=current_year, day=28) # Leap year fix
+                        
+                    # 2. If result is in past, move to next year
+                    if new_dt < now:
+                        try:
+                            new_dt = old_dt.replace(year=current_year + 1)
+                        except ValueError:
+                            new_dt = old_dt.replace(year=current_year + 1, day=28)
+                            
+                    new_ts = int(new_dt.timestamp())
+                    int_exp_list.append(new_ts)
                 except (ValueError, TypeError):
                     continue
             

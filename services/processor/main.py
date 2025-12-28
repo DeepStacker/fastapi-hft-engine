@@ -130,7 +130,7 @@ class ProcessorService:
             enable_auto_commit=True,  # Commit offsets automatically
             value_deserializer=avro_deserializer(settings.KAFKA_TOPIC_MARKET_RAW),  # Avro binary input
             # Performance tuning
-            fetch_max_wait_ms=500,  # Max wait for batching
+            fetch_max_wait_ms=50,  # Max wait for batching (Reduced for lower latency)
             fetch_min_bytes=1024,  # Min data to fetch (1KB)
             fetch_max_bytes=52428800,  # Max data to fetch (50MB)
             max_partition_fetch_bytes=1048576,  # Max per partition (1MB)
@@ -156,7 +156,9 @@ class ProcessorService:
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS.split(","),
             value_serializer=avro_serializer(settings.KAFKA_TOPIC_ENRICHED),  # Avro binary output
             compression_type='snappy',
-            acks='all'
+            acks='all',
+            linger_ms=10,          # Batch enriched data (10ms wait)
+            max_batch_size=65536,  # 64KB batches
         )
         await self.producer.start()
         logger.info("✓ Kafka producer started (Avro format for enriched messages)")

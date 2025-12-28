@@ -41,8 +41,8 @@ class DhanApiClient:
         # Reuses TCP connections for 50-100ms savings per request
         self.client = httpx.AsyncClient(
             limits=httpx.Limits(
-                max_connections=20,
-                max_keepalive_connections=10
+                max_connections=50,
+                max_keepalive_connections=20
             ),
             timeout=30.0
         )

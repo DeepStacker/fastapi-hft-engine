@@ -29,7 +29,7 @@ redis_client = redis.Redis(connection_pool=redis_pool)
 # Dynamic configuration manager
 config_manager = None
 message_buffer = []
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "50"))  # Configurable batch size
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "20"))  # Reduced for lower latency (was 50)
 
 async def process_message(msg: dict):
     """
@@ -117,7 +117,9 @@ async def realtime_loop():
         group_id="realtime-group",
         value_deserializer=avro_deserializer(settings.KAFKA_TOPIC_ENRICHED),
         auto_offset_reset="latest",
-        enable_auto_commit=True
+        enable_auto_commit=True,
+        # Performance tuning
+        fetch_max_wait_ms=100,
     )
     await consumer.start()
     
@@ -125,9 +127,9 @@ async def realtime_loop():
     
     # Periodic batch flushing task
     async def flush_batches():
-        """Flush remaining messages every second"""
+        """Flush remaining messages every 100ms (was 1s)"""
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.1)
             if message_buffer:
                 await process_batch()
     

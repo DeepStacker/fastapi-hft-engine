@@ -1,5 +1,5 @@
 // store.js
-import { configureStore } from '@reduxjs/toolkit';
+import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import userReducer from './userSlice';
 import themeReducer from './themeSlice';
 import dataReducer from './dataSlice';
@@ -12,31 +12,46 @@ import chartReducer from "./chartSlice";
 import { persistStore, persistReducer } from 'redux-persist';
 import storage from 'redux-persist/lib/storage'; // defaults to localStorage for web
 
+// Define data persist config (nested)
+const dataPersistConfig = {
+  key: 'data',
+  storage,
+  whitelist: ['sid', 'exp_sid'] // Only persist symbol and selected expiry
+};
+
+// Define root reducer
+const rootReducer = combineReducers({
+  user: userReducer,
+  theme: themeReducer,
+  data: persistReducer(dataPersistConfig, dataReducer), // Nested persistence
+  optionChain: optionChainReducer,
+  tca: tcaReducer,
+  config: configReducer,
+  auth: authReducer,
+  toast: toastReducer,
+  chart: chartReducer,
+});
+
+// Configure persistence
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['auth'] // only persist the auth reducer
+  // Whitelist: slices we WANT to persist
+  // Note: 'data' is included, but its internal storage is managed by its own config effectively
+  whitelist: ['auth', 'theme', 'config', 'user', 'tca', 'chart', 'data']
 };
 
-const persistedAuthReducer = persistReducer(persistConfig, authReducer);
-
+const persistedReducer = persistReducer(persistConfig, rootReducer);
 
 
 export const store = configureStore({
-  reducer: {
-    user: userReducer,
-    theme: themeReducer,
-    data: dataReducer,
-    optionChain: optionChainReducer,
-    tca: tcaReducer,
-    config: configReducer,
-    auth: persistedAuthReducer,
-    toast: toastReducer,
-    chart: chartReducer,
-  },
+  reducer: persistedReducer,
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      serializableCheck: false,
+      serializableCheck: {
+        // Ignore redux-persist actions
+        ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE', 'persist/REGISTER'],
+      },
     }),
 });
 

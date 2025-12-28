@@ -89,7 +89,7 @@ class DataCleaner:
         # Extract and clean option chain
         options = self._clean_option_chain(option_chain, context)
         
-        logger.info(
+        logger.debug(
             f"Cleaned data for {context.symbol}: "
             f"{len(options)} options, "
             f"illiquid={self.stats['illiquid']}, "

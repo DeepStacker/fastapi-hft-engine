@@ -95,9 +95,13 @@ async def handle_subscribe(client_id: str, data: dict):
     expiry = data.get("exp_sid", data.get("expiry", ""))  # Optional now
     
     # Validate symbol is known
-    if symbol not in SYMBOL_ID_MAP:
+    # Use adapter to check validity (ensures symbols are loaded)
+    adapter = await get_hft_adapter()
+    symbol_id = await adapter.get_symbol_id(symbol)
+    
+    if not symbol_id:
         await manager.send_personal_message(
-            {"type": "error", "message": f"Unknown symbol: {symbol}. Supported: {list(SYMBOL_ID_MAP.keys())}"},
+            {"type": "error", "message": f"Unknown symbol: {symbol}"},
             client_id
         )
         return
@@ -161,16 +165,16 @@ async def stream_hft_data(symbol: str):
     - No OptionsService processing overhead
     - Pure Redis reads at ~100ms intervals (10 updates/sec)
     """
-    symbol_id = SYMBOL_ID_MAP.get(symbol)
+    # Get HFT adapter
+    adapter = await get_hft_adapter()
+    
+    symbol_id = await adapter.get_symbol_id(symbol)
     if not symbol_id:
         logger.error(f"Unknown symbol for streaming: {symbol}")
         return
     
-    # Get HFT adapter
-    adapter = await get_hft_adapter()
-    
     # Streaming interval (milliseconds) - adjustable
-    interval = getattr(settings, 'HFT_STREAM_INTERVAL', 0.25)  # 250ms = 4 updates/sec
+    interval = getattr(settings, 'HFT_STREAM_INTERVAL', 0.1)  # 100ms = 10 updates/sec (was 0.25)
     
     logger.info(f"HFT Redis streaming started for {symbol} (symbol_id={symbol_id}) at {interval}s intervals")
     

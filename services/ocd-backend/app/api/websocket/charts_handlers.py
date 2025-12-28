@@ -172,6 +172,8 @@ async def charts_websocket_endpoint(websocket: WebSocket):
             logger.warning(f"Charts WS rejected from origin: {origin}")
             await websocket.close(code=1008)
             return
+
+    logger.info(f"Charts WS connection attempt from origin: {origin}")
     
     client_id = str(uuid4())
     

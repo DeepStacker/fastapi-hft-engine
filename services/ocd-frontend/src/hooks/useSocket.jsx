@@ -29,6 +29,7 @@ const useSocket = (onDataReceived, options = {}) => {
 
   const reconnectAttemptsRef = useRef(0);
   const lastPongTimeRef = useRef(null);
+  const isDisconnectingRef = useRef(false);
 
   /**
    * Calculate reconnect delay with exponential backoff and jitter
@@ -129,6 +130,7 @@ const useSocket = (onDataReceived, options = {}) => {
 
       // Connect without token in URL (long JWT tokens can cause issues in query params)
       // Auth token can be sent as first message after connection if needed
+      isDisconnectingRef.current = false;
       socketRef.current = new WebSocket(wsUrl);
 
       // Connection opened
@@ -192,9 +194,11 @@ const useSocket = (onDataReceived, options = {}) => {
       // Connection error - less verbose logging
       socketRef.current.onerror = () => {
         // Don't log full error object - too noisy
-        setError('WebSocket connection error');
-        setIsConnected(false);
-        setConnectionQuality('poor');
+        if (!isDisconnectingRef.current) {
+          setError('WebSocket connection error');
+          setIsConnected(false);
+          setConnectionQuality('poor');
+        }
       };
 
       // Connection closed
@@ -209,7 +213,8 @@ const useSocket = (onDataReceived, options = {}) => {
         if (
           autoReconnect &&
           reconnectAttemptsRef.current < maxReconnectAttempts &&
-          !event.wasClean
+          !event.wasClean &&
+          !isDisconnectingRef.current
         ) {
           reconnectAttemptsRef.current += 1;
           const delay = getReconnectDelay();
@@ -220,7 +225,7 @@ const useSocket = (onDataReceived, options = {}) => {
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, delay);
-        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts && !isDisconnectingRef.current) {
           console.warn('⚠️ WebSocket unavailable, using REST polling');
           setError('WebSocket unavailable - using polling');
         }
@@ -234,6 +239,7 @@ const useSocket = (onDataReceived, options = {}) => {
 
   // Disconnect function
   const disconnect = useCallback(() => {
+    isDisconnectingRef.current = true;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }

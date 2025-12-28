@@ -1,7 +1,6 @@
 // slices/themeSlice.js
 import { createSlice } from "@reduxjs/toolkit";
 
-// Helper to apply theme to HTML element for Tailwind
 const applyThemeToDOM = (theme) => {
   if (typeof document !== 'undefined') {
     if (theme === 'dark') {
@@ -12,24 +11,10 @@ const applyThemeToDOM = (theme) => {
   }
 };
 
-// Initialize theme from localStorage on load
-const getInitialTheme = () => {
-  if (typeof localStorage !== 'undefined') {
-    const saved = localStorage.getItem('theme');
-    if (saved) {
-      applyThemeToDOM(saved);
-      return saved;
-    }
-  }
-  // Default to dark
-  applyThemeToDOM('dark');
-  return 'dark';
-};
-
 export const themeSlice = createSlice({
   name: "theme",
   initialState: {
-    theme: getInitialTheme(),
+    theme: 'dark', // Let redux-persist handle restoration
     isReversed: true,
     isHighlighting: true,
     isItmHighlighting: false,
@@ -37,27 +22,26 @@ export const themeSlice = createSlice({
   reducers: {
     setDarkTheme: (state) => {
       state.theme = 'dark';
-      localStorage.setItem('theme', 'dark');
       applyThemeToDOM('dark');
     },
     setLightTheme: (state) => {
       state.theme = 'light';
-      localStorage.setItem('theme', 'light');
       applyThemeToDOM('light');
     },
     toggleTheme: (state) => {
-      const newTheme = state.theme === 'light' ? 'dark' : 'light';
-      state.theme = newTheme;
-      localStorage.setItem('theme', newTheme);
-      applyThemeToDOM(newTheme);
+      state.theme = state.theme === 'light' ? 'dark' : 'light';
+      applyThemeToDOM(state.theme);
     },
     setIsItmHighlighting: (state) => {
-      state.isItmHighlighting = state.isItmHighlighting === true ? false : true;
+      state.isItmHighlighting = !state.isItmHighlighting;
     },
+    // Add rehydrate handler if needed or rely on component side effect
+    applyStoredTheme: (state) => {
+      applyThemeToDOM(state.theme)
+    }
   },
 });
 
-export const { toggleTheme, setIsReversed, setIsHighlighting, setIsItmHighlighting } =
-  themeSlice.actions;
+export const { toggleTheme, setDarkTheme, setLightTheme, setIsItmHighlighting, applyStoredTheme } = themeSlice.actions;
 export default themeSlice.reducer;
 

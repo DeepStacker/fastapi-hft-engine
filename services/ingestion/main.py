@@ -434,8 +434,8 @@ async def main():
         value_serializer=avro_serializer(settings.KAFKA_TOPIC_MARKET_RAW),
         compression_type='snappy',
         acks='all',
-        max_batch_size=32768,
-        linger_ms=10,
+        max_batch_size=65536,  # 64KB batch size
+        linger_ms=20,          # Wait up to 20ms to fill batch
     )
     await producer.start()
     logger.info(f"Kafka producer started (Avro format): {settings.KAFKA_BOOTSTRAP_SERVERS}")
@@ -455,7 +455,9 @@ async def main():
     await dhan_client.initialize()
     
     # Reduced concurrency with circuit breaker
-    semaphore = asyncio.Semaphore(5)
+    # Initialize Semaphore for concurrency control
+    # increased to 25 to allow parallel processing of 56+ symbols
+    semaphore = asyncio.Semaphore(25)
     logger.info("Circuit breaker initialized for API protection")
     
     # Event to interrupt sleep on config change
