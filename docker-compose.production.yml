@@ -1,0 +1,309 @@
+version: '3.8'
+
+# Master Orchestration File for Scaled HFT Data Engine
+# Combines all infrastructure components for production deployment
+# 
+# Start order:
+#   1. Base infrastructure (networks, volumes)
+#   2. Kafka cluster (docker-compose.kafka-cluster.yml)
+#   3. Redis cluster (docker-compose.redis-cluster.yml)
+#   4. TimescaleDB cluster (docker-compose.timescaledb-cluster.yml)
+#   5. Application services (this file)
+#
+# Usage:
+#   docker-compose -f docker-compose.production.yml up -d
+
+services:
+
+  # Gateway Service - 3 instances for load distribution
+  gateway-service-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-gateway-1
+    command: uvicorn services.api_gateway.main:app --host 0.0.0.0 --port 8003 --workers 2
+    environment:
+      DATABASE_URL: postgresql+asyncpg://stockify:${POSTGRES_PASSWORD}@pgbouncer-primary:5432/stockify_db
+      REDIS_URL: redis://redis-primary-1:7001,redis-primary-2:7002,redis-primary-3:7003?cluster=true
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: production
+      INSTANCE_ID: "1"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  gateway-service-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-gateway-2
+    command: uvicorn services.api_gateway.main:app --host 0.0.0.0 --port 8003 --workers 2
+    environment:
+      DATABASE_URL: postgresql+asyncpg://stockify:${POSTGRES_PASSWORD}@pgbouncer-primary:5432/stockify_db
+      REDIS_URL: redis://redis-primary-1:7001,redis-primary-2:7002,redis-primary-3:7003?cluster=true
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: production
+      INSTANCE_ID: "2"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  gateway-service-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-gateway-3
+    command: uvicorn services.api_gateway.main:app --host 0.0.0.0 --port 8003 --workers 2
+    environment:
+      DATABASE_URL: postgresql+asyncpg://stockify:${POSTGRES_PASSWORD}@pgbouncer-primary:5432/stockify_db
+      REDIS_URL: redis://redis-primary-1:7001,redis-primary-2:7002,redis-primary-3:7003?cluster=true
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: production
+      INSTANCE_ID: "3"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  # NGINX Load Balancer for Gateway instances
+  nginx-lb:
+    image: nginx:alpine
+    container_name: stockify-nginx-lb
+    ports:
+      - "8000:80"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - gateway-service-1
+      - gateway-service-2
+      - gateway-service-3
+    networks:
+      - stockify-network
+    restart: unless-stopped
+
+  # Ingestion Service - 3 instances with symbol partitioning
+  ingestion-service-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-ingestion-1
+    command: python -m services.ingestion.main
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      DHAN_CLIENT_ID: ${DHAN_CLIENT_ID}
+      DHAN_ACCESS_TOKEN: ${DHAN_ACCESS_TOKEN}
+      REDIS_URL: redis://redis-primary-1:7001?cluster=true
+      SECRET_KEY: ${SECRET_KEY}
+      INSTANCE_ID: "1"
+      TOTAL_INSTANCES: "3"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  ingestion-service-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-ingestion-2
+    command: python -m services.ingestion.main
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      DHAN_CLIENT_ID: ${DHAN_CLIENT_ID}
+      DHAN_ACCESS_TOKEN: ${DHAN_ACCESS_TOKEN}
+      REDIS_URL: redis://redis-primary-1:7001?cluster=true
+      SECRET_KEY: ${SECRET_KEY}
+      INSTANCE_ID: "2"
+      TOTAL_INSTANCES: "3"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  ingestion-service-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-ingestion-3
+    command: python -m services.ingestion.main
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      DHAN_CLIENT_ID: ${DHAN_CLIENT_ID}
+      DHAN_ACCESS_TOKEN: ${DHAN_ACCESS_TOKEN}
+      REDIS_URL: redis://redis-primary-1:7001?cluster=true
+      SECRET_KEY: ${SECRET_KEY}
+      INSTANCE_ID: "3"
+      TOTAL_INSTANCES: "3"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  # Processor Service - 4 instances for parallel processing
+  processor-service-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-processor-1
+    command: python -m services.processor.main
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      REDIS_URL: redis://redis-primary-1:7001?cluster=true
+      SECRET_KEY: ${SECRET_KEY}
+      INSTANCE_ID: "1"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  processor-service-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-processor-2
+    command: python -m services.processor.main
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      REDIS_URL: redis://redis-primary-1:7001?cluster=true
+      SECRET_KEY: ${SECRET_KEY}
+      INSTANCE_ID: "2"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  # Add processor-3 and processor-4 similarly...
+
+  # Storage Service - 2 instances for write distribution
+  storage-service-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-storage-1
+    command: python -m services.storage.main
+    environment:
+      DATABASE_URL: postgresql+asyncpg://stockify:${POSTGRES_PASSWORD}@pgbouncer-primary:5432/stockify_db
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      SECRET_KEY: ${SECRET_KEY}
+      INSTANCE_ID: "1"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+
+  storage-service-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-storage-2
+    command: python -m services.storage.main
+    environment:
+      DATABASE_URL: postgresql+asyncpg://stockify:${POSTGRES_PASSWORD}@pgbouncer-primary:5432/stockify_db
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      SECRET_KEY: ${SECRET_KEY}
+      INSTANCE_ID: "2"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+
+  # Historical Service - 4 instances for query distribution
+  historical-service-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-historical-1
+    command: uvicorn services.historical.main:app --host 0.0.0.0 --port 8002
+    environment:
+      DATABASE_URL: postgresql+asyncpg://stockify:${POSTGRES_PASSWORD}@pgbouncer-replicas:5432/stockify_db
+      REDIS_URL: redis://redis-primary-1:7001?cluster=true
+      SECRET_KEY: ${SECRET_KEY}
+      INSTANCE_ID: "1"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+
+  # Add historical-2, historical-3, historical-4 similarly...
+
+  # Analytics Service - 2 instances for stateful analysis
+  analytics-service-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-analytics-1
+    command: python -m services.analytics.main
+    environment:
+      DATABASE_URL: postgresql+asyncpg://stockify:${POSTGRES_PASSWORD}@pgbouncer-replicas:5432/stockify_db
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      REDIS_URL: redis://redis-primary-1:7001?cluster=true
+      SECRET_KEY: ${SECRET_KEY}
+      INSTANCE_ID: "1"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+
+  analytics-service-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-analytics-2
+    command: python -m services.analytics.main
+    environment:
+      DATABASE_URL: postgresql+asyncpg://stockify:${POSTGRES_PASSWORD}@pgbouncer-replicas:5432/stockify_db
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094
+      REDIS_URL: redis://redis-primary-1:7001?cluster=true
+      SECRET_KEY: ${SECRET_KEY}
+      INSTANCE_ID: "2"
+    networks:
+      - stockify-network
+    restart: unless-stopped
+
+networks:
+  stockify-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16

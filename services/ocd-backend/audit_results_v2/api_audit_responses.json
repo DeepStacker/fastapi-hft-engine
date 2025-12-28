@@ -1,0 +1,4526 @@
+[
+  {
+    "name": "Health Check",
+    "path": "/health",
+    "method": "GET",
+    "category": "health",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 18.34,
+    "response_body": {
+      "status": "healthy",
+      "version": "2.0.0",
+      "database": "connected",
+      "redis": "connected",
+      "timestamp": "2025-12-16T23:26:58.840443",
+      "uptime_seconds": 105.89
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:58 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "2946c3f7",
+      "x-response-time": "4.09ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-correlation-id": "b8dbb0a7-570",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": false,
+    "admin_required": false
+  },
+  {
+    "name": "Root",
+    "path": "/",
+    "method": "GET",
+    "category": "health",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 8.43,
+    "response_body": {
+      "name": "Stockify Trading Platform",
+      "version": "2.0.0",
+      "status": "running",
+      "docs": "/docs"
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:58 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "7d3a3631",
+      "x-response-time": "0.19ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "120",
+      "x-ratelimit-reset": "1765927678",
+      "x-correlation-id": "609be9cc-97a",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": false,
+    "admin_required": false
+  },
+  {
+    "name": "Prometheus Metrics",
+    "path": "/metrics",
+    "method": "GET",
+    "category": "health",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 7.95,
+    "response_body": "# Instance: 851f8e3a65d0\n\nwebsocket_connections_active 0\nwebsocket_connections_total 0\nwebsocket_messages_sent_total 0\ncache_hits_total 0\ncache_misses_total 0",
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:58 GMT",
+      "server": "uvicorn",
+      "content-type": "text/plain; charset=utf-8",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "25a5a169",
+      "x-response-time": "0.68ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "119",
+      "x-ratelimit-reset": "1765927678",
+      "x-correlation-id": "7f757766-3bf",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": false,
+    "admin_required": false
+  },
+  {
+    "name": "Auth - Get Profile",
+    "path": "/auth/profile",
+    "method": "GET",
+    "category": "auth",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 350.32,
+    "response_body": {
+      "success": true,
+      "message": null,
+      "data": {
+        "id": "9eb79171-a54c-4063-b6d8-0ce630aff23c",
+        "email": "svm.singh.01@gmail.com",
+        "username": "svm.singh.01",
+        "full_name": null,
+        "profile_image": "https://lh3.googleusercontent.com/a/ACg8ocLoQwVtVnMGOyXh5nvuHu2pTAO4leQbEW3ViUvFyHC6i09Rwg=s96-c",
+        "role": "admin",
+        "is_active": true,
+        "is_email_verified": true,
+        "is_premium": true,
+        "login_provider": "google.com",
+        "subscription_expires": null,
+        "last_login": "2025-12-16T23:13:46.118306Z",
+        "created_at": "2025-12-16T16:39:10.123648Z"
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:58 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "31f7f1a1",
+      "x-response-time": "341.68ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "118",
+      "x-ratelimit-reset": "1765927679",
+      "x-correlation-id": "935c528b-fb3",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Profile - Get My Profile",
+    "path": "/profile/me",
+    "method": "GET",
+    "category": "profile",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 123.52,
+    "response_body": {
+      "success": true,
+      "message": null,
+      "data": {
+        "id": "9eb79171-a54c-4063-b6d8-0ce630aff23c",
+        "email": "svm.singh.01@gmail.com",
+        "username": "svm.singh.01",
+        "phone": "",
+        "bio": "",
+        "location": "",
+        "profile_image": "https://lh3.googleusercontent.com/a/ACg8ocLoQwVtVnMGOyXh5nvuHu2pTAO4leQbEW3ViUvFyHC6i09Rwg=s96-c",
+        "role": "admin",
+        "subscription_type": "free",
+        "is_email_verified": true,
+        "created_at": "2025-12-16T16:39:10.123648+00:00",
+        "trading_stats": {
+          "total_trades": "1,247",
+          "win_rate": "73.2%",
+          "total_pnl": "\u20b912.4L",
+          "avg_return": "18.5%",
+          "risk_score": "Medium",
+          "active_days": "156"
+        },
+        "notification_settings": {
+          "trade_alerts": true,
+          "price_alerts": true,
+          "news_updates": false,
+          "market_analysis": true,
+          "email_notifications": true,
+          "push_notifications": false
+        }
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:58 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "4e97b288",
+      "x-response-time": "107.91ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "117",
+      "x-ratelimit-reset": "1765927679",
+      "x-correlation-id": "670f366b-4e5",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Profile - Get My Stats",
+    "path": "/profile/me/stats",
+    "method": "GET",
+    "category": "profile",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 116.53,
+    "response_body": {
+      "success": true,
+      "stats": {
+        "total_trades": 1247,
+        "winning_trades": 913,
+        "losing_trades": 334,
+        "win_rate": 73.2,
+        "total_pnl": 1240000,
+        "avg_return": 18.5,
+        "best_trade": 85000,
+        "worst_trade": -42000,
+        "avg_trade_duration": "2.3 hours",
+        "most_traded_symbol": "NIFTY",
+        "active_days": 156,
+        "streak": {
+          "current": 5,
+          "best": 12
+        }
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:58 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "7b9a5c04",
+      "x-response-time": "108.50ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "116",
+      "x-ratelimit-reset": "1765927679",
+      "x-correlation-id": "717c5e25-a1f",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Options - Get Expiry Dates",
+    "path": "/options/expiry/NIFTY",
+    "method": "GET",
+    "category": "options",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 102.87,
+    "response_body": {
+      "success": true,
+      "message": null,
+      "data": {
+        "symbol": "NIFTY",
+        "expiry_dates": [
+          1450290600,
+          1450895400,
+          1451500200,
+          1452105000,
+          1452709800,
+          1453919400,
+          1456338600,
+          1459362600,
+          1467225000,
+          1475087400,
+          1482949800,
+          1498674600,
+          1514399400,
+          1530124200,
+          1545849000,
+          1561573800,
+          1577212200,
+          1593023400
+        ]
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:58 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "5cd7b7bc",
+      "x-response-time": "94.66ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "115",
+      "x-ratelimit-reset": "1765927679",
+      "x-correlation-id": "560f7870-fcb",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Options - Get Chain",
+    "path": "/options/chain/NIFTY/1734595199",
+    "method": "GET",
+    "category": "options",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 378.46,
+    "response_body": {
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "spot": {
+        "ltp": 25860.1,
+        "change": -167.2,
+        "change_percent": -0.6424
+      },
+      "future": {
+        "1451500200": {
+          "v_chng": 338400,
+          "v_pchng": 7.485318183898926,
+          "sid": 49543,
+          "ltp": 25932,
+          "pch": 0,
+          "prch": 0,
+          "pc": 26108.7,
+          "vol": 4859250,
+          "sym": "NIFTY DEC FUT",
+          "oi": 16234425,
+          "oichng": 359400,
+          "pvol": 4520850,
+          "oipchng": 2.26,
+          "xch": "NSE",
+          "seg": "D",
+          "poi": 0,
+          "d_sym": "",
+          "daystoexp": 0,
+          "expcode": 0,
+          "mtp": 0,
+          "ticksize": 0.1,
+          "lot": 75,
+          "exptype": "M"
+        },
+        "1453919400": {
+          "v_chng": 33800,
+          "v_pchng": 9.355883598327637,
+          "sid": 49229,
+          "ltp": 26099,
+          "pch": 0,
+          "prch": 0,
+          "pc": 26268.7,
+          "vol": 395070,
+          "sym": "NIFTY JAN FUT",
+          "oi": 1496625,
+          "oichng": 76570,
+          "pvol": 361270,
+          "oipchng": 5.39,
+          "xch": "NSE",
+          "seg": "D",
+          "poi": 0,
+          "d_sym": "",
+          "daystoexp": 0,
+          "expcode": 0,
+          "mtp": 0,
+          "ticksize": 0.1,
+          "lot": 65,
+          "exptype": "M"
+        },
+        "1456338600": {
+          "v_chng": 22945,
+          "v_pchng": 24.095563888549805,
+          "sid": 59182,
+          "ltp": 26250,
+          "pch": 0,
+          "prch": 0,
+          "pc": 26407.3,
+          "vol": 118170,
+          "sym": "NIFTY FEB FUT",
+          "oi": 540995,
+          "oichng": 40495,
+          "pvol": 95225,
+          "oipchng": 8.09,
+          "xch": "NSE",
+          "seg": "D",
+          "poi": 0,
+          "d_sym": "",
+          "daystoexp": 0,
+          "expcode": 0,
+          "mtp": 0,
+          "ticksize": 0.1,
+          "lot": 65,
+          "exptype": "M"
+        }
+      },
+      "atm_strike": 25860.1,
+      "atmiv": 0,
+      "atmiv_change": 0,
+      "oc": {},
+      "strikes": [],
+      "total_ce_oi": 0,
+      "total_pe_oi": 0,
+      "pcr": 0,
+      "timestamp": "2025-12-16T23:26:59.927837",
+      "days_to_expiry": 2.0006944444444446,
+      "dte": 0,
+      "instrument_type": "IDX",
+      "max_pain_strike": 0,
+      "u_id": 26000,
+      "lot_size": 0,
+      "expiry_list": null,
+      "meta": {
+        "noise_floor": 60,
+        "volatility_regime": "medium",
+        "recommended_threshold": 70,
+        "std_dev": 0
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:59 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "7105f725",
+      "x-response-time": "367.96ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "114",
+      "x-ratelimit-reset": "1765927679",
+      "x-correlation-id": "61b00398-d00",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Options - Live Data",
+    "path": "/options/live",
+    "method": "GET",
+    "category": "options",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 131.48,
+    "response_body": {
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "spot": {
+        "ltp": 25860.1,
+        "change": -167.2,
+        "change_percent": -0.6424
+      },
+      "future": {
+        "1451500200": {
+          "v_chng": 338400,
+          "v_pchng": 7.485318183898926,
+          "sid": 49543,
+          "ltp": 25932,
+          "pch": 0,
+          "prch": 0,
+          "pc": 26108.7,
+          "vol": 4859250,
+          "sym": "NIFTY DEC FUT",
+          "oi": 16234425,
+          "oichng": 359400,
+          "pvol": 4520850,
+          "oipchng": 2.26,
+          "xch": "NSE",
+          "seg": "D",
+          "poi": 0,
+          "d_sym": "",
+          "daystoexp": 0,
+          "expcode": 0,
+          "mtp": 0,
+          "ticksize": 0.1,
+          "lot": 75,
+          "exptype": "M"
+        },
+        "1453919400": {
+          "v_chng": 33800,
+          "v_pchng": 9.355883598327637,
+          "sid": 49229,
+          "ltp": 26099,
+          "pch": 0,
+          "prch": 0,
+          "pc": 26268.7,
+          "vol": 395070,
+          "sym": "NIFTY JAN FUT",
+          "oi": 1496625,
+          "oichng": 76570,
+          "pvol": 361270,
+          "oipchng": 5.39,
+          "xch": "NSE",
+          "seg": "D",
+          "poi": 0,
+          "d_sym": "",
+          "daystoexp": 0,
+          "expcode": 0,
+          "mtp": 0,
+          "ticksize": 0.1,
+          "lot": 65,
+          "exptype": "M"
+        },
+        "1456338600": {
+          "v_chng": 22945,
+          "v_pchng": 24.095563888549805,
+          "sid": 59182,
+          "ltp": 26250,
+          "pch": 0,
+          "prch": 0,
+          "pc": 26407.3,
+          "vol": 118170,
+          "sym": "NIFTY FEB FUT",
+          "oi": 540995,
+          "oichng": 40495,
+          "pvol": 95225,
+          "oipchng": 8.09,
+          "xch": "NSE",
+          "seg": "D",
+          "poi": 0,
+          "d_sym": "",
+          "daystoexp": 0,
+          "expcode": 0,
+          "mtp": 0,
+          "ticksize": 0.1,
+          "lot": 65,
+          "exptype": "M"
+        }
+      },
+      "atm_strike": 25860.1,
+      "atmiv": 0,
+      "atmiv_change": 0,
+      "oc": {},
+      "strikes": [],
+      "total_ce_oi": 0,
+      "total_pe_oi": 0,
+      "pcr": 0,
+      "timestamp": "2025-12-16T23:27:00.059013",
+      "days_to_expiry": 2.0006944444444446,
+      "dte": 0,
+      "instrument_type": "IDX",
+      "max_pain_strike": 0,
+      "u_id": 26000,
+      "lot_size": 0,
+      "expiry_list": null,
+      "meta": {
+        "noise_floor": 60,
+        "volatility_regime": "medium",
+        "recommended_threshold": 70,
+        "std_dev": 0
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:59 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "74ca7e61",
+      "x-response-time": "119.05ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "113",
+      "x-ratelimit-reset": "1765927680",
+      "x-correlation-id": "665119c4-32e",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Options - Percentage Analysis",
+    "path": "/options/percentage",
+    "method": "POST",
+    "category": "options",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 95.11,
+    "response_body": {
+      "error": "Strike 24500.0 not found"
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:59 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "539411ba",
+      "x-response-time": "85.70ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "112",
+      "x-ratelimit-reset": "1765927680",
+      "x-correlation-id": "f301567d-a42",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Options - IV Analysis",
+    "path": "/options/iv",
+    "method": "POST",
+    "category": "options",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 337.43,
+    "response_body": {
+      "error": "Strike 24500.0 not found"
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:59 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "2da58b31",
+      "x-response-time": "326.39ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "111",
+      "x-ratelimit-reset": "1765927680",
+      "x-correlation-id": "8e973f54-ff8",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Options - Delta Analysis",
+    "path": "/options/delta",
+    "method": "POST",
+    "category": "options",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 396.82,
+    "response_body": {
+      "error": "Strike 24500.0 not found"
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:59 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "51196642",
+      "x-response-time": "388.10ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "110",
+      "x-ratelimit-reset": "1765927680",
+      "x-correlation-id": "10e8e43c-b24",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Options - Future Price",
+    "path": "/options/future",
+    "method": "POST",
+    "category": "options",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 250.29,
+    "response_body": {
+      "symbol": "NIFTY",
+      "spot": 25860.1,
+      "future_price": 25932,
+      "basis": 71.9,
+      "basis_percent": 0.278,
+      "days_to_expiry": 0,
+      "future_oi": 16234425
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:26:59 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "dba4dee8",
+      "x-response-time": "239.61ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "109",
+      "x-ratelimit-reset": "1765927681",
+      "x-correlation-id": "bf3af37b-ce5",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - Strike Timeseries",
+    "path": "/analytics/timeseries/NIFTY/24500",
+    "method": "GET",
+    "category": "analytics-timeseries",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 568.02,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "strike": 24500.0,
+      "option_type": "CE",
+      "field": "oi",
+      "data": [
+        {
+          "timestamp": "2025-12-16T19:17:01.709062",
+          "value": 6821.18,
+          "change": 146.18,
+          "change_percent": 2.14
+        },
+        {
+          "timestamp": "2025-12-16T19:22:01.709062",
+          "value": 7079.35,
+          "change": 258.17,
+          "change_percent": 3.65
+        },
+        {
+          "timestamp": "2025-12-16T19:27:01.709062",
+          "value": 6970.94,
+          "change": -108.41,
+          "change_percent": -1.56
+        },
+        {
+          "timestamp": "2025-12-16T19:32:01.709062",
+          "value": 6869.58,
+          "change": -101.36,
+          "change_percent": -1.48
+        },
+        {
+          "timestamp": "2025-12-16T19:37:01.709062",
+          "value": 6680.31,
+          "change": -189.27,
+          "change_percent": -2.83
+        },
+        {
+          "timestamp": "2025-12-16T19:42:01.709062",
+          "value": 6847.92,
+          "change": 167.6,
+          "change_percent": 2.45
+        },
+        {
+          "timestamp": "2025-12-16T19:47:01.709062",
+          "value": 6714.12,
+          "change": -133.79,
+          "change_percent": -1.99
+        },
+        {
+          "timestamp": "2025-12-16T19:52:01.709062",
+          "value": 6882.82,
+          "change": 168.7,
+          "change_percent": 2.45
+        },
+        {
+          "timestamp": "2025-12-16T19:57:01.709062",
+          "value": 6560.26,
+          "change": -322.56,
+          "change_percent": -4.92
+        },
+        {
+          "timestamp": "2025-12-16T20:02:01.709062",
+          "value": 6699.21,
+          "change": 138.95,
+          "change_percent": 2.07
+        },
+        {
+          "timestamp": "2025-12-16T20:07:01.709062",
+          "value": 6578.66,
+          "change": -120.55,
+          "change_percent": -1.83
+        },
+        {
+          "timestamp": "2025-12-16T20:12:01.709062",
+          "value": 6432.7,
+          "change": -145.96,
+          "change_percent": -2.27
+        },
+        {
+          "timestamp": "2025-12-16T20:17:01.709062",
+          "value": 6459.37,
+          "change": 26.67,
+          "change_percent": 0.41
+        },
+        {
+          "timestamp": "2025-12-16T20:22:01.709062",
+          "value": 6435.98,
+          "change": -23.39,
+          "change_percent": -0.36
+        },
+        {
+          "timestamp": "2025-12-16T20:27:01.709062",
+          "value": 6478.56,
+          "change": 42.58,
+          "change_percent": 0.66
+        },
+        {
+          "timestamp": "2025-12-16T20:32:01.709062",
+          "value": 6542.56,
+          "change": 64.0,
+          "change_percent": 0.98
+        },
+        {
+          "timestamp": "2025-12-16T20:37:01.709062",
+          "value": 6421.29,
+          "change": -121.27,
+          "change_percent": -1.89
+        },
+        {
+          "timestamp": "2025-12-16T20:42:01.709062",
+          "value": 6636.21,
+          "change": 214.92,
+          "change_percent": 3.24
+        },
+        {
+          "timestamp": "2025-12-16T20:47:01.709062",
+          "value": 6457.66,
+          "change": -178.55,
+          "change_percent": -2.76
+        },
+        {
+          "timestamp": "2025-12-16T20:52:01.709062",
+          "value": 6489.91,
+          "change": 32.26,
+          "change_percent": 0.5
+        },
+        {
+          "timestamp": "2025-12-16T20:57:01.709062",
+          "value": 6505.19,
+          "change": 15.28,
+          "change_percent": 0.23
+        },
+        {
+          "timestamp": "2025-12-16T21:02:01.709062",
+          "value": 6714.5,
+          "change": 209.32,
+          "change_percent": 3.12
+        },
+        {
+          "timestamp": "2025-12-16T21:07:01.709062",
+          "value": 6673.82,
+          "change": -40.68,
+          "change_percent": -0.61
+        },
+        {
+          "timestamp": "2025-12-16T21:12:01.709062",
+          "value": 6389.05,
+          "change": -284.77,
+          "change_percent": -4.46
+        },
+        {
+          "timestamp": "2025-12-16T21:17:01.709062",
+          "value": 6446.04,
+          "change": 56.99,
+          "change_percent": 0.88
+        },
+        {
+          "timestamp": "2025-12-16T21:22:01.709062",
+          "value": 6275.47,
+          "change": -170.57,
+          "change_percent": -2.72
+        },
+        {
+          "timestamp": "2025-12-16T21:27:01.709062",
+          "value": 5963.26,
+          "change": -312.21,
+          "change_percent": -5.24
+        },
+        {
+          "timestamp": "2025-12-16T21:32:01.709062",
+          "value": 6217.94,
+          "change": 254.68,
+          "change_percent": 4.1
+        },
+        {
+          "timestamp": "2025-12-16T21:37:01.709062",
+          "value": 6247.19,
+          "change": 29.25,
+          "change_percent": 0.47
+        },
+        {
+          "timestamp": "2025-12-16T21:42:01.709062",
+          "value": 5969.02,
+          "change": -278.17,
+          "change_percent": -4.66
+        },
+        {
+          "timestamp": "2025-12-16T21:47:01.709062",
+          "value": 5988.11,
+          "change": 19.09,
+          "change_percent": 0.32
+        },
+        {
+          "timestamp": "2025-12-16T21:52:01.709062",
+          "value": 6192.49,
+          "change": 204.38,
+          "change_percent": 3.3
+        },
+        {
+          "timestamp": "2025-12-16T21:57:01.709062",
+          "value": 6303.48,
+          "change": 111.0,
+          "change_percent": 1.76
+        },
+        {
+          "timestamp": "2025-12-16T22:02:01.709062",
+          "value": 6403.26,
+          "change": 99.78,
+          "change_percent": 1.56
+        },
+        {
+          "timestamp": "2025-12-16T22:07:01.709062",
+          "value": 6642.96,
+          "change": 239.7,
+          "change_percent": 3.61
+        },
+        {
+          "timestamp": "2025-12-16T22:12:01.709062",
+          "value": 6783.41,
+          "change": 140.45,
+          "change_percent": 2.07
+        },
+        {
+          "timestamp": "2025-12-16T22:17:01.709062",
+          "value": 6497.99,
+          "change": -285.41,
+          "change_percent": -4.39
+        },
+        {
+          "timestamp": "2025-12-16T22:22:01.709062",
+          "value": 6291.37,
+          "change": -206.62,
+          "change_percent": -3.28
+        },
+        {
+          "timestamp": "2025-12-16T22:27:01.709062",
+          "value": 6079.36,
+          "change": -212.01,
+          "change_percent": -3.49
+        },
+        {
+          "timestamp": "2025-12-16T22:32:01.709062",
+          "value": 6379.09,
+          "change": 299.73,
+          "change_percent": 4.7
+        },
+        {
+          "timestamp": "2025-12-16T22:37:01.709062",
+          "value": 6177.68,
+          "change": -201.4,
+          "change_percent": -3.26
+        },
+        {
+          "timestamp": "2025-12-16T22:42:01.709062",
+          "value": 5951.72,
+          "change": -225.97,
+          "change_percent": -3.8
+        },
+        {
+          "timestamp": "2025-12-16T22:47:01.709062",
+          "value": 5789.72,
+          "change": -162.0,
+          "change_percent": -2.8
+        },
+        {
+          "timestamp": "2025-12-16T22:52:01.709062",
+          "value": 5825.91,
+          "change": 36.19,
+          "change_percent": 0.62
+        },
+        {
+          "timestamp": "2025-12-16T22:57:01.709062",
+          "value": 5682.26,
+          "change": -143.65,
+          "change_percent": -2.53
+        },
+        {
+          "timestamp": "2025-12-16T23:02:01.709062",
+          "value": 5441.91,
+          "change": -240.35,
+          "change_percent": -4.42
+        },
+        {
+          "timestamp": "2025-12-16T23:07:01.709062",
+          "value": 5470.69,
+          "change": 28.78,
+          "change_percent": 0.53
+        },
+        {
+          "timestamp": "2025-12-16T23:12:01.709062",
+          "value": 5257.53,
+          "change": -213.16,
+          "change_percent": -4.05
+        },
+        {
+          "timestamp": "2025-12-16T23:17:01.709062",
+          "value": 5208.99,
+          "change": -48.54,
+          "change_percent": -0.93
+        },
+        {
+          "timestamp": "2025-12-16T23:22:01.709062",
+          "value": 5063.44,
+          "change": -145.55,
+          "change_percent": -2.87
+        }
+      ],
+      "summary": {
+        "min": 5063.44,
+        "max": 7079.35,
+        "avg": 6317.83,
+        "current": 5063.44,
+        "change_from_start": -1757.74
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:01 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "1f7179f8",
+      "x-response-time": "559.32ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "108",
+      "x-ratelimit-reset": "1765927681",
+      "x-correlation-id": "87d746cc-cd1",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - Spot Timeseries",
+    "path": "/analytics/timeseries/spot/NIFTY",
+    "method": "GET",
+    "category": "analytics-timeseries",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 204.22,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "strike": null,
+      "option_type": null,
+      "field": "spot",
+      "data": [
+        {
+          "timestamp": "2025-12-16T15:07:01.911629",
+          "value": 25846.52,
+          "change": -13.58,
+          "change_percent": -0.05
+        },
+        {
+          "timestamp": "2025-12-16T15:12:01.911629",
+          "value": 25872.3,
+          "change": 25.79,
+          "change_percent": 0.1
+        },
+        {
+          "timestamp": "2025-12-16T15:17:01.911629",
+          "value": 25872.08,
+          "change": -0.22,
+          "change_percent": -0.0
+        },
+        {
+          "timestamp": "2025-12-16T15:22:01.911629",
+          "value": 25878.97,
+          "change": 6.89,
+          "change_percent": 0.03
+        },
+        {
+          "timestamp": "2025-12-16T15:27:01.911629",
+          "value": 25901.47,
+          "change": 22.5,
+          "change_percent": 0.09
+        },
+        {
+          "timestamp": "2025-12-16T15:32:01.911629",
+          "value": 25922.92,
+          "change": 21.45,
+          "change_percent": 0.08
+        },
+        {
+          "timestamp": "2025-12-16T15:37:01.911629",
+          "value": 25912.07,
+          "change": -10.85,
+          "change_percent": -0.04
+        },
+        {
+          "timestamp": "2025-12-16T15:42:01.911629",
+          "value": 25892.84,
+          "change": -19.23,
+          "change_percent": -0.07
+        },
+        {
+          "timestamp": "2025-12-16T15:47:01.911629",
+          "value": 25892.47,
+          "change": -0.37,
+          "change_percent": -0.0
+        },
+        {
+          "timestamp": "2025-12-16T15:52:01.911629",
+          "value": 25898.48,
+          "change": 6.01,
+          "change_percent": 0.02
+        },
+        {
+          "timestamp": "2025-12-16T15:57:01.911629",
+          "value": 25876.8,
+          "change": -21.68,
+          "change_percent": -0.08
+        },
+        {
+          "timestamp": "2025-12-16T16:02:01.911629",
+          "value": 25894.75,
+          "change": 17.96,
+          "change_percent": 0.07
+        },
+        {
+          "timestamp": "2025-12-16T16:07:01.911629",
+          "value": 25894.76,
+          "change": 0.01,
+          "change_percent": 0.0
+        },
+        {
+          "timestamp": "2025-12-16T16:12:01.911629",
+          "value": 25892.72,
+          "change": -2.04,
+          "change_percent": -0.01
+        },
+        {
+          "timestamp": "2025-12-16T16:17:01.911629",
+          "value": 25869.49,
+          "change": -23.23,
+          "change_percent": -0.09
+        },
+        {
+          "timestamp": "2025-12-16T16:22:01.911629",
+          "value": 25848.91,
+          "change": -20.58,
+          "change_percent": -0.08
+        },
+        {
+          "timestamp": "2025-12-16T16:27:01.911629",
+          "value": 25860.53,
+          "change": 11.62,
+          "change_percent": 0.04
+        },
+        {
+          "timestamp": "2025-12-16T16:32:01.911629",
+          "value": 25843.8,
+          "change": -16.73,
+          "change_percent": -0.06
+        },
+        {
+          "timestamp": "2025-12-16T16:37:01.911629",
+          "value": 25841.41,
+          "change": -2.39,
+          "change_percent": -0.01
+        },
+        {
+          "timestamp": "2025-12-16T16:42:01.911629",
+          "value": 25849.34,
+          "change": 7.93,
+          "change_percent": 0.03
+        },
+        {
+          "timestamp": "2025-12-16T16:47:01.911629",
+          "value": 25839.1,
+          "change": -10.24,
+          "change_percent": -0.04
+        },
+        {
+          "timestamp": "2025-12-16T16:52:01.911629",
+          "value": 25843.29,
+          "change": 4.19,
+          "change_percent": 0.02
+        },
+        {
+          "timestamp": "2025-12-16T16:57:01.911629",
+          "value": 25840.26,
+          "change": -3.04,
+          "change_percent": -0.01
+        },
+        {
+          "timestamp": "2025-12-16T17:02:01.911629",
+          "value": 25816.21,
+          "change": -24.05,
+          "change_percent": -0.09
+        },
+        {
+          "timestamp": "2025-12-16T17:07:01.911629",
+          "value": 25823.21,
+          "change": 7.0,
+          "change_percent": 0.03
+        },
+        {
+          "timestamp": "2025-12-16T17:12:01.911629",
+          "value": 25822.19,
+          "change": -1.02,
+          "change_percent": -0.0
+        },
+        {
+          "timestamp": "2025-12-16T17:17:01.911629",
+          "value": 25807.68,
+          "change": -14.51,
+          "change_percent": -0.06
+        },
+        {
+          "timestamp": "2025-12-16T17:22:01.911629",
+          "value": 25815.18,
+          "change": 7.51,
+          "change_percent": 0.03
+        },
+        {
+          "timestamp": "2025-12-16T17:27:01.911629",
+          "value": 25831.34,
+          "change": 16.16,
+          "change_percent": 0.06
+        },
+        {
+          "timestamp": "2025-12-16T17:32:01.911629",
+          "value": 25831.44,
+          "change": 0.09,
+          "change_percent": 0.0
+        },
+        {
+          "timestamp": "2025-12-16T17:37:01.911629",
+          "value": 25836.69,
+          "change": 5.26,
+          "change_percent": 0.02
+        },
+        {
+          "timestamp": "2025-12-16T17:42:01.911629",
+          "value": 25853.67,
+          "change": 16.97,
+          "change_percent": 0.07
+        },
+        {
+          "timestamp": "2025-12-16T17:47:01.911629",
+          "value": 25871.96,
+          "change": 18.3,
+          "change_percent": 0.07
+        },
+        {
+          "timestamp": "2025-12-16T17:52:01.911629",
+          "value": 25862.74,
+          "change": -9.23,
+          "change_percent": -0.04
+        },
+        {
+          "timestamp": "2025-12-16T17:57:01.911629",
+          "value": 25861.72,
+          "change": -1.01,
+          "change_percent": -0.0
+        },
+        {
+          "timestamp": "2025-12-16T18:02:01.911629",
+          "value": 25860.08,
+          "change": -1.64,
+          "change_percent": -0.01
+        },
+        {
+          "timestamp": "2025-12-16T18:07:01.911629",
+          "value": 25862.44,
+          "change": 2.37,
+          "change_percent": 0.01
+        },
+        {
+          "timestamp": "2025-12-16T18:12:01.911629",
+          "value": 25854.66,
+          "change": -7.78,
+          "change_percent": -0.03
+        },
+        {
+          "timestamp": "2025-12-16T18:17:01.911629",
+          "value": 25837.71,
+          "change": -16.95,
+          "change_percent": -0.07
+        },
+        {
+          "timestamp": "2025-12-16T18:22:01.911629",
+          "value": 25824.95,
+          "change": -12.76,
+          "change_percent": -0.05
+        },
+        {
+          "timestamp": "2025-12-16T18:27:01.911629",
+          "value": 25850.74,
+          "change": 25.79,
+          "change_percent": 0.1
+        },
+        {
+          "timestamp": "2025-12-16T18:32:01.911629",
+          "value": 25859.19,
+          "change": 8.45,
+          "change_percent": 0.03
+        },
+        {
+          "timestamp": "2025-12-16T18:37:01.911629",
+          "value": 25854.89,
+          "change": -4.29,
+          "change_percent": -0.02
+        },
+        {
+          "timestamp": "2025-12-16T18:42:01.911629",
+          "value": 25840.23,
+          "change": -14.66,
+          "change_percent": -0.06
+        },
+        {
+          "timestamp": "2025-12-16T18:47:01.911629",
+          "value": 25815.18,
+          "change": -25.05,
+          "change_percent": -0.1
+        },
+        {
+          "timestamp": "2025-12-16T18:52:01.911629",
+          "value": 25822.15,
+          "change": 6.97,
+          "change_percent": 0.03
+        },
+        {
+          "timestamp": "2025-12-16T18:57:01.911629",
+          "value": 25809.3,
+          "change": -12.86,
+          "change_percent": -0.05
+        },
+        {
+          "timestamp": "2025-12-16T19:02:01.911629",
+          "value": 25803.83,
+          "change": -5.47,
+          "change_percent": -0.02
+        },
+        {
+          "timestamp": "2025-12-16T19:07:01.911629",
+          "value": 25778.08,
+          "change": -25.75,
+          "change_percent": -0.1
+        },
+        {
+          "timestamp": "2025-12-16T19:12:01.911629",
+          "value": 25759.95,
+          "change": -18.13,
+          "change_percent": -0.07
+        },
+        {
+          "timestamp": "2025-12-16T19:17:01.911629",
+          "value": 25750.65,
+          "change": -9.3,
+          "change_percent": -0.04
+        },
+        {
+          "timestamp": "2025-12-16T19:22:01.911629",
+          "value": 25746.14,
+          "change": -4.5,
+          "change_percent": -0.02
+        },
+        {
+          "timestamp": "2025-12-16T19:27:01.911629",
+          "value": 25763.79,
+          "change": 17.65,
+          "change_percent": 0.07
+        },
+        {
+          "timestamp": "2025-12-16T19:32:01.911629",
+          "value": 25785.39,
+          "change": 21.6,
+          "change_percent": 0.08
+        },
+        {
+          "timestamp": "2025-12-16T19:37:01.911629",
+          "value": 25809.12,
+          "change": 23.72,
+          "change_percent": 0.09
+        },
+        {
+          "timestamp": "2025-12-16T19:42:01.911629",
+          "value": 25832.14,
+          "change": 23.02,
+          "change_percent": 0.09
+        },
+        {
+          "timestamp": "2025-12-16T19:47:01.911629",
+          "value": 25829.52,
+          "change": -2.61,
+          "change_percent": -0.01
+        },
+        {
+          "timestamp": "2025-12-16T19:52:01.911629",
+          "value": 25810.25,
+          "change": -19.27,
+          "change_percent": -0.07
+        },
+        {
+          "timestamp": "2025-12-16T19:57:01.911629",
+          "value": 25816.99,
+          "change": 6.73,
+          "change_percent": 0.03
+        },
+        {
+          "timestamp": "2025-12-16T20:02:01.911629",
+          "value": 25821.43,
+          "change": 4.44,
+          "change_percent": 0.02
+        },
+        {
+          "timestamp": "2025-12-16T20:07:01.911629",
+          "value": 25807.05,
+          "change": -14.38,
+          "change_percent": -0.06
+        },
+        {
+          "timestamp": "2025-12-16T20:12:01.911629",
+          "value": 25804.42,
+          "change": -2.64,
+          "change_percent": -0.01
+        },
+        {
+          "timestamp": "2025-12-16T20:17:01.911629",
+          "value": 25791.47,
+          "change": -12.95,
+          "change_percent": -0.05
+        },
+        {
+          "timestamp": "2025-12-16T20:22:01.911629",
+          "value": 25790.98,
+          "change": -0.49,
+          "change_percent": -0.0
+        },
+        {
+          "timestamp": "2025-12-16T20:27:01.911629",
+          "value": 25769.04,
+          "change": -21.94,
+          "change_percent": -0.09
+        },
+        {
+          "timestamp": "2025-12-16T20:32:01.911629",
+          "value": 25758.07,
+          "change": -10.97,
+          "change_percent": -0.04
+        },
+        {
+          "timestamp": "2025-12-16T20:37:01.911629",
+          "value": 25737.36,
+          "change": -20.7,
+          "change_percent": -0.08
+        },
+        {
+          "timestamp": "2025-12-16T20:42:01.911629",
+          "value": 25748.18,
+          "change": 10.82,
+          "change_percent": 0.04
+        },
+        {
+          "timestamp": "2025-12-16T20:47:01.911629",
+          "value": 25743.51,
+          "change": -4.67,
+          "change_percent": -0.02
+        },
+        {
+          "timestamp": "2025-12-16T20:52:01.911629",
+          "value": 25753.48,
+          "change": 9.97,
+          "change_percent": 0.04
+        },
+        {
+          "timestamp": "2025-12-16T20:57:01.911629",
+          "value": 25768.62,
+          "change": 15.14,
+          "change_percent": 0.06
+        },
+        {
+          "timestamp": "2025-12-16T21:02:01.911629",
+          "value": 25772.22,
+          "change": 3.6,
+          "change_percent": 0.01
+        },
+        {
+          "timestamp": "2025-12-16T21:07:01.911629",
+          "value": 25778.99,
+          "change": 6.76,
+          "change_percent": 0.03
+        },
+        {
+          "timestamp": "2025-12-16T21:12:01.911629",
+          "value": 25773.78,
+          "change": -5.21,
+          "change_percent": -0.02
+        },
+        {
+          "timestamp": "2025-12-16T21:17:01.911629",
+          "value": 25753.2,
+          "change": -20.57,
+          "change_percent": -0.08
+        },
+        {
+          "timestamp": "2025-12-16T21:22:01.911629",
+          "value": 25739.61,
+          "change": -13.59,
+          "change_percent": -0.05
+        },
+        {
+          "timestamp": "2025-12-16T21:27:01.911629",
+          "value": 25734.83,
+          "change": -4.78,
+          "change_percent": -0.02
+        },
+        {
+          "timestamp": "2025-12-16T21:32:01.911629",
+          "value": 25720.0,
+          "change": -14.83,
+          "change_percent": -0.06
+        },
+        {
+          "timestamp": "2025-12-16T21:37:01.911629",
+          "value": 25738.11,
+          "change": 18.11,
+          "change_percent": 0.07
+        },
+        {
+          "timestamp": "2025-12-16T21:42:01.911629",
+          "value": 25736.84,
+          "change": -1.27,
+          "change_percent": -0.0
+        },
+        {
+          "timestamp": "2025-12-16T21:47:01.911629",
+          "value": 25714.11,
+          "change": -22.73,
+          "change_percent": -0.09
+        },
+        {
+          "timestamp": "2025-12-16T21:52:01.911629",
+          "value": 25724.41,
+          "change": 10.3,
+          "change_percent": 0.04
+        },
+        {
+          "timestamp": "2025-12-16T21:57:01.911629",
+          "value": 25740.53,
+          "change": 16.12,
+          "change_percent": 0.06
+        },
+        {
+          "timestamp": "2025-12-16T22:02:01.911629",
+          "value": 25750.38,
+          "change": 9.85,
+          "change_percent": 0.04
+        },
+        {
+          "timestamp": "2025-12-16T22:07:01.911629",
+          "value": 25741.7,
+          "change": -8.68,
+          "change_percent": -0.03
+        },
+        {
+          "timestamp": "2025-12-16T22:12:01.911629",
+          "value": 25740.88,
+          "change": -0.81,
+          "change_percent": -0.0
+        },
+        {
+          "timestamp": "2025-12-16T22:17:01.911629",
+          "value": 25740.82,
+          "change": -0.07,
+          "change_percent": -0.0
+        },
+        {
+          "timestamp": "2025-12-16T22:22:01.911629",
+          "value": 25764.25,
+          "change": 23.43,
+          "change_percent": 0.09
+        },
+        {
+          "timestamp": "2025-12-16T22:27:01.911629",
+          "value": 25780.63,
+          "change": 16.39,
+          "change_percent": 0.06
+        },
+        {
+          "timestamp": "2025-12-16T22:32:01.911629",
+          "value": 25805.84,
+          "change": 25.21,
+          "change_percent": 0.1
+        },
+        {
+          "timestamp": "2025-12-16T22:37:01.911629",
+          "value": 25828.27,
+          "change": 22.43,
+          "change_percent": 0.09
+        },
+        {
+          "timestamp": "2025-12-16T22:42:01.911629",
+          "value": 25849.93,
+          "change": 21.65,
+          "change_percent": 0.08
+        },
+        {
+          "timestamp": "2025-12-16T22:47:01.911629",
+          "value": 25854.1,
+          "change": 4.17,
+          "change_percent": 0.02
+        },
+        {
+          "timestamp": "2025-12-16T22:52:01.911629",
+          "value": 25841.79,
+          "change": -12.31,
+          "change_percent": -0.05
+        },
+        {
+          "timestamp": "2025-12-16T22:57:01.911629",
+          "value": 25837.59,
+          "change": -4.2,
+          "change_percent": -0.02
+        },
+        {
+          "timestamp": "2025-12-16T23:02:01.911629",
+          "value": 25846.89,
+          "change": 9.3,
+          "change_percent": 0.04
+        },
+        {
+          "timestamp": "2025-12-16T23:07:01.911629",
+          "value": 25861.23,
+          "change": 14.34,
+          "change_percent": 0.06
+        },
+        {
+          "timestamp": "2025-12-16T23:12:01.911629",
+          "value": 25869.45,
+          "change": 8.22,
+          "change_percent": 0.03
+        },
+        {
+          "timestamp": "2025-12-16T23:17:01.911629",
+          "value": 25892.02,
+          "change": 22.57,
+          "change_percent": 0.09
+        },
+        {
+          "timestamp": "2025-12-16T23:22:01.911629",
+          "value": 25868.39,
+          "change": -23.63,
+          "change_percent": -0.09
+        }
+      ],
+      "summary": {
+        "min": 25714.11,
+        "max": 25922.92,
+        "open": 25846.52,
+        "close": 25868.39,
+        "change": 21.87
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:00 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "5bc46024",
+      "x-response-time": "194.06ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "107",
+      "x-ratelimit-reset": "1765927681",
+      "x-correlation-id": "970d77b2-7ee",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - Strike Analysis",
+    "path": "/analytics/strike/NIFTY/24500",
+    "method": "GET",
+    "category": "analytics-analysis",
+    "status_code": 404,
+    "success": false,
+    "response_time_ms": 243.78,
+    "response_body": {
+      "detail": "Strike 24500.0 not found"
+    },
+    "error_message": "Strike 24500.0 not found",
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:01 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "9b433b3a",
+      "x-response-time": "234.45ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "106",
+      "x-ratelimit-reset": "1765927682",
+      "x-correlation-id": "7e2e6049-b39",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - Reversal Levels",
+    "path": "/analytics/reversal/NIFTY/24500",
+    "method": "GET",
+    "category": "analytics-analysis",
+    "status_code": 404,
+    "success": false,
+    "response_time_ms": 96.79,
+    "response_body": {
+      "detail": "Strike 24500.0 not found"
+    },
+    "error_message": "Strike 24500.0 not found",
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:02 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "80d66ad4",
+      "x-response-time": "87.76ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "105",
+      "x-ratelimit-reset": "1765927682",
+      "x-correlation-id": "e1afeb11-228",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - Futures Summary",
+    "path": "/analytics/futures/NIFTY",
+    "method": "GET",
+    "category": "analytics-analysis",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 221.22,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "contracts": [
+        {
+          "expiry": "1451500200",
+          "symbol": "NIFTY DEC FUT",
+          "ltp": 25932,
+          "change": 0,
+          "change_percent": 0,
+          "oi": 16234425,
+          "oi_change": 359400,
+          "volume": 4859250,
+          "lot_size": 75,
+          "days_to_expiry": 0
+        },
+        {
+          "expiry": "1453919400",
+          "symbol": "NIFTY JAN FUT",
+          "ltp": 26099,
+          "change": 0,
+          "change_percent": 0,
+          "oi": 1496625,
+          "oi_change": 76570,
+          "volume": 395070,
+          "lot_size": 65,
+          "days_to_expiry": 0
+        },
+        {
+          "expiry": "1456338600",
+          "symbol": "NIFTY FEB FUT",
+          "ltp": 26250,
+          "change": 0,
+          "change_percent": 0,
+          "oi": 540995,
+          "oi_change": 40495,
+          "volume": 118170,
+          "lot_size": 65,
+          "days_to_expiry": 0
+        }
+      ],
+      "total_oi": 18272045,
+      "total_volume": 5372490
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:01 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "15e2ca6b",
+      "x-response-time": "212.56ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "104",
+      "x-ratelimit-reset": "1765927682",
+      "x-correlation-id": "310c54a4-649",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - OI Distribution",
+    "path": "/analytics/oi-distribution/NIFTY/1734595199",
+    "method": "GET",
+    "category": "analytics-analysis",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 108.47,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "distribution": [],
+      "max_oi_ce": {
+        "strike": 0,
+        "oi": 0
+      },
+      "max_oi_pe": {
+        "strike": 0,
+        "oi": 0
+      },
+      "pcr": 0.0
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:01 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "1ef069fa",
+      "x-response-time": "99.99ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "103",
+      "x-ratelimit-reset": "1765927682",
+      "x-correlation-id": "6028e73a-e26",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - Max Pain",
+    "path": "/analytics/maxpain/NIFTY/1734595199",
+    "method": "GET",
+    "category": "analytics-analysis",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 105.85,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "max_pain_strike": 0,
+      "current_spot": 25860.1,
+      "distance_to_max_pain": null
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:01 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "f5789398",
+      "x-response-time": "97.73ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "102",
+      "x-ratelimit-reset": "1765927682",
+      "x-correlation-id": "e5535618-eb8",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - IV Skew",
+    "path": "/analytics/iv-skew/NIFTY/1734595199",
+    "method": "GET",
+    "category": "analytics-analysis",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 122.44,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "atm_strike": 25860.1,
+      "iv_data": []
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:01 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "9078b614",
+      "x-response-time": "111.38ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "101",
+      "x-ratelimit-reset": "1765927682",
+      "x-correlation-id": "f38b1655-12d",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - Aggregate COI",
+    "path": "/analytics/aggregate/coi/NIFTY/1734595199",
+    "method": "GET",
+    "category": "analytics-aggregate",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 121.38,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "expiry": "2024-12-26",
+      "view_type": "coi",
+      "data": [
+        {
+          "strike": 23750,
+          "ce_coi": 4271,
+          "pe_coi": 4655,
+          "ce_oi": 42710,
+          "pe_oi": 46550,
+          "net_coi": 384,
+          "is_atm": false,
+          "cumulative_ce_coi": 4271,
+          "cumulative_pe_coi": 4655,
+          "cumulative_net": 384
+        },
+        {
+          "strike": 23800,
+          "ce_coi": 5192,
+          "pe_coi": 2089,
+          "ce_oi": 51920,
+          "pe_oi": 20890,
+          "net_coi": -3103,
+          "is_atm": false,
+          "cumulative_ce_coi": 9463,
+          "cumulative_pe_coi": 6744,
+          "cumulative_net": -2719
+        },
+        {
+          "strike": 23850,
+          "ce_coi": 7531,
+          "pe_coi": -11373,
+          "ce_oi": 75310,
+          "pe_oi": 113730,
+          "net_coi": -18904,
+          "is_atm": false,
+          "cumulative_ce_coi": 16994,
+          "cumulative_pe_coi": -4629,
+          "cumulative_net": -21623
+        },
+        {
+          "strike": 23900,
+          "ce_coi": 8229,
+          "pe_coi": -6996,
+          "ce_oi": 82290,
+          "pe_oi": 69960,
+          "net_coi": -15225,
+          "is_atm": false,
+          "cumulative_ce_coi": 25223,
+          "cumulative_pe_coi": -11625,
+          "cumulative_net": -36848
+        },
+        {
+          "strike": 23950,
+          "ce_coi": -1580,
+          "pe_coi": 3639,
+          "ce_oi": 15800,
+          "pe_oi": 36390,
+          "net_coi": 5219,
+          "is_atm": false,
+          "cumulative_ce_coi": 23643,
+          "cumulative_pe_coi": -7986,
+          "cumulative_net": -31629
+        },
+        {
+          "strike": 24000,
+          "ce_coi": -4357,
+          "pe_coi": -2239,
+          "ce_oi": 43570,
+          "pe_oi": 22390,
+          "net_coi": 2118,
+          "is_atm": false,
+          "cumulative_ce_coi": 19286,
+          "cumulative_pe_coi": -10225,
+          "cumulative_net": -29511
+        },
+        {
+          "strike": 24050,
+          "ce_coi": 1539,
+          "pe_coi": -1854,
+          "ce_oi": 15390,
+          "pe_oi": 18540,
+          "net_coi": -3393,
+          "is_atm": false,
+          "cumulative_ce_coi": 20825,
+          "cumulative_pe_coi": -12079,
+          "cumulative_net": -32904
+        },
+        {
+          "strike": 24100,
+          "ce_coi": 14806,
+          "pe_coi": -11035,
+          "ce_oi": 148060,
+          "pe_oi": 110350,
+          "net_coi": -25841,
+          "is_atm": false,
+          "cumulative_ce_coi": 35631,
+          "cumulative_pe_coi": -23114,
+          "cumulative_net": -58745
+        },
+        {
+          "strike": 24150,
+          "ce_coi": 2655,
+          "pe_coi": 12055,
+          "ce_oi": 26550,
+          "pe_oi": 120550,
+          "net_coi": 9400,
+          "is_atm": false,
+          "cumulative_ce_coi": 38286,
+          "cumulative_pe_coi": -11059,
+          "cumulative_net": -49345
+        },
+        {
+          "strike": 24200,
+          "ce_coi": 6046,
+          "pe_coi": 16044,
+          "ce_oi": 60460,
+          "pe_oi": 160440,
+          "net_coi": 9998,
+          "is_atm": false,
+          "cumulative_ce_coi": 44332,
+          "cumulative_pe_coi": 4985,
+          "cumulative_net": -39347
+        },
+        {
+          "strike": 24250,
+          "ce_coi": -7187,
+          "pe_coi": 3429,
+          "ce_oi": 71870,
+          "pe_oi": 34290,
+          "net_coi": 10616,
+          "is_atm": false,
+          "cumulative_ce_coi": 37145,
+          "cumulative_pe_coi": 8414,
+          "cumulative_net": -28731
+        },
+        {
+          "strike": 24300,
+          "ce_coi": -25037,
+          "pe_coi": 20801,
+          "ce_oi": 250370,
+          "pe_oi": 208010,
+          "net_coi": 45838,
+          "is_atm": false,
+          "cumulative_ce_coi": 12108,
+          "cumulative_pe_coi": 29215,
+          "cumulative_net": 17107
+        },
+        {
+          "strike": 24350,
+          "ce_coi": 16160,
+          "pe_coi": 20538,
+          "ce_oi": 161600,
+          "pe_oi": 205380,
+          "net_coi": 4378,
+          "is_atm": false,
+          "cumulative_ce_coi": 28268,
+          "cumulative_pe_coi": 49753,
+          "cumulative_net": 21485
+        },
+        {
+          "strike": 24400,
+          "ce_coi": 11741,
+          "pe_coi": -36954,
+          "ce_oi": 117410,
+          "pe_oi": 369540,
+          "net_coi": -48695,
+          "is_atm": false,
+          "cumulative_ce_coi": 40009,
+          "cumulative_pe_coi": 12799,
+          "cumulative_net": -27210
+        },
+        {
+          "strike": 24450,
+          "ce_coi": -5970,
+          "pe_coi": -44180,
+          "ce_oi": 59700,
+          "pe_oi": 441800,
+          "net_coi": -38210,
+          "is_atm": false,
+          "cumulative_ce_coi": 34039,
+          "cumulative_pe_coi": -31381,
+          "cumulative_net": -65420
+        },
+        {
+          "strike": 24500,
+          "ce_coi": -25139,
+          "pe_coi": -29675,
+          "ce_oi": 251390,
+          "pe_oi": 296750,
+          "net_coi": -4536,
+          "is_atm": true,
+          "cumulative_ce_coi": 8900,
+          "cumulative_pe_coi": -61056,
+          "cumulative_net": -69956
+        },
+        {
+          "strike": 24550,
+          "ce_coi": -23695,
+          "pe_coi": -4847,
+          "ce_oi": 236950,
+          "pe_oi": 48470,
+          "net_coi": 18848,
+          "is_atm": false,
+          "cumulative_ce_coi": -14795,
+          "cumulative_pe_coi": -65903,
+          "cumulative_net": -51108
+        },
+        {
+          "strike": 24600,
+          "ce_coi": 5901,
+          "pe_coi": -18667,
+          "ce_oi": 59010,
+          "pe_oi": 186670,
+          "net_coi": -24568,
+          "is_atm": false,
+          "cumulative_ce_coi": -8894,
+          "cumulative_pe_coi": -84570,
+          "cumulative_net": -75676
+        },
+        {
+          "strike": 24650,
+          "ce_coi": -23599,
+          "pe_coi": 18512,
+          "ce_oi": 235990,
+          "pe_oi": 185120,
+          "net_coi": 42111,
+          "is_atm": false,
+          "cumulative_ce_coi": -32493,
+          "cumulative_pe_coi": -66058,
+          "cumulative_net": -33565
+        },
+        {
+          "strike": 24700,
+          "ce_coi": -28284,
+          "pe_coi": -24700,
+          "ce_oi": 282840,
+          "pe_oi": 247000,
+          "net_coi": 3584,
+          "is_atm": false,
+          "cumulative_ce_coi": -60777,
+          "cumulative_pe_coi": -90758,
+          "cumulative_net": -29981
+        },
+        {
+          "strike": 24750,
+          "ce_coi": 22012,
+          "pe_coi": 13861,
+          "ce_oi": 220120,
+          "pe_oi": 138610,
+          "net_coi": -8151,
+          "is_atm": false,
+          "cumulative_ce_coi": -38765,
+          "cumulative_pe_coi": -76897,
+          "cumulative_net": -38132
+        },
+        {
+          "strike": 24800,
+          "ce_coi": -13628,
+          "pe_coi": 16897,
+          "ce_oi": 136280,
+          "pe_oi": 168970,
+          "net_coi": 30525,
+          "is_atm": false,
+          "cumulative_ce_coi": -52393,
+          "cumulative_pe_coi": -60000,
+          "cumulative_net": -7607
+        },
+        {
+          "strike": 24850,
+          "ce_coi": 4442,
+          "pe_coi": -4457,
+          "ce_oi": 44420,
+          "pe_oi": 44570,
+          "net_coi": -8899,
+          "is_atm": false,
+          "cumulative_ce_coi": -47951,
+          "cumulative_pe_coi": -64457,
+          "cumulative_net": -16506
+        },
+        {
+          "strike": 24900,
+          "ce_coi": -3012,
+          "pe_coi": 9791,
+          "ce_oi": 30120,
+          "pe_oi": 97910,
+          "net_coi": 12803,
+          "is_atm": false,
+          "cumulative_ce_coi": -50963,
+          "cumulative_pe_coi": -54666,
+          "cumulative_net": -3703
+        },
+        {
+          "strike": 24950,
+          "ce_coi": 10983,
+          "pe_coi": -6845,
+          "ce_oi": 109830,
+          "pe_oi": 68450,
+          "net_coi": -17828,
+          "is_atm": false,
+          "cumulative_ce_coi": -39980,
+          "cumulative_pe_coi": -61511,
+          "cumulative_net": -21531
+        },
+        {
+          "strike": 25000,
+          "ce_coi": 11731,
+          "pe_coi": 3483,
+          "ce_oi": 117310,
+          "pe_oi": 34830,
+          "net_coi": -8248,
+          "is_atm": false,
+          "cumulative_ce_coi": -28249,
+          "cumulative_pe_coi": -58028,
+          "cumulative_net": -29779
+        },
+        {
+          "strike": 25050,
+          "ce_coi": -2316,
+          "pe_coi": -3545,
+          "ce_oi": 23160,
+          "pe_oi": 35450,
+          "net_coi": -1229,
+          "is_atm": false,
+          "cumulative_ce_coi": -30565,
+          "cumulative_pe_coi": -61573,
+          "cumulative_net": -31008
+        },
+        {
+          "strike": 25100,
+          "ce_coi": 7293,
+          "pe_coi": 8682,
+          "ce_oi": 72930,
+          "pe_oi": 86820,
+          "net_coi": 1389,
+          "is_atm": false,
+          "cumulative_ce_coi": -23272,
+          "cumulative_pe_coi": -52891,
+          "cumulative_net": -29619
+        },
+        {
+          "strike": 25150,
+          "ce_coi": 12098,
+          "pe_coi": -14351,
+          "ce_oi": 120980,
+          "pe_oi": 143510,
+          "net_coi": -26449,
+          "is_atm": false,
+          "cumulative_ce_coi": -11174,
+          "cumulative_pe_coi": -67242,
+          "cumulative_net": -56068
+        },
+        {
+          "strike": 25200,
+          "ce_coi": 2882,
+          "pe_coi": -6275,
+          "ce_oi": 28820,
+          "pe_oi": 62750,
+          "net_coi": -9157,
+          "is_atm": false,
+          "cumulative_ce_coi": -8292,
+          "cumulative_pe_coi": -73517,
+          "cumulative_net": -65225
+        }
+      ],
+      "summary": {
+        "total_ce_coi": 319316,
+        "total_pe_coi": 382469,
+        "net_coi": 63153,
+        "atm_strike": 24500,
+        "pcr": 1.2,
+        "signal": "BULLISH"
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:01 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "c8dbf55e",
+      "x-response-time": "110.92ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "100",
+      "x-ratelimit-reset": "1765927682",
+      "x-correlation-id": "96c7ad3e-dbd",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - Aggregate OI",
+    "path": "/analytics/aggregate/oi/NIFTY/1734595199",
+    "method": "GET",
+    "category": "analytics-aggregate",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 104.13,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "expiry": "2024-12-26",
+      "view_type": "oi",
+      "data": [
+        {
+          "strike": 23750,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 124380,
+          "pe_oi": 88878,
+          "net_coi": -35502,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 23800,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 100730,
+          "pe_oi": 50890,
+          "net_coi": -49840,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 23850,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 94309,
+          "pe_oi": 74086,
+          "net_coi": -20223,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 23900,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 50528,
+          "pe_oi": 62864,
+          "net_coi": 12336,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 23950,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 36764,
+          "pe_oi": 105416,
+          "net_coi": 68652,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24000,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 49600,
+          "pe_oi": 108235,
+          "net_coi": 58635,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24050,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 56598,
+          "pe_oi": 118622,
+          "net_coi": 62024,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24100,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 61404,
+          "pe_oi": 54469,
+          "net_coi": -6935,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24150,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 103126,
+          "pe_oi": 43368,
+          "net_coi": -59758,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24200,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 156297,
+          "pe_oi": 57845,
+          "net_coi": -98452,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24250,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 101498,
+          "pe_oi": 169756,
+          "net_coi": 68258,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24300,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 299566,
+          "pe_oi": 209820,
+          "net_coi": -89746,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24350,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 275178,
+          "pe_oi": 333086,
+          "net_coi": 57908,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24400,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 208041,
+          "pe_oi": 201079,
+          "net_coi": -6962,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24450,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 175961,
+          "pe_oi": 439580,
+          "net_coi": 263619,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24500,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 231875,
+          "pe_oi": 303315,
+          "net_coi": 71440,
+          "is_atm": true,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24550,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 287331,
+          "pe_oi": 209083,
+          "net_coi": -78248,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24600,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 181786,
+          "pe_oi": 124009,
+          "net_coi": -57777,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24650,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 299499,
+          "pe_oi": 160461,
+          "net_coi": -139038,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24700,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 175126,
+          "pe_oi": 104956,
+          "net_coi": -70170,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24750,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 130001,
+          "pe_oi": 96560,
+          "net_coi": -33441,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24800,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 152663,
+          "pe_oi": 89594,
+          "net_coi": -63069,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24850,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 119750,
+          "pe_oi": 77689,
+          "net_coi": -42061,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24900,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 41226,
+          "pe_oi": 109531,
+          "net_coi": 68305,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 24950,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 41165,
+          "pe_oi": 147271,
+          "net_coi": 106106,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 25000,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 110066,
+          "pe_oi": 90551,
+          "net_coi": -19515,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 25050,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 117070,
+          "pe_oi": 31660,
+          "net_coi": -85410,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 25100,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 116225,
+          "pe_oi": 32659,
+          "net_coi": -83566,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 25150,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 91321,
+          "pe_oi": 75742,
+          "net_coi": -15579,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        },
+        {
+          "strike": 25200,
+          "ce_coi": 0,
+          "pe_coi": 0,
+          "ce_oi": 46043,
+          "pe_oi": 122549,
+          "net_coi": 76506,
+          "is_atm": false,
+          "cumulative_ce_coi": 0,
+          "cumulative_pe_coi": 0,
+          "cumulative_net": 0
+        }
+      ],
+      "summary": {
+        "total_ce_coi": 0,
+        "total_pe_coi": 0,
+        "net_coi": -141503,
+        "atm_strike": 24500,
+        "pcr": 0.96,
+        "signal": "BEARISH"
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:01 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "69a07602",
+      "x-response-time": "95.04ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "99",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "e9a0217a-501",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - Aggregate PCR",
+    "path": "/analytics/aggregate/pcr/NIFTY/1734595199",
+    "method": "GET",
+    "category": "analytics-aggregate",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 93.46,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "view_type": "pcr",
+      "data": [],
+      "summary": {
+        "oi_pcr": 0,
+        "vol_pcr": 0,
+        "atm_strike": 25860.1,
+        "signal": "BEARISH"
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "38e1ccfe",
+      "x-response-time": "84.85ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "98",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "1f62f5f4-019",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Analytics - Aggregate Percentage",
+    "path": "/analytics/aggregate/percentage/NIFTY/1734595199",
+    "method": "GET",
+    "category": "analytics-aggregate",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 99.7,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "view_type": "percentage",
+      "data": [],
+      "summary": {
+        "atm_strike": 25860.1
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "356e9b44",
+      "x-response-time": "89.53ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "97",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "0182e390-32a",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Historical - Available Dates",
+    "path": "/historical/dates/NIFTY",
+    "method": "GET",
+    "category": "historical",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 99.98,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "dates": [
+        "2025-12-16",
+        "2025-12-15",
+        "2025-12-12",
+        "2025-12-11",
+        "2025-12-10",
+        "2025-12-09",
+        "2025-12-08",
+        "2025-12-05",
+        "2025-12-04",
+        "2025-12-03",
+        "2025-12-02",
+        "2025-12-01",
+        "2025-11-28",
+        "2025-11-27",
+        "2025-11-26",
+        "2025-11-25",
+        "2025-11-24",
+        "2025-11-21",
+        "2025-11-20",
+        "2025-11-19",
+        "2025-11-18",
+        "2025-11-17",
+        "2025-11-14",
+        "2025-11-13",
+        "2025-11-12",
+        "2025-11-11",
+        "2025-11-10",
+        "2025-11-07",
+        "2025-11-06",
+        "2025-11-05"
+      ]
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "cd7ad1d0",
+      "x-response-time": "91.35ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "96",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "8ec7844b-24b",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Historical - Available Times",
+    "path": "/historical/times/NIFTY/2024-12-16",
+    "method": "GET",
+    "category": "historical",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 129.51,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "date": "2024-12-16",
+      "times": []
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:02 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "b8ee7904",
+      "x-response-time": "117.96ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "95",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "8f273876-1aa",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Historical - Snapshot",
+    "path": "/historical/snapshot",
+    "method": "GET",
+    "category": "historical",
+    "status_code": 404,
+    "success": false,
+    "response_time_ms": 10.54,
+    "response_body": {
+      "detail": "Not Found"
+    },
+    "error_message": "Not Found",
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "93f5bf8a",
+      "x-response-time": "0.74ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "94",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "878f1df0-fde",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Historical - Replay Data",
+    "path": "/historical/replay",
+    "method": "GET",
+    "category": "historical",
+    "status_code": 404,
+    "success": false,
+    "response_time_ms": 8.25,
+    "response_body": {
+      "detail": "Not Found"
+    },
+    "error_message": "Not Found",
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:02 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "8982eea1",
+      "x-response-time": "0.33ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "93",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "5102cf0e-3cd",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Screeners - Scalp Signals",
+    "path": "/screeners/scalp/NIFTY/1734595199",
+    "method": "GET",
+    "category": "screeners",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 112.68,
+    "response_body": {
+      "success": true,
+      "screener_type": "scalp",
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "total_signals": 0,
+      "signals": []
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:02 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "a917e7c5",
+      "x-response-time": "103.61ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "92",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "72674f33-7bf",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Screeners - Positional Signals",
+    "path": "/screeners/positional/NIFTY/1734595199",
+    "method": "GET",
+    "category": "screeners",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 119.02,
+    "response_body": {
+      "success": true,
+      "screener_type": "positional",
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "total_signals": 0,
+      "signals": []
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:02 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "5faae375",
+      "x-response-time": "108.40ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "91",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "76114c39-9a8",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Screeners - S/R Signals",
+    "path": "/screeners/sr/NIFTY/1734595199",
+    "method": "GET",
+    "category": "screeners",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 126.81,
+    "response_body": {
+      "success": true,
+      "screener_type": "sr",
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "total_signals": 0,
+      "signals": []
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "4367897e",
+      "x-response-time": "116.20ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "90",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "e389af9d-46a",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Screeners - All Signals",
+    "path": "/screeners/all/NIFTY/1734595199",
+    "method": "GET",
+    "category": "screeners",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 140.17,
+    "response_body": {
+      "success": true,
+      "symbol": "NIFTY",
+      "expiry": "1734595199",
+      "screeners": {
+        "scalp": {
+          "total": 0,
+          "signals": []
+        },
+        "positional": {
+          "total": 0,
+          "signals": []
+        },
+        "sr": {
+          "total": 0,
+          "signals": []
+        }
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "d3a38b48",
+      "x-response-time": "130.05ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "89",
+      "x-ratelimit-reset": "1765927683",
+      "x-correlation-id": "99260412-b83",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Calculators - Option Price",
+    "path": "/calculators/option-price",
+    "method": "POST",
+    "category": "calculators",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 114.08,
+    "response_body": {
+      "success": true,
+      "call_price": 371.82,
+      "put_price": 286.22,
+      "greeks": {
+        "call_delta": 0.5482,
+        "put_delta": -0.4518,
+        "gamma": 0.000482,
+        "vega": 21.6958,
+        "call_theta": -11.4206,
+        "put_theta": -6.7384,
+        "call_rho": 6.5296,
+        "put_rho": -5.6776
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "b5918b19",
+      "x-response-time": "103.37ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "88",
+      "x-ratelimit-reset": "1765927684",
+      "x-correlation-id": "9d7d4c29-424",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Calculators - IV",
+    "path": "/calculators/implied-volatility",
+    "method": "POST",
+    "category": "calculators",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 121.14,
+    "response_body": {
+      "success": true,
+      "implied_volatility": 0.0703,
+      "implied_volatility_pct": 7.03
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "a0800fab",
+      "x-response-time": "111.98ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "87",
+      "x-ratelimit-reset": "1765927684",
+      "x-correlation-id": "f56920c0-651",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Calculators - SIP",
+    "path": "/calculators/sip",
+    "method": "POST",
+    "category": "calculators",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 116.35,
+    "response_body": {
+      "success": true,
+      "monthly_investment": 10000.0,
+      "annual_return_pct": 12.0,
+      "years": 10,
+      "total_investment": 1200000.0,
+      "future_value": 2323390.76,
+      "wealth_gained": 1123390.76,
+      "returns_percentage": 93.62
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "b7a78776",
+      "x-response-time": "107.89ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "86",
+      "x-ratelimit-reset": "1765927684",
+      "x-correlation-id": "ee16669c-f70",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Calculators - Lumpsum",
+    "path": "/calculators/lumpsum",
+    "method": "POST",
+    "category": "calculators",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 118.04,
+    "response_body": {
+      "success": true,
+      "principal": 100000.0,
+      "annual_return_pct": 12.0,
+      "years": 10,
+      "future_value": 310584.82,
+      "wealth_gained": 210584.82,
+      "returns_percentage": 210.58
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "c40d2f1d",
+      "x-response-time": "108.40ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "85",
+      "x-ratelimit-reset": "1765927684",
+      "x-correlation-id": "bc1ae3b4-aef",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Calculators - SWP",
+    "path": "/calculators/swp",
+    "method": "POST",
+    "category": "calculators",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 121.83,
+    "response_body": {
+      "success": true,
+      "initial_investment": 1000000.0,
+      "monthly_withdrawal": 10000.0,
+      "annual_return_pct": 8.0,
+      "years": 20,
+      "total_withdrawn": 1653412.87,
+      "final_balance": 0,
+      "monthly_withdrawals": 166
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "444a2450",
+      "x-response-time": "111.32ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "84",
+      "x-ratelimit-reset": "1765927684",
+      "x-correlation-id": "31fcd800-3ae",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Calculators - Margin",
+    "path": "/calculators/margin",
+    "method": "POST",
+    "category": "calculators",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 119.57,
+    "response_body": {
+      "success": true,
+      "margin_required": 10000.0,
+      "margin_type": "Premium",
+      "premium_paid": 10000.0,
+      "max_loss": 10000.0,
+      "max_profit": "Unlimited"
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "711cee26",
+      "x-response-time": "109.42ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "83",
+      "x-ratelimit-reset": "1765927684",
+      "x-correlation-id": "55800895-600",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Charts - OHLCV Data",
+    "path": "/charts/data",
+    "method": "GET",
+    "category": "charts",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 307.71,
+    "response_body": {
+      "_truncated": true,
+      "_size": 60938
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:03 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "15dae92c",
+      "x-response-time": "294.19ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "82",
+      "x-ratelimit-reset": "1765927684",
+      "x-correlation-id": "5578741d-d15",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "Charts - Available Symbols",
+    "path": "/charts/symbols",
+    "method": "GET",
+    "category": "charts",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 8.46,
+    "response_body": {
+      "success": true,
+      "message": null,
+      "data": [
+        {
+          "symbol": "BANKEX",
+          "name": "BANKEX",
+          "sec_id": 69
+        },
+        {
+          "symbol": "BANKNIFTY",
+          "name": "BANKNIFTY",
+          "sec_id": 25
+        },
+        {
+          "symbol": "FINNIFTY",
+          "name": "FINNIFTY",
+          "sec_id": 27
+        },
+        {
+          "symbol": "MIDCPNIFTY",
+          "name": "MIDCPNIFTY",
+          "sec_id": 442
+        },
+        {
+          "symbol": "NIFTY",
+          "name": "NIFTY",
+          "sec_id": 13
+        },
+        {
+          "symbol": "NIFTYNXT50",
+          "name": "NIFTYNXT50",
+          "sec_id": 38
+        },
+        {
+          "symbol": "SENSEX",
+          "name": "SENSEX",
+          "sec_id": 51
+        },
+        {
+          "symbol": "ADANIENT",
+          "name": "ADANIENT",
+          "sec_id": 25
+        },
+        {
+          "symbol": "ADANIPORTS",
+          "name": "ADANIPORTS",
+          "sec_id": 15083
+        },
+        {
+          "symbol": "APOLLOHOSP",
+          "name": "APOLLOHOSP",
+          "sec_id": 157
+        },
+        {
+          "symbol": "ASIANPAINT",
+          "name": "ASIANPAINT",
+          "sec_id": 236
+        },
+        {
+          "symbol": "AXISBANK",
+          "name": "AXISBANK",
+          "sec_id": 5900
+        },
+        {
+          "symbol": "BAJAJ-AUTO",
+          "name": "BAJAJ-AUTO",
+          "sec_id": 16669
+        },
+        {
+          "symbol": "BAJAJFINSV",
+          "name": "BAJAJFINSV",
+          "sec_id": 16675
+        },
+        {
+          "symbol": "BAJFINANCE",
+          "name": "BAJFINANCE",
+          "sec_id": 317
+        },
+        {
+          "symbol": "BEL",
+          "name": "BEL",
+          "sec_id": 383
+        },
+        {
+          "symbol": "BHARTIARTL",
+          "name": "BHARTIARTL",
+          "sec_id": 10604
+        },
+        {
+          "symbol": "BPCL",
+          "name": "BPCL",
+          "sec_id": 526
+        },
+        {
+          "symbol": "BRITANNIA",
+          "name": "BRITANNIA",
+          "sec_id": 547
+        },
+        {
+          "symbol": "CIPLA",
+          "name": "CIPLA",
+          "sec_id": 694
+        },
+        {
+          "symbol": "COALINDIA",
+          "name": "COALINDIA",
+          "sec_id": 20374
+        },
+        {
+          "symbol": "DRREDDY",
+          "name": "DRREDDY",
+          "sec_id": 881
+        },
+        {
+          "symbol": "EICHERMOT",
+          "name": "EICHERMOT",
+          "sec_id": 910
+        },
+        {
+          "symbol": "GRASIM",
+          "name": "GRASIM",
+          "sec_id": 1232
+        },
+        {
+          "symbol": "HCLTECH",
+          "name": "HCLTECH",
+          "sec_id": 7229
+        },
+        {
+          "symbol": "HDFCBANK",
+          "name": "HDFCBANK",
+          "sec_id": 1333
+        },
+        {
+          "symbol": "HDFCLIFE",
+          "name": "HDFCLIFE",
+          "sec_id": 467
+        },
+        {
+          "symbol": "HEROMOTOCO",
+          "name": "HEROMOTOCO",
+          "sec_id": 1348
+        },
+        {
+          "symbol": "HINDALCO",
+          "name": "HINDALCO",
+          "sec_id": 1363
+        },
+        {
+          "symbol": "HINDUNILVR",
+          "name": "HINDUNILVR",
+          "sec_id": 1394
+        },
+        {
+          "symbol": "ICICIBANK",
+          "name": "ICICIBANK",
+          "sec_id": 4963
+        },
+        {
+          "symbol": "INDUSINDBK",
+          "name": "INDUSINDBK",
+          "sec_id": 5258
+        },
+        {
+          "symbol": "INFY",
+          "name": "INFY",
+          "sec_id": 1594
+        },
+        {
+          "symbol": "ITC",
+          "name": "ITC",
+          "sec_id": 1660
+        },
+        {
+          "symbol": "JSWSTEEL",
+          "name": "JSWSTEEL",
+          "sec_id": 11723
+        },
+        {
+          "symbol": "KOTAKBANK",
+          "name": "KOTAKBANK",
+          "sec_id": 1922
+        },
+        {
+          "symbol": "LT",
+          "name": "LT",
+          "sec_id": 11483
+        },
+        {
+          "symbol": "MARUTI",
+          "name": "MARUTI",
+          "sec_id": 10999
+        },
+        {
+          "symbol": "MM",
+          "name": "MM",
+          "sec_id": 2031
+        },
+        {
+          "symbol": "NESTLEIND",
+          "name": "NESTLEIND",
+          "sec_id": 17963
+        },
+        {
+          "symbol": "NTPC",
+          "name": "NTPC",
+          "sec_id": 11630
+        },
+        {
+          "symbol": "ONGC",
+          "name": "ONGC",
+          "sec_id": 2475
+        },
+        {
+          "symbol": "POWERGRID",
+          "name": "POWERGRID",
+          "sec_id": 14977
+        },
+        {
+          "symbol": "RELIANCE",
+          "name": "RELIANCE",
+          "sec_id": 2885
+        },
+        {
+          "symbol": "SBILIFE",
+          "name": "SBILIFE",
+          "sec_id": 21808
+        },
+        {
+          "symbol": "SBIN",
+          "name": "SBIN",
+          "sec_id": 3045
+        },
+        {
+          "symbol": "SHRIRAMFIN",
+          "name": "SHRIRAMFIN",
+          "sec_id": 4306
+        },
+        {
+          "symbol": "SUNPHARMA",
+          "name": "SUNPHARMA",
+          "sec_id": 3351
+        },
+        {
+          "symbol": "TATACONSUM",
+          "name": "TATACONSUM",
+          "sec_id": 3432
+        },
+        {
+          "symbol": "TATAMOTORS",
+          "name": "TATAMOTORS",
+          "sec_id": 3456
+        },
+        {
+          "symbol": "TATASTEEL",
+          "name": "TATASTEEL",
+          "sec_id": 3499
+        },
+        {
+          "symbol": "TCS",
+          "name": "TCS",
+          "sec_id": 11536
+        },
+        {
+          "symbol": "TECHM",
+          "name": "TECHM",
+          "sec_id": 13538
+        },
+        {
+          "symbol": "TITAN",
+          "name": "TITAN",
+          "sec_id": 3506
+        },
+        {
+          "symbol": "TRENT",
+          "name": "TRENT",
+          "sec_id": 1964
+        },
+        {
+          "symbol": "ULTRACEMCO",
+          "name": "ULTRACEMCO",
+          "sec_id": 11532
+        },
+        {
+          "symbol": "WIPRO",
+          "name": "WIPRO",
+          "sec_id": 3787
+        }
+      ]
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:04 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "ea3506d9",
+      "x-response-time": "0.92ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "84",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "c75d50a2-092",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": false,
+    "admin_required": false
+  },
+  {
+    "name": "Charts - Available Intervals",
+    "path": "/charts/intervals",
+    "method": "GET",
+    "category": "charts",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 8.47,
+    "response_body": {
+      "success": true,
+      "message": null,
+      "data": [
+        {
+          "value": "15S",
+          "label": "15 sec"
+        },
+        {
+          "value": "1",
+          "label": "1 min"
+        },
+        {
+          "value": "5",
+          "label": "5 min"
+        },
+        {
+          "value": "15",
+          "label": "15 min"
+        },
+        {
+          "value": "30",
+          "label": "30 min"
+        },
+        {
+          "value": "60",
+          "label": "1 hour"
+        },
+        {
+          "value": "D",
+          "label": "Daily"
+        }
+      ]
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:04 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "5bc8f90f",
+      "x-response-time": "1.08ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "83",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "6139995e-188",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": false,
+    "admin_required": false
+  },
+  {
+    "name": "Notifications - Get List",
+    "path": "/notifications",
+    "method": "GET",
+    "category": "notifications",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 130.64,
+    "response_body": {
+      "success": true,
+      "total": 0,
+      "unread_count": 0,
+      "notifications": []
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:04 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "9f28fd8d",
+      "x-response-time": "122.97ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "82",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "83d76e30-d02",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": false
+  },
+  {
+    "name": "SSE - Poll Data",
+    "path": "/sse/poll/NIFTY/1734595199",
+    "method": "GET",
+    "category": "sse",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 74.01,
+    "response_body": {
+      "success": true,
+      "data": {
+        "symbol": "NIFTY",
+        "expiry": "1734595199",
+        "spot": {
+          "ltp": 25860.1,
+          "change": -167.2,
+          "change_percent": -0.6424
+        },
+        "future": {
+          "1451500200": {
+            "v_chng": 338400,
+            "v_pchng": 7.485318183898926,
+            "sid": 49543,
+            "ltp": 25932,
+            "pch": 0,
+            "prch": 0,
+            "pc": 26108.7,
+            "vol": 4859250,
+            "sym": "NIFTY DEC FUT",
+            "oi": 16234425,
+            "oichng": 359400,
+            "pvol": 4520850,
+            "oipchng": 2.26,
+            "xch": "NSE",
+            "seg": "D",
+            "poi": 0,
+            "d_sym": "",
+            "daystoexp": 0,
+            "expcode": 0,
+            "mtp": 0,
+            "ticksize": 0.1,
+            "lot": 75,
+            "exptype": "M"
+          },
+          "1453919400": {
+            "v_chng": 33800,
+            "v_pchng": 9.355883598327637,
+            "sid": 49229,
+            "ltp": 26099,
+            "pch": 0,
+            "prch": 0,
+            "pc": 26268.7,
+            "vol": 395070,
+            "sym": "NIFTY JAN FUT",
+            "oi": 1496625,
+            "oichng": 76570,
+            "pvol": 361270,
+            "oipchng": 5.39,
+            "xch": "NSE",
+            "seg": "D",
+            "poi": 0,
+            "d_sym": "",
+            "daystoexp": 0,
+            "expcode": 0,
+            "mtp": 0,
+            "ticksize": 0.1,
+            "lot": 65,
+            "exptype": "M"
+          },
+          "1456338600": {
+            "v_chng": 22945,
+            "v_pchng": 24.095563888549805,
+            "sid": 59182,
+            "ltp": 26250,
+            "pch": 0,
+            "prch": 0,
+            "pc": 26407.3,
+            "vol": 118170,
+            "sym": "NIFTY FEB FUT",
+            "oi": 540995,
+            "oichng": 40495,
+            "pvol": 95225,
+            "oipchng": 8.09,
+            "xch": "NSE",
+            "seg": "D",
+            "poi": 0,
+            "d_sym": "",
+            "daystoexp": 0,
+            "expcode": 0,
+            "mtp": 0,
+            "ticksize": 0.1,
+            "lot": 65,
+            "exptype": "M"
+          }
+        },
+        "atm_strike": 25860.1,
+        "atmiv": 0,
+        "atmiv_change": 0,
+        "oc": {},
+        "strikes": [],
+        "total_ce_oi": 0,
+        "total_pe_oi": 0,
+        "pcr": 0,
+        "timestamp": "2025-12-16T23:27:05.220590",
+        "days_to_expiry": 2.0006944444444446,
+        "dte": 0,
+        "instrument_type": "IDX",
+        "max_pain_strike": 0,
+        "u_id": 26000,
+        "lot_size": 0,
+        "expiry_list": null,
+        "meta": {
+          "noise_floor": 60,
+          "volatility_regime": "medium",
+          "recommended_threshold": 70,
+          "std_dev": 0
+        }
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:05 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "93481cbc",
+      "x-response-time": "67.00ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "81",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "4b38cf1f-563",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": false,
+    "admin_required": false
+  },
+  {
+    "name": "Admin - List Configs",
+    "path": "/admin/configs",
+    "method": "GET",
+    "category": "admin",
+    "status_code": 404,
+    "success": false,
+    "response_time_ms": 7.14,
+    "response_body": {
+      "detail": "Not Found"
+    },
+    "error_message": "Not Found",
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:05 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "8f8303bb",
+      "x-response-time": "0.28ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "80",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "22fb9fd9-e8a",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": true
+  },
+  {
+    "name": "Admin - List Instruments",
+    "path": "/admin/instruments",
+    "method": "GET",
+    "category": "admin",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 114.89,
+    "response_body": {
+      "success": true,
+      "message": null,
+      "data": [
+        {
+          "id": "368a72c7-860f-4e8f-97cb-86b25055f675",
+          "symbol": "BANKEX",
+          "display_name": "BSE Bankex",
+          "segment": "IDX",
+          "lot_size": 15,
+          "tick_size": 0.05,
+          "strike_interval": 100.0,
+          "strikes_count": 15,
+          "is_active": true,
+          "priority": 6
+        },
+        {
+          "id": "ae1a5bb4-cf57-4b19-b336-ba7d8a9e9745",
+          "symbol": "SENSEX",
+          "display_name": "BSE Sensex",
+          "segment": "IDX",
+          "lot_size": 10,
+          "tick_size": 0.05,
+          "strike_interval": 100.0,
+          "strikes_count": 15,
+          "is_active": true,
+          "priority": 5
+        },
+        {
+          "id": "d7899732-e336-40c3-b877-9ec580795c21",
+          "symbol": "MIDCPNIFTY",
+          "display_name": "Midcap Nifty",
+          "segment": "IDX",
+          "lot_size": 50,
+          "tick_size": 0.05,
+          "strike_interval": 25.0,
+          "strikes_count": 15,
+          "is_active": true,
+          "priority": 4
+        },
+        {
+          "id": "db260bf7-807d-4a00-9c64-cd63f8bec795",
+          "symbol": "FINNIFTY",
+          "display_name": "Fin Nifty",
+          "segment": "IDX",
+          "lot_size": 25,
+          "tick_size": 0.05,
+          "strike_interval": 50.0,
+          "strikes_count": 15,
+          "is_active": true,
+          "priority": 3
+        },
+        {
+          "id": "ae8633ef-0885-4fcb-8fd6-75016c28e3e4",
+          "symbol": "BANKNIFTY",
+          "display_name": "Bank Nifty",
+          "segment": "IDX",
+          "lot_size": 15,
+          "tick_size": 0.05,
+          "strike_interval": 100.0,
+          "strikes_count": 20,
+          "is_active": true,
+          "priority": 2
+        },
+        {
+          "id": "339caca8-dbb8-4a1a-a5b8-7aeab4155e82",
+          "symbol": "NIFTY",
+          "display_name": "Nifty 50",
+          "segment": "IDX",
+          "lot_size": 25,
+          "tick_size": 0.05,
+          "strike_interval": 50.0,
+          "strikes_count": 20,
+          "is_active": true,
+          "priority": 1
+        }
+      ]
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:05 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "97293bb6",
+      "x-response-time": "107.48ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "79",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "29cc782b-c93",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": true
+  },
+  {
+    "name": "Admin - Runtime Settings",
+    "path": "/admin/runtime-settings",
+    "method": "GET",
+    "category": "admin",
+    "status_code": 404,
+    "success": false,
+    "response_time_ms": 7.66,
+    "response_body": {
+      "detail": "Not Found"
+    },
+    "error_message": "Not Found",
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:04 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "b5012ba7",
+      "x-response-time": "0.31ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "78",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "76f26f5c-dd8",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": true
+  },
+  {
+    "name": "Admin - Feature Flags",
+    "path": "/admin/feature-flags",
+    "method": "GET",
+    "category": "admin",
+    "status_code": 404,
+    "success": false,
+    "response_time_ms": 8.68,
+    "response_body": {
+      "detail": "Not Found"
+    },
+    "error_message": "Not Found",
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:05 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "658b6000",
+      "x-response-time": "0.26ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "77",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "f6c56522-0fa",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": true
+  },
+  {
+    "name": "Monitoring - System Metrics",
+    "path": "/admin/monitoring/system",
+    "method": "GET",
+    "category": "monitoring",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 108.77,
+    "response_body": {
+      "success": false,
+      "message": "psutil not installed. Install with: pip install psutil",
+      "data": null
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:05 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "a9809eb5",
+      "x-response-time": "100.82ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "76",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "fa3ff182-01e",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": true
+  },
+  {
+    "name": "Monitoring - WebSocket Stats",
+    "path": "/admin/monitoring/websockets",
+    "method": "GET",
+    "category": "monitoring",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 102.68,
+    "response_body": {
+      "success": true,
+      "message": null,
+      "data": {
+        "active_connections": 0,
+        "total_connections": 0,
+        "total_messages_sent": 0,
+        "last_broadcast": null,
+        "timestamp": "2025-12-16T23:27:05.569623"
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:05 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "36e2c341",
+      "x-response-time": "92.84ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "76",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "e69a79ed-655",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": true
+  },
+  {
+    "name": "Monitoring - Database Stats",
+    "path": "/admin/monitoring/database",
+    "method": "GET",
+    "category": "monitoring",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 111.46,
+    "response_body": {
+      "success": true,
+      "message": null,
+      "data": {
+        "timestamp": "2025-12-16T23:27:05.682287",
+        "tables": [
+          {
+            "name": "system_configs",
+            "rows": 35
+          },
+          {
+            "name": "trading_instruments",
+            "rows": 6
+          },
+          {
+            "name": "users",
+            "rows": 2
+          },
+          {
+            "name": "notifications",
+            "rows": 0
+          }
+        ],
+        "database_size_bytes": 8254255,
+        "active_connections": 29
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:05 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "24d22c54",
+      "x-response-time": "102.74ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "75",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "661ff5cb-0ca",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": true
+  },
+  {
+    "name": "Monitoring - Redis Stats",
+    "path": "/admin/monitoring/redis",
+    "method": "GET",
+    "category": "monitoring",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 106.36,
+    "response_body": {
+      "success": true,
+      "message": null,
+      "data": {
+        "timestamp": "2025-12-16T23:27:05.786973",
+        "connected": true,
+        "used_memory": "1.74M",
+        "connected_clients": 15,
+        "total_keys": 7,
+        "uptime_seconds": 5050,
+        "hit_rate": 86.41
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:04 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "4435de79",
+      "x-response-time": "96.11ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "74",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "2244f581-912",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": true
+  },
+  {
+    "name": "Monitoring - Application Logs",
+    "path": "/admin/monitoring/logs",
+    "method": "GET",
+    "category": "monitoring",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 106.98,
+    "response_body": {
+      "success": true,
+      "message": null,
+      "data": {
+        "logs": [],
+        "total_in_buffer": 0,
+        "filtered_count": 0
+      }
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:04 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "30807bbf",
+      "x-response-time": "95.66ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "73",
+      "x-ratelimit-reset": "1765927685",
+      "x-correlation-id": "2610c272-09f",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": true
+  },
+  {
+    "name": "Users - List Users",
+    "path": "/users",
+    "method": "GET",
+    "category": "users",
+    "status_code": 200,
+    "success": true,
+    "response_time_ms": 122.6,
+    "response_body": {
+      "items": [
+        {
+          "id": "50d99a3e-f86d-44b3-901b-552c5db76ded",
+          "email": "collagedsba@gmail.com",
+          "username": "collagedsba",
+          "role": "user",
+          "is_active": true,
+          "is_premium": false,
+          "created_at": "2025-12-16T17:28:56.461285Z"
+        },
+        {
+          "id": "9eb79171-a54c-4063-b6d8-0ce630aff23c",
+          "email": "svm.singh.01@gmail.com",
+          "username": "svm.singh.01",
+          "role": "admin",
+          "is_active": true,
+          "is_premium": true,
+          "created_at": "2025-12-16T16:39:10.123648Z"
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "page_size": 20,
+      "pages": 1
+    },
+    "error_message": null,
+    "headers": {
+      "date": "Tue, 16 Dec 2025 23:27:04 GMT",
+      "server": "uvicorn",
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "1; mode=block",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-request-id": "8b12e052",
+      "x-response-time": "113.29ms",
+      "vary": "Accept-Encoding",
+      "content-encoding": "gzip",
+      "x-ratelimit-limit": "200",
+      "x-ratelimit-remaining": "73",
+      "x-ratelimit-reset": "1765927686",
+      "x-correlation-id": "7e0c49fd-02d",
+      "transfer-encoding": "chunked"
+    },
+    "auth_required": true,
+    "admin_required": true
+  }
+]

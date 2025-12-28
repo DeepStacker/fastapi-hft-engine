@@ -1,0 +1,93 @@
+{
+  "type": "record",
+  "name": "MarketDataEnriched",
+  "namespace": "com.hft.market",
+  "doc": "Enriched market data from processor service with analytics",
+  "fields": [
+    {
+      "name": "symbol",
+      "type": "string"
+    },
+    {
+      "name": "symbol_id",
+      "type": "int"
+    },
+    {
+      "name": "expiry",
+      "type": "string"
+    },
+    {
+      "name": "timestamp",
+      "type": "string"
+    },
+    {
+      "name": "processing_timestamp",
+      "type": "string"
+    },
+    {
+      "name": "context",
+      "type": {
+        "type": "record",
+        "name": "ContextData",
+        "fields": [
+          {"name": "symbol", "type": "string"},
+          {"name": "symbol_id", "type": "int"},
+          {"name": "spot_price", "type": "double"},
+          {"name": "total_call_oi", "type": "long"},
+          {"name": "total_put_oi", "type": "long"},
+          {"name": "pcr_ratio", "type": "double"},
+          {"name": "atm_iv", "type": ["null", "double"], "default": null},
+          {"name": "days_to_expiry", "type": "int"},
+          {"name": "lot_size", "type": "int"}
+        ]
+      }
+    },
+    {
+      "name": "options",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "OptionData",
+          "fields": [
+            {"name": "strike", "type": "double"},
+            {"name": "option_type", "type": "string"},
+            {"name": "ltp", "type": "double"},
+            {"name": "volume", "type": "long"},
+            {"name": "oi", "type": "long"},
+            {"name": "change_oi", "type": "long"},
+            {"name": "iv", "type": ["null", "double"], "default": null},
+            {"name": "delta", "type": ["null", "double"], "default": null},
+            {"name": "gamma", "type": ["null", "double"], "default": null},
+            {"name": "theta", "type": ["null", "double"], "default": null},
+            {"name": "vega", "type": ["null", "double"], "default": null},
+            {"name": "bsm_price", "type": ["null", "double"], "default": null},
+            {"name": "is_liquid", "type": "boolean"},
+            {"name": "is_valid", "type": "boolean"}
+          ]
+        }
+      }
+    },
+    {
+      "name": "analyses",
+      "type": {
+        "type": "map",
+        "values": "string"
+      },
+      "doc": "Analysis results as JSON strings"
+    },
+    {
+      "name": "data_quality",
+      "type": {
+        "type": "record",
+        "name": "DataQuality",
+        "fields": [
+          {"name": "total_options", "type": "int"},
+          {"name": "illiquid_options", "type": "int"},
+          {"name": "invalid_options", "type": "int"},
+          {"name": "illiquid_pct", "type": "double"}
+        ]
+      }
+    }
+  ]
+}

@@ -18,6 +18,7 @@ export default function InstrumentsPage() {
   // Modal states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingInstrument, setEditingInstrument] = useState<any>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     loadInstruments();
@@ -36,6 +37,12 @@ export default function InstrumentsPage() {
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'instruments_update') {
+          // Validate data
+          if (!Array.isArray(message.data)) {
+            console.warn('Received invalid instruments data:', message.data);
+            return;
+          }
+
           // Filter if activeOnly is set
           const data = activeOnly 
             ? message.data.filter((i: any) => i.is_active)
@@ -56,9 +63,11 @@ export default function InstrumentsPage() {
     setLoading(true);
     try {
       const res = await api.getInstruments({ active_only: activeOnly, limit: 100 });
-      setInstruments(res.data);
+      setInstruments(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to load instruments:', err);
+      // Don't clear instruments on error, keep existing data?
+      // setInstruments([]); 
     } finally {
       setLoading(false);
     }
@@ -101,15 +110,18 @@ export default function InstrumentsPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Delete this instrument?')) {
-      try {
-        await api.deleteInstrument(id);
-        alert('✅ Instrument deleted');
-        loadInstruments();
-      } catch (err: any) {
-        alert(`❌ Failed: ${err.message}`);
-      }
+  const handleDeleteClick = (id: number) => {
+    setDeletingId(id);
+  };
+
+  const confirmDelete = async (id: number) => {
+    try {
+      await api.deleteInstrument(id);
+      alert('✅ Instrument deleted');
+      setDeletingId(null);
+      loadInstruments();
+    } catch (err: any) {
+      alert(`❌ Failed: ${err.message}`);
     }
   };
 
@@ -176,7 +188,10 @@ export default function InstrumentsPage() {
           <Button 
             variant="destructive" 
             size="sm"
-            onClick={() => handleDelete(row.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteClick(row.id);
+            }}
           >
             <Trash2 className="h-3 w-3 mr-1" />
             Delete
@@ -250,6 +265,29 @@ export default function InstrumentsPage() {
               onCancel={() => setEditingInstrument(null)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <CardDescription>
+              Are you sure you want to delete this instrument? This action cannot be undone.
+            </CardDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button variant="outline" onClick={() => setDeletingId(null)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => deletingId && confirmDelete(deletingId)}
+            >
+              Delete Instrument
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

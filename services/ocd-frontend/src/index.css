@@ -1,0 +1,287 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   PREMIUM DESIGN SYSTEM - DeepStrike Trading
+   ============================================ */
+
+/* --- CSS Custom Properties (Design Tokens) --- */
+:root {
+  /* Light Mode Colors */
+  --bg-primary: 248, 250, 252;
+  /* slate-50 */
+  --bg-secondary: 241, 245, 249;
+  /* slate-100 */
+  --bg-card: 255, 255, 255;
+  /* white */
+  --text-primary: 15, 23, 42;
+  /* slate-900 */
+  --text-secondary: 71, 85, 105;
+  /* slate-500 */
+  --border-subtle: 226, 232, 240;
+  /* slate-200 */
+  --border-strong: 203, 213, 225;
+  /* slate-300 */
+
+  /* Accent Colors */
+  --accent-primary: 37, 99, 235;
+  /* blue-600 */
+  --accent-success: 16, 185, 129;
+  /* emerald-500 */
+  --accent-danger: 244, 63, 94;
+  /* rose-500 */
+  --accent-warning: 245, 158, 11;
+  /* amber-500 */
+
+  /* Premium Effects */
+  --glass-blur: 16px;
+  --glass-opacity: 0.8;
+  --shadow-premium: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  --glow-blue: 0 0 40px rgba(59, 130, 246, 0.3);
+}
+
+.dark {
+  /* Dark Mode Colors */
+  --bg-primary: 2, 6, 23;
+  /* slate-950 */
+  --bg-secondary: 15, 23, 42;
+  /* slate-900 */
+  --bg-card: 30, 41, 59;
+  /* slate-800 */
+  --text-primary: 248, 250, 252;
+  /* slate-50 */
+  --text-secondary: 148, 163, 184;
+  /* slate-400 */
+  --border-subtle: 51, 65, 85;
+  /* slate-700 */
+  --border-strong: 71, 85, 105;
+  /* slate-600 */
+
+  --shadow-premium: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  --glow-blue: 0 0 60px rgba(59, 130, 246, 0.4);
+}
+
+/* --- Base Layer Enhancements --- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply transition-colors duration-300;
+    background: rgb(var(--bg-primary));
+    color: rgb(var(--text-primary));
+  }
+
+  /* Premium selection color */
+  ::selection {
+    @apply bg-blue-500/30 text-blue-900 dark:text-blue-100;
+  }
+}
+
+/* --- Component Layer: Glassmorphism & Premium Cards --- */
+@layer components {
+
+  /* Glass Effect */
+  .glass {
+    background: rgba(var(--bg-card), var(--glass-opacity));
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid rgba(var(--border-subtle), 0.5);
+  }
+
+  .glass-strong {
+    background: rgba(var(--bg-card), 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(var(--border-subtle), 0.6);
+    box-shadow: var(--shadow-premium);
+  }
+
+  /* Premium Card */
+  .card-premium {
+    @apply rounded-2xl border transition-all duration-300;
+    background: rgba(var(--bg-card), 0.9);
+    border-color: rgba(var(--border-subtle), 0.5);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  }
+
+  .card-premium:hover {
+    box-shadow: var(--shadow-premium);
+    transform: translateY(-2px);
+  }
+
+  /* Premium Gradient Backgrounds */
+  .bg-gradient-premium {
+    background: linear-gradient(135deg,
+        rgba(var(--bg-primary), 1) 0%,
+        rgba(var(--bg-secondary), 1) 50%,
+        rgba(var(--bg-primary), 1) 100%);
+  }
+
+  .bg-mesh-gradient {
+    background-color: rgb(var(--bg-primary));
+    background-image:
+      radial-gradient(at 40% 20%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, rgba(139, 92, 246, 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 50%, rgba(244, 63, 94, 0.05) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(59, 130, 246, 0.1) 0px, transparent 50%);
+  }
+
+  /* Premium Button */
+  .btn-premium {
+    @apply px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200;
+    @apply bg-gradient-to-r from-blue-600 to-indigo-600 text-white;
+    @apply hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:shadow-blue-500/25;
+    @apply active:scale-[0.98];
+  }
+
+  .btn-premium-outline {
+    @apply px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200;
+    @apply border-2 border-blue-500 text-blue-600 dark:text-blue-400;
+    @apply hover:bg-blue-50 dark:hover:bg-blue-900/20;
+    @apply active:scale-[0.98];
+  }
+
+  /* Premium Input */
+  .input-premium {
+    @apply w-full px-4 py-3 rounded-xl border transition-all duration-200;
+    @apply bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700;
+    @apply text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500;
+    @apply focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500;
+  }
+
+  /* Glow Effects */
+  .glow-blue {
+    box-shadow: var(--glow-blue);
+  }
+
+  .glow-emerald {
+    box-shadow: 0 0 40px rgba(16, 185, 129, 0.3);
+  }
+
+  .glow-rose {
+    box-shadow: 0 0 40px rgba(244, 63, 94, 0.3);
+  }
+}
+
+/* --- Utility Layer --- */
+@layer utilities {
+
+  /* Hide scrollbar */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Thin premium scrollbar */
+  .scrollbar-premium {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+  }
+
+  .scrollbar-premium::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-premium::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 10px;
+  }
+
+  .scrollbar-premium::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(100, 116, 139, 0.4), rgba(100, 116, 139, 0.2));
+    border-radius: 10px;
+  }
+
+  .scrollbar-premium::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(100, 116, 139, 0.6), rgba(100, 116, 139, 0.4));
+  }
+
+  /* Fade animations */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-glow-pulse {
+    animation: glowPulse 2s ease-in-out infinite;
+  }
+}
+
+/* --- Keyframe Animations --- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glowPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 40px rgba(59, 130, 246, 0.4);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* --- Legacy scrollbar support --- */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(155, 155, 155, 0.5);
+  border-radius: 20px;
+}

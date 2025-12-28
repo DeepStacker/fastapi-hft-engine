@@ -33,13 +33,23 @@ class KafkaProducerClient:
         await self.producer.start()
         logger.info(f"Kafka producer started with {settings.KAFKA_COMPRESSION_TYPE} compression (batching enabled)")
     
-    async def send(self, topic: str, message: dict):
-        """Send message to Kafka topic"""
+    async def send(self, topic: str, message: dict, headers=None):
+        """
+        Send message to Kafka topic
+        
+        Args:
+            topic: Kafka topic name
+            message: Message dictionary
+            headers: Optional list of (key, value) tuples for message headers (for trace propagation)
+        """
         if not self.producer:
             await self.start()
         
         try:
-            await self.producer.send_and_wait(topic, message)
+            if headers:
+                await self.producer.send_and_wait(topic, message, headers=headers)
+            else:
+                await self.producer.send_and_wait(topic, message)
         except Exception as e:
             logger.error(f"Failed to send message to {topic}: {e}")
             raise

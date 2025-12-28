@@ -1,4 +1,15 @@
+# =================================================================
+# HFT Engine - Docker Compose (Cleaned)
+# =================================================================
+# Data pipeline services for real-time market data processing
+# Integrates with option-chain-d for client-facing API
+# =================================================================
+
 services:
+
+  # ============================================
+  # INFRASTRUCTURE
+  # ============================================
 
   timescaledb:
     image: timescale/timescaledb-ha:pg15-latest
@@ -85,7 +96,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_NUM_PARTITIONS: 12
-      KAFKA_COMPRESSION_TYPE: gzip  # Changed from gzip for 3-5x faster compression
+      KAFKA_COMPRESSION_TYPE: gzip
       KAFKA_LOG_RETENTION_HOURS: 168
     volumes:
       - kafka_data:/var/lib/kafka/data
@@ -103,7 +114,10 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Database Initialization - Runs once on startup
+  # ============================================
+  # DATABASE INITIALIZATION
+  # ============================================
+
   db-init:
     build:
       context: .
@@ -126,12 +140,16 @@ services:
     networks:
       - stockify-network
     command: /app/scripts/init-db-docker.sh
-    restart: "no"  # Only run once
+    restart: "no"
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+  # ============================================
+  # DATA PIPELINE SERVICES
+  # ============================================
 
   ingestion-service:
     build:
@@ -150,6 +168,7 @@ services:
       DHAN_ACCESS_TOKEN: ${DHAN_ACCESS_TOKEN}
       SECRET_KEY: ${SECRET_KEY}
       ENVIRONMENT: production
+      ENABLE_TRACING: "false"
     depends_on:
       kafka:
         condition: service_healthy
@@ -161,7 +180,6 @@ services:
         condition: service_completed_successfully
     networks:
       - stockify-network
-    # Removed health check - this is a Kafka consumer without HTTP server
     deploy:
       resources:
         limits:
@@ -184,12 +202,15 @@ services:
     container_name: stockify-processor
     entrypoint: ["/app/docker-entrypoint.sh"]
     command: python -m services.processor.main
+    volumes:
+      - .:/app
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SECRET_KEY: ${SECRET_KEY}
       ENVIRONMENT: production
+      ENABLE_TRACING: "false"
     depends_on:
       kafka:
         condition: service_healthy
@@ -213,32 +234,6 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  json-saver:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: stockify-json-saver
-    command: python -m scripts.save_ingestion_to_json
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      SECRET_KEY: ${SECRET_KEY}
-      ENVIRONMENT: production
-    volumes:
-      - ./data/enriched_ingestion:/app/data/enriched_ingestion
-    depends_on:
-      kafka:
-        condition: service_healthy
-    networks:
-      - stockify-network
-    healthcheck:
-      disable: true
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-
   storage-service:
     build:
       context: .
@@ -246,11 +241,14 @@ services:
     container_name: stockify-storage
     entrypoint: ["/app/docker-entrypoint.sh"]
     command: python -m services.storage.main
+    volumes:
+      - .:/app
     environment:
       DATABASE_URL: ${DATABASE_URL}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SECRET_KEY: ${SECRET_KEY}
       ENVIRONMENT: production
+      ENABLE_TRACING: "false"
     depends_on:
       kafka:
         condition: service_healthy
@@ -261,7 +259,7 @@ services:
     networks:
       - stockify-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8400/metrics"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -279,76 +277,28 @@ services:
     container_name: stockify-realtime
     entrypoint: ["/app/docker-entrypoint.sh"]
     command: python -m services.realtime.main
-    environment:
-      REDIS_URL: redis://redis:6379/0
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      SECRET_KEY: ${SECRET_KEY}
-      ENVIRONMENT: production
-    depends_on:
-      kafka:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
-    networks:
-      - stockify-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-
-  gateway-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: stockify-gateway
-    entrypoint: ["/app/docker-entrypoint.sh"]
-    # Using the new API Gateway implementation
-    command: uvicorn services.api_gateway.main:app --host 0.0.0.0 --port 8003 --workers 4 --reload
     volumes:
       - .:/app
     environment:
-      DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SECRET_KEY: ${SECRET_KEY}
       ENVIRONMENT: production
-    ports:
-      - "8000:8003"  # Map host 8000 to container 8003 (api-gateway port)
+      ENABLE_TRACING: "false"
     depends_on:
-      redis:
-        condition: service_healthy
-      timescaledb:
-        condition: service_healthy
       kafka:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       db-init:
         condition: service_completed_successfully
-      historical-service:
-        condition: service_healthy
     networks:
       - stockify-network
-    deploy:
-      resources:
-        limits:
-          cpus: '4.0'
-          memory: 4G
-        reservations:
-          cpus: '1.0'
-          memory: 1G
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/metrics"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 3
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -356,49 +306,9 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  grpc-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: stockify-grpc
-    entrypoint: ["/app/docker-entrypoint.sh"]
-    command: python -m core.grpc_server.server
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: ${SECRET_KEY}
-      ENVIRONMENT: production
-    ports:
-      - "50051:50051"
-    depends_on:
-      redis:
-        condition: service_healthy
-      timescaledb:
-        condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
-    networks:
-      - stockify-network
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-    healthcheck:
-      test: ["CMD", "sh", "-c", "pgrep -f 'core.grpc_server.server' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
+  # ============================================
+  # ADMIN & MONITORING
+  # ============================================
 
   admin-service:
     build:
@@ -407,7 +317,6 @@ services:
     container_name: stockify-admin
     user: root
     entrypoint: ["/app/docker-entrypoint.sh"]
-    # For Docker stats/management, use external Docker API connection or separate monitoring service
     command: uvicorn services.admin.main:admin_app --host 0.0.0.0 --port 8001 --reload
     volumes:
       - .:/app
@@ -448,6 +357,162 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  admin-frontend:
+    build:
+      context: ./services/admin-frontend
+      dockerfile: Dockerfile
+    container_name: stockify-admin-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://admin-service:8001
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - admin-service
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  calculations-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-calculations
+    entrypoint: ["/app/docker-entrypoint.sh"]
+    command: uvicorn services.calculations.main:app --host 0.0.0.0 --port 8004
+    volumes:
+      - .:/app
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: production
+    ports:
+      - "8004:8004"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    networks:
+      - stockify-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # OPTION-CHAIN-D (OCD) - User-facing Application
+  # ============================================
+
+  # OCD's dedicated PostgreSQL (for users, sessions, etc.)
+  ocd-postgres:
+    image: postgres:15-alpine
+    container_name: stockify-ocd-postgres
+    environment:
+      POSTGRES_USER: stockify
+      POSTGRES_PASSWORD: stockify_secure_password
+      POSTGRES_DB: stockify
+    ports:
+      - "5433:5432"  # Different port to avoid conflict with TimescaleDB
+    volumes:
+      - ocd_postgres_data:/var/lib/postgresql/data
+      - ./services/ocd-backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockify"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stockify-network
+    restart: unless-stopped
+
+  ocd-backend:
+    build:
+      context: ./services/ocd-backend
+      dockerfile: Dockerfile
+    container_name: stockify-ocd-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Database (OCD's dedicated postgres for user data)
+      DATABASE_URL: postgresql+asyncpg://stockify:stockify_secure_password@ocd-postgres:5432/stockify
+      # Redis (using HFT's Redis for caching AND market data)
+      REDIS_URL: redis://redis:6379/0
+      REDIS_HOST: redis
+      # HFT Data Source (enable by default)
+      USE_HFT_DATA_SOURCE: "true"
+      HFT_REDIS_URL: redis://redis:6379/0
+      HFT_USE_GREEKS: "true"
+      # App config
+      LOG_LEVEL: INFO
+      UVICORN_ACCESS_LOG: "false"
+      CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000","http://localhost:80"]'
+      SECRET_KEY: ${SECRET_KEY}
+    env_file:
+      - ./services/ocd-backend/.env
+    volumes:
+      - ./services/ocd-backend/app:/app/app
+      - ./services/ocd-backend/credentials:/app/credentials
+    depends_on:
+      ocd-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: gunicorn --config gunicorn.conf.py app.main:app
+    networks:
+      - stockify-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  ocd-frontend:
+    build:
+      context: ./services/ocd-frontend
+      dockerfile: Dockerfile.dev
+    container_name: stockify-ocd-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      VITE_API_URL: http://localhost:8000
+    volumes:
+      - ./services/ocd-frontend/src:/app/src
+      - ./services/ocd-frontend/public:/app/public
+      - ./services/ocd-frontend/index.html:/app/index.html
+      - ./services/ocd-frontend/vite.config.js:/app/vite.config.js
+      - ./services/ocd-frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./services/ocd-frontend/postcss.config.js:/app/postcss.config.js
+      - ./services/ocd-frontend/.env:/app/.env
+      - /app/node_modules
+    depends_on:
+      - ocd-backend
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   prometheus:
     image: prom/prometheus:latest
     container_name: stockify-prometheus
@@ -472,7 +537,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: 'false'
     ports:
-      - "3001:3000"  # Changed to 3001 to free port 3000 for admin frontend
+      - "3001:3000"
     volumes:
       - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
@@ -484,96 +549,9 @@ services:
       - stockify-network
     restart: unless-stopped
 
-  # Admin Frontend - Next.js Application
-  admin-frontend:
-    build:
-      context: ./services/admin-frontend
-      dockerfile: Dockerfile
-    container_name: stockify-admin-frontend
-    environment:
-      - NEXT_PUBLIC_API_URL=http://admin-service:8001
-      - NODE_ENV=production
-    ports:
-      - "3000:3000"
-    depends_on:
-      - admin-service
-    networks:
-      - stockify-network
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Analytics Service - Post-storage stateful analysis
-  analytics-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: stockify-analytics
-    command: python -m services.analytics.main
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: redis://redis:6379/0
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      SECRET_KEY: ${SECRET_KEY}
-      ENVIRONMENT: production
-    depends_on:
-      kafka:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      timescaledb:
-        condition: service_healthy
-    networks:
-      - stockify-network
-    healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Historical Service - Time-series queries API
-  historical-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: stockify-historical
-    command: uvicorn services.historical.main:app --host 0.0.0.0 --port 8002 --reload
-    volumes:
-      - .:/app
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: ${SECRET_KEY}
-      ENVIRONMENT: production
-    ports:
-      - "8002:8002"
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - stockify-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+# ============================================
+# VOLUMES
+# ============================================
 
 volumes:
   timescaledb_data:
@@ -581,6 +559,8 @@ volumes:
   redis_data:
     driver: local
   kafka_data:
+    driver: local
+  ocd_postgres_data:
     driver: local
   zookeeper_data:
     driver: local
@@ -590,6 +570,10 @@ volumes:
     driver: local
   grafana_data:
     driver: local
+
+# ============================================
+# NETWORKS
+# ============================================
 
 networks:
   stockify-network:

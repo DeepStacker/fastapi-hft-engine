@@ -1,0 +1,234 @@
+# Default values for HFT Engine Helm chart
+
+# Global settings
+global:
+  namespace: hft-engine
+  environment: production
+  imageRegistry: docker.io
+  imagePullPolicy: Always
+
+# Docker image configuration
+image:
+  repository: hft-engine
+  tag: latest
+  pullPolicy: Always
+
+# API Gateway configuration
+apiGateway:
+  enabled: true
+  replicaCount: 3
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  service:
+    type: ClusterIP
+    port: 8003
+
+# Ingestion Service configuration
+ingestion:
+  enabled: true
+  replicaCount: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+# Processor Service configuration
+processor:
+  enabled: true
+  replicaCount: 4
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+# Storage Service configuration
+storage:
+  enabled: true
+  replicaCount: 2
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+# Historical Service configuration
+historical:
+  enabled: true
+  replicaCount: 4
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 4
+    maxReplicas: 12
+    targetCPUUtilizationPercentage: 70
+  service:
+    type: ClusterIP
+    port: 8002
+
+# Analytics Service configuration
+analytics:
+  enabled: true
+  replicaCount: 2
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+# Kafka configuration (using Strimzi operator)
+kafka:
+  enabled: true
+  replicas: 3
+  version: 3.5.0
+  storage:
+    type: persistent-claim
+    size: 100Gi
+    class: fast-ssd
+  resources:
+    requests:
+      memory: 4Gi
+      cpu: 1000m
+    limits:
+      memory: 8Gi
+      cpu: 2000m
+  config:
+    offsets.topic.replication.factor: 3
+    transaction.state.log.replication.factor: 3
+    transaction.state.log.min.isr: 2
+    default.replication.factor: 3
+    min.insync.replicas: 2
+    compression.type: snappy
+    log.retention.hours: 168
+
+# Redis configuration
+redis:
+  enabled: true
+  cluster:
+    enabled: true
+    nodes: 6
+    replicas: 1
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+      storageClass: fast-ssd
+  resources:
+    requests:
+      memory: 4Gi
+      cpu: 500m
+    limits:
+      memory: 4Gi
+      cpu: 1000m
+  maxmemory: "4gb"
+  maxmemory_policy: "allkeys-lru"
+
+# TimescaleDB configuration
+timescaledb:
+  enabled: true
+  primary:
+    persistence:
+      enabled: true
+      size: 500Gi
+      storageClass: fast-ssd
+    resources:
+      requests:
+        memory: 8Gi
+        cpu: 2000m
+      limits:
+        memory: 16Gi
+        cpu: 4000m
+  readReplicas:
+    count: 2
+    persistence:
+      enabled: true
+      size: 500Gi
+      storageClass: fast-ssd
+    resources:
+      requests:
+        memory: 8Gi
+        cpu: 2000m
+      limits:
+        memory: 16Gi
+        cpu: 4000m
+
+# PgBouncer configuration
+pgbouncer:
+  enabled: true
+  primary:
+    poolSize: 100
+    maxConnections: 5000
+  replicas:
+    poolSize: 150
+    maxConnections: 10000
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/limit-rps: "1000"
+  host: api.hft-engine.example.com
+  tls:
+    enabled: true
+    secretName: hft-tls-cert
+
+# Monitoring
+monitoring:
+  prometheus:
+    enabled: true
+    retention: 30d
+  grafana:
+    enabled: true
+    adminPassword: changeme
+
+# Secrets (should be overridden in production)
+secrets:
+  postgresPassword: "changeme"
+  postgresReplicaPassword: "changeme"
+  secretKey: "changeme-in-production"
+  dhanClientId: "changeme"
+  dhanAccessToken: "changeme"
+  jwtSecretKey: "changeme"
+
+# Pod Disruption Budgets
+podDisruptionBudget:
+  apiGateway:
+    minAvailable: 2
+  historical:
+    minAvailable: 3
+  processor:
+    minAvailable: 2
+
+# Node affinity (optional)
+nodeSelector: {}
+tolerations: []
+affinity: {}

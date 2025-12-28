@@ -1,0 +1,688 @@
+{
+  "audit_timestamp": "2025-12-17T05:00:05.776119",
+  "base_url": "http://localhost:8000",
+  "summary": {
+    "total_endpoints": 54,
+    "successful": 50,
+    "failed": 4,
+    "success_rate": 92.59
+  },
+  "by_category": {
+    "health": {
+      "total": 3,
+      "success": 3,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Health Check",
+          "path": "/health",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 20.06,
+          "error": null
+        },
+        {
+          "name": "Root",
+          "path": "/",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 9.57,
+          "error": null
+        },
+        {
+          "name": "Prometheus Metrics",
+          "path": "/metrics",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 9.22,
+          "error": null
+        }
+      ]
+    },
+    "auth": {
+      "total": 1,
+      "success": 1,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Auth - Get Profile",
+          "path": "/auth/profile",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 130.49,
+          "error": null
+        }
+      ]
+    },
+    "profile": {
+      "total": 2,
+      "success": 2,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Profile - Get My Profile",
+          "path": "/profile/me",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 110.94,
+          "error": null
+        },
+        {
+          "name": "Profile - Get My Stats",
+          "path": "/profile/me/stats",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 106.67,
+          "error": null
+        }
+      ]
+    },
+    "options": {
+      "total": 7,
+      "success": 7,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Options - Get Expiry Dates",
+          "path": "/options/expiry/NIFTY",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 111.53,
+          "error": null
+        },
+        {
+          "name": "Options - Get Chain",
+          "path": "/options/chain/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 400.57,
+          "error": null
+        },
+        {
+          "name": "Options - Live Data",
+          "path": "/options/live",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 118.93,
+          "error": null
+        },
+        {
+          "name": "Options - Percentage Analysis",
+          "path": "/options/percentage",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 114.64,
+          "error": null
+        },
+        {
+          "name": "Options - IV Analysis",
+          "path": "/options/iv",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 110.99,
+          "error": null
+        },
+        {
+          "name": "Options - Delta Analysis",
+          "path": "/options/delta",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 121.56,
+          "error": null
+        },
+        {
+          "name": "Options - Future Price",
+          "path": "/options/future",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 303.67,
+          "error": null
+        }
+      ]
+    },
+    "analytics-timeseries": {
+      "total": 2,
+      "success": 2,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Analytics - Strike Timeseries",
+          "path": "/analytics/timeseries/NIFTY/24500",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 219.64,
+          "error": null
+        },
+        {
+          "name": "Analytics - Spot Timeseries",
+          "path": "/analytics/timeseries/spot/NIFTY",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 221.66,
+          "error": null
+        }
+      ]
+    },
+    "analytics-analysis": {
+      "total": 6,
+      "success": 4,
+      "failed": 2,
+      "endpoints": [
+        {
+          "name": "Analytics - Strike Analysis",
+          "path": "/analytics/strike/NIFTY/24500",
+          "method": "GET",
+          "status": 404,
+          "success": false,
+          "response_time_ms": 133.88,
+          "error": "Strike 24500.0 not found"
+        },
+        {
+          "name": "Analytics - Reversal Levels",
+          "path": "/analytics/reversal/NIFTY/24500",
+          "method": "GET",
+          "status": 404,
+          "success": false,
+          "response_time_ms": 126.27,
+          "error": "Strike 24500.0 not found"
+        },
+        {
+          "name": "Analytics - Futures Summary",
+          "path": "/analytics/futures/NIFTY",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 495.8,
+          "error": null
+        },
+        {
+          "name": "Analytics - OI Distribution",
+          "path": "/analytics/oi-distribution/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 174.05,
+          "error": null
+        },
+        {
+          "name": "Analytics - Max Pain",
+          "path": "/analytics/maxpain/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 99.8,
+          "error": null
+        },
+        {
+          "name": "Analytics - IV Skew",
+          "path": "/analytics/iv-skew/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 135.97,
+          "error": null
+        }
+      ]
+    },
+    "analytics-aggregate": {
+      "total": 4,
+      "success": 4,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Analytics - Aggregate COI",
+          "path": "/analytics/aggregate/coi/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 115.57,
+          "error": null
+        },
+        {
+          "name": "Analytics - Aggregate OI",
+          "path": "/analytics/aggregate/oi/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 114.61,
+          "error": null
+        },
+        {
+          "name": "Analytics - Aggregate PCR",
+          "path": "/analytics/aggregate/pcr/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 120.44,
+          "error": null
+        },
+        {
+          "name": "Analytics - Aggregate Percentage",
+          "path": "/analytics/aggregate/percentage/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 114.38,
+          "error": null
+        }
+      ]
+    },
+    "historical": {
+      "total": 4,
+      "success": 2,
+      "failed": 2,
+      "endpoints": [
+        {
+          "name": "Historical - Available Dates",
+          "path": "/historical/dates/NIFTY",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 98.93,
+          "error": null
+        },
+        {
+          "name": "Historical - Available Times",
+          "path": "/historical/times/NIFTY/2024-12-16",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 118.39,
+          "error": null
+        },
+        {
+          "name": "Historical - Snapshot",
+          "path": "/historical/snapshot",
+          "method": "GET",
+          "status": 404,
+          "success": false,
+          "response_time_ms": 11.58,
+          "error": "Not Found"
+        },
+        {
+          "name": "Historical - Replay Data",
+          "path": "/historical/replay",
+          "method": "GET",
+          "status": 404,
+          "success": false,
+          "response_time_ms": 9.67,
+          "error": "Not Found"
+        }
+      ]
+    },
+    "screeners": {
+      "total": 4,
+      "success": 4,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Screeners - Scalp Signals",
+          "path": "/screeners/scalp/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 100.34,
+          "error": null
+        },
+        {
+          "name": "Screeners - Positional Signals",
+          "path": "/screeners/positional/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 100.95,
+          "error": null
+        },
+        {
+          "name": "Screeners - S/R Signals",
+          "path": "/screeners/sr/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 98.45,
+          "error": null
+        },
+        {
+          "name": "Screeners - All Signals",
+          "path": "/screeners/all/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 107.77,
+          "error": null
+        }
+      ]
+    },
+    "calculators": {
+      "total": 6,
+      "success": 6,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Calculators - Option Price",
+          "path": "/calculators/option-price",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 112.78,
+          "error": null
+        },
+        {
+          "name": "Calculators - IV",
+          "path": "/calculators/implied-volatility",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 263.27,
+          "error": null
+        },
+        {
+          "name": "Calculators - SIP",
+          "path": "/calculators/sip",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 114.81,
+          "error": null
+        },
+        {
+          "name": "Calculators - Lumpsum",
+          "path": "/calculators/lumpsum",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 99.83,
+          "error": null
+        },
+        {
+          "name": "Calculators - SWP",
+          "path": "/calculators/swp",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 109.73,
+          "error": null
+        },
+        {
+          "name": "Calculators - Margin",
+          "path": "/calculators/margin",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 111.14,
+          "error": null
+        }
+      ]
+    },
+    "charts": {
+      "total": 3,
+      "success": 3,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Charts - OHLCV Data",
+          "path": "/charts/data",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 337.45,
+          "error": null
+        },
+        {
+          "name": "Charts - Available Symbols",
+          "path": "/charts/symbols",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 8.74,
+          "error": null
+        },
+        {
+          "name": "Charts - Available Intervals",
+          "path": "/charts/intervals",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 9.7,
+          "error": null
+        }
+      ]
+    },
+    "notifications": {
+      "total": 1,
+      "success": 1,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Notifications - Get List",
+          "path": "/notifications",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 112.99,
+          "error": null
+        }
+      ]
+    },
+    "sse": {
+      "total": 1,
+      "success": 1,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "SSE - Poll Data",
+          "path": "/sse/poll/NIFTY/1734595199",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 139.81,
+          "error": null
+        }
+      ]
+    },
+    "admin": {
+      "total": 4,
+      "success": 4,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Admin - List Configs",
+          "path": "/admin/config",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 158.77,
+          "error": null
+        },
+        {
+          "name": "Admin - List Instruments",
+          "path": "/admin/instruments",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 115.99,
+          "error": null
+        },
+        {
+          "name": "Admin - Runtime Settings",
+          "path": "/admin/settings/runtime",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 111.45,
+          "error": null
+        },
+        {
+          "name": "Admin - Feature Flags",
+          "path": "/admin/features",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 104.16,
+          "error": null
+        }
+      ]
+    },
+    "monitoring": {
+      "total": 5,
+      "success": 5,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Monitoring - System Metrics",
+          "path": "/admin/monitoring/system",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 94.97,
+          "error": null
+        },
+        {
+          "name": "Monitoring - WebSocket Stats",
+          "path": "/admin/monitoring/websockets",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 105.27,
+          "error": null
+        },
+        {
+          "name": "Monitoring - Database Stats",
+          "path": "/admin/monitoring/database",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 116.92,
+          "error": null
+        },
+        {
+          "name": "Monitoring - Redis Stats",
+          "path": "/admin/monitoring/redis",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 107.26,
+          "error": null
+        },
+        {
+          "name": "Monitoring - Application Logs",
+          "path": "/admin/monitoring/logs",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 114.74,
+          "error": null
+        }
+      ]
+    },
+    "users": {
+      "total": 1,
+      "success": 1,
+      "failed": 0,
+      "endpoints": [
+        {
+          "name": "Users - List Users",
+          "path": "/users",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "response_time_ms": 129.76,
+          "error": null
+        }
+      ]
+    }
+  },
+  "slowest_endpoints": [
+    {
+      "name": "Analytics - Futures Summary",
+      "path": "/analytics/futures/NIFTY",
+      "time_ms": 495.8
+    },
+    {
+      "name": "Options - Get Chain",
+      "path": "/options/chain/NIFTY/1734595199",
+      "time_ms": 400.57
+    },
+    {
+      "name": "Charts - OHLCV Data",
+      "path": "/charts/data",
+      "time_ms": 337.45
+    },
+    {
+      "name": "Options - Future Price",
+      "path": "/options/future",
+      "time_ms": 303.67
+    },
+    {
+      "name": "Calculators - IV",
+      "path": "/calculators/implied-volatility",
+      "time_ms": 263.27
+    },
+    {
+      "name": "Analytics - Spot Timeseries",
+      "path": "/analytics/timeseries/spot/NIFTY",
+      "time_ms": 221.66
+    },
+    {
+      "name": "Analytics - Strike Timeseries",
+      "path": "/analytics/timeseries/NIFTY/24500",
+      "time_ms": 219.64
+    },
+    {
+      "name": "Analytics - OI Distribution",
+      "path": "/analytics/oi-distribution/NIFTY/1734595199",
+      "time_ms": 174.05
+    },
+    {
+      "name": "Admin - List Configs",
+      "path": "/admin/config",
+      "time_ms": 158.77
+    },
+    {
+      "name": "SSE - Poll Data",
+      "path": "/sse/poll/NIFTY/1734595199",
+      "time_ms": 139.81
+    }
+  ],
+  "failed_endpoints": [
+    {
+      "name": "Analytics - Strike Analysis",
+      "path": "/analytics/strike/NIFTY/24500",
+      "status": 404,
+      "error": "Strike 24500.0 not found"
+    },
+    {
+      "name": "Analytics - Reversal Levels",
+      "path": "/analytics/reversal/NIFTY/24500",
+      "status": 404,
+      "error": "Strike 24500.0 not found"
+    },
+    {
+      "name": "Historical - Snapshot",
+      "path": "/historical/snapshot",
+      "status": 404,
+      "error": "Not Found"
+    },
+    {
+      "name": "Historical - Replay Data",
+      "path": "/historical/replay",
+      "status": 404,
+      "error": "Not Found"
+    }
+  ]
+}

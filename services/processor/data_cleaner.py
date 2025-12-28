@@ -7,6 +7,7 @@ Handles:
 - Extraction of futures, options, global context
 - Quality flagging
 """
+import json
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timezone
 from core.logging.logger import get_logger
@@ -18,6 +19,29 @@ from services.processor.models.enriched_data import (
 )
 
 logger = get_logger("data-cleaner")
+
+
+def deserialize_avro_map(map_data: dict) -> dict:
+    """
+    Deserialize Avro map<string> values from JSON strings to dicts.
+    
+    The ingestion service serializes option_chain and futures_list values
+    as JSON strings for Avro map<string> schema compliance.
+    """
+    if not map_data:
+        return {}
+    
+    result = {}
+    for key, value in map_data.items():
+        if isinstance(value, str):
+            try:
+                result[key] = json.loads(value)
+            except json.JSONDecodeError:
+                # If not valid JSON, use as-is
+                result[key] = value
+        else:
+            result[key] = value
+    return result
 
 
 class DataCleaner:
@@ -51,20 +75,19 @@ class DataCleaner:
         """
         self.stats['total_processed'] += 1
         
+        # Deserialize Avro map<string> values from JSON strings to dicts
+        # The ingestion service serializes these for Avro schema compliance
+        option_chain = deserialize_avro_map(raw_data.get('option_chain', {}))
+        futures_list = deserialize_avro_map(raw_data.get('futures_list', {}))
+        
         # Extract global context from new structure
         context = self._extract_global_context(raw_data)
         
         # Extract futures data (current expiry)
-        futures = self._extract_futures_data(
-            raw_data.get('futures_list', {}),
-            context
-        )
+        futures = self._extract_futures_data(futures_list, context)
         
         # Extract and clean option chain
-        options = self._clean_option_chain(
-            raw_data.get('option_chain', {}),
-            context
-        )
+        options = self._clean_option_chain(option_chain, context)
         
         logger.info(
             f"Cleaned data for {context.symbol}: "

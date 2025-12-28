@@ -57,26 +57,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code
 COPY . .
 
-# Compile Protocol Buffers BEFORE switching to non-root user
-RUN python -m grpc_tools.protoc \
-    -I./protos \
-    --python_out=./core/grpc_server \
-    --python_out=./core/grpc_client \
-    --grpc_python_out=./core/grpc_server \
-    --grpc_python_out=./core/grpc_client \
-    ./protos/stockify.proto
-
-# Create __init__.py files for proper Python module imports
-RUN touch ./core/grpc_server/__init__.py && \
-    touch ./core/grpc_client/__init__.py
-
-# Fix imports in generated proto files to use relative imports
-RUN sed -i 's/^import stockify_pb2/from . import stockify_pb2/g' ./core/grpc_server/stockify_pb2_grpc.py && \
-    sed -i 's/^import stockify_pb2/from . import stockify_pb2/g' ./core/grpc_client/stockify_pb2_grpc.py
-
-# Verify proto files were generated successfully
-RUN ls -la ./core/grpc_server/stockify_pb2.py && \
-    ls -la ./core/grpc_server/stockify_pb2_grpc.py
+# Note: gRPC services have been removed from this project
+# Proto compilation is no longer needed
 
 # Create non-root user
 RUN useradd -m -u 1000 stockify && \

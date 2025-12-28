@@ -1,71 +1,302 @@
-# Docker Compose for Redis Cluster (3-node setup)
-# Provides distributed caching with automatic failover
-
 version: '3.8'
 
+# Redis Cluster Configuration for HFT Data Engine
+# 6-node Redis cluster: 3 primary + 3 replica nodes
+# Optimized for high-throughput caching and real-time data
+
 services:
-  redis-node-1:
+
+  # Redis Primary Node 1
+  redis-primary-1:
     image: redis:7-alpine
-    container_name: redis-node-1
-    command: redis-server --port 6379 --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    container_name: stockify-redis-primary-1
+    command: >
+      redis-server
+      --port 7001
+      --cluster-enabled yes
+      --cluster-config-file nodes-7001.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename appendonly-7001.aof
+      --maxmemory 4gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
     ports:
-      - "6379:6379"
+      - "7001:7001"
+      - "17001:17001"  # Cluster bus port
     volumes:
-      - redis-node-1-data:/data
+      - redis_primary_1_data:/data
     networks:
       - stockify-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7001", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  redis-node-2:
+  # Redis Primary Node 2
+  redis-primary-2:
     image: redis:7-alpine
-    container_name: redis-node-2
-    command: redis-server --port 6380 --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    container_name: stockify-redis-primary-2
+    command: >
+      redis-server
+      --port 7002
+      --cluster-enabled yes
+      --cluster-config-file nodes-7002.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename appendonly-7002.aof
+      --maxmemory 4gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
     ports:
-      - "6380:6380"
+      - "7002:7002"
+      - "17002:17002"
     volumes:
-      - redis-node-2-data:/data
+      - redis_primary_2_data:/data
     networks:
       - stockify-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7002", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  redis-node-3:
+  # Redis Primary Node 3
+  redis-primary-3:
     image: redis:7-alpine
-    container_name: redis-node-3
-    command: redis-server --port 6381 --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    container_name: stockify-redis-primary-3
+    command: >
+      redis-server
+      --port 7003
+      --cluster-enabled yes
+      --cluster-config-file nodes-7003.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename appendonly-7003.aof
+      --maxmemory 4gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
     ports:
-      - "6381:6381"
+      - "7003:7003"
+      - "17003:17003"
     volumes:
-      - redis-node-3-data:/data
+      - redis_primary_3_data:/data
     networks:
       - stockify-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7003", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # Cluster creator (initializes cluster on first run)
-  redis-cluster-creator:
+  # Redis Replica Node 1 (for primary-1)
+  redis-replica-1:
     image: redis:7-alpine
-    container_name: redis-cluster-creator
+    container_name: stockify-redis-replica-1
+    command: >
+      redis-server
+      --port 7004
+      --cluster-enabled yes
+      --cluster-config-file nodes-7004.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename appendonly-7004.aof
+      --maxmemory 4gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    ports:
+      - "7004:7004"
+      - "17004:17004"
+    volumes:
+      - redis_replica_1_data:/data
+    networks:
+      - stockify-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7004", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Replica Node 2 (for primary-2)
+  redis-replica-2:
+    image: redis:7-alpine
+    container_name: stockify-redis-replica-2
+    command: >
+      redis-server
+      --port 7005
+      --cluster-enabled yes
+      --cluster-config-file nodes-7005.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename appendonly-7005.aof
+      --maxmemory 4gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    ports:
+      - "7005:7005"
+      - "17005:17005"
+    volumes:
+      - redis_replica_2_data:/data
+    networks:
+      - stockify-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7005", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Replica Node 3 (for primary-3)
+  redis-replica-3:
+    image: redis:7-alpine
+    container_name: stockify-redis-replica-3
+    command: >
+      redis-server
+      --port 7006
+      --cluster-enabled yes
+      --cluster-config-file nodes-7006.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename appendonly-7006.aof
+      --maxmemory 4gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    ports:
+      - "7006:7006"
+      - "17006:17006"
+    volumes:
+      - redis_replica_3_data:/data
+    networks:
+      - stockify-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7006", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Cluster Initializer
+  # This service runs once to create the cluster
+  redis-cluster-init:
+    image: redis:7-alpine
+    container_name: stockify-redis-cluster-init
+    depends_on:
+      redis-primary-1:
+        condition: service_healthy
+      redis-primary-2:
+        condition: service_healthy
+      redis-primary-3:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_healthy
+      redis-replica-2:
+        condition: service_healthy
+      redis-replica-3:
+        condition: service_healthy
+    networks:
+      - stockify-network
     command: >
       sh -c "
+        echo 'Waiting for all Redis nodes to be ready...' &&
         sleep 5 &&
-        redis-cli --cluster create
-          redis-node-1:6379
-          redis-node-2:6380
-          redis-node-3:6381
-          --cluster-replicas 0
-          --cluster-yes
+        echo 'Creating Redis cluster...' &&
+        redis-cli --cluster create \
+          redis-primary-1:7001 \
+          redis-primary-2:7002 \
+          redis-primary-3:7003 \
+          redis-replica-1:7004 \
+          redis-replica-2:7005 \
+          redis-replica-3:7006 \
+          --cluster-replicas 1 \
+          --cluster-yes &&
+        echo 'Redis cluster created successfully!' &&
+        echo 'Cluster info:' &&
+        redis-cli -c -h redis-primary-1 -p 7001 cluster info &&
+        echo 'Cluster nodes:' &&
+        redis-cli -c -h redis-primary-1 -p 7001 cluster nodes
       "
+    restart: "no"  # Run only once
+
+  # Redis Commander - Web UI for cluster management (optional, for debugging)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: stockify-redis-commander
     depends_on:
-      - redis-node-1
-      - redis-node-2
-      - redis-node-3
+      - redis-cluster-init
+    environment:
+      - REDIS_HOSTS=cluster:redis-primary-1:7001,redis-primary-2:7002,redis-primary-3:7003
+    ports:
+      - "8082:8081"
     networks:
       - stockify-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
-  redis-node-1-data:
-  redis-node-2-data:
-  redis-node-3-data:
+  redis_primary_1_data:
+    driver: local
+  redis_primary_2_data:
+    driver: local
+  redis_primary_3_data:
+    driver: local
+  redis_replica_1_data:
+    driver: local
+  redis_replica_2_data:
+    driver: local
+  redis_replica_3_data:
+    driver: local
 
 networks:
   stockify-network:
-    driver: bridge
+    external: true  # Use existing network from main docker-compose.yml

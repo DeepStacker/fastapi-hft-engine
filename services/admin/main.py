@@ -27,6 +27,8 @@ from services.admin.routers import (
 
 # Import services for lifecycle management
 from services.admin.services import kafka_manager
+from core.database.pool import db_pool
+from core.rate_limiting.auth_limiter import get_auth_limiter
 import redis.asyncio as redis
 from core.config.settings import get_settings
 
@@ -46,20 +48,11 @@ admin_app = FastAPI(
 # CORS - Allow frontend on port 3000
 admin_app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Admin frontend (Next.js)
-        "http://localhost:3001",  # Grafana
-        "http://localhost:8000",  # Gateway
-        "http://localhost:8001",  # Admin API
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:8001",
-        "*"  # Allow all origins in development
-    ],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include routers (auth first - has public endpoints)
@@ -103,6 +96,16 @@ async def startup():
     logger.info("Starting Stockify Admin Application...")
     
     try:
+        # Initialize Database Pool
+        await db_pool.initialize()
+        logger.info("Database pool initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize database pool: {e}")
+        # Critical failure - let it crash or handle graceful degradation?
+        # For admin, maybe better to crash so it's noticed immediately.
+        # But for now logging is enough as we have other services.
+    
+    try:
         # Initialize Redis for pub/sub
         redis_pubsub_client = await redis.from_url(settings.REDIS_URL)
         logger.info("Redis connection established")
@@ -115,6 +118,14 @@ async def startup():
         logger.info("Kafka manager initialized")
     except Exception as e:
         logger.warning(f"Kafka manager initialization failed: {e}")
+    
+    try:
+        # Initialize auth rate limiter
+        auth_limiter = get_auth_limiter(settings.REDIS_URL)
+        await auth_limiter.init_redis()
+        logger.info("Auth rate limiter initialized")
+    except Exception as e:
+        logger.warning(f"Auth rate limiter initialization failed: {e}")
     
     logger.info("Admin application startup complete")
 
@@ -129,12 +140,26 @@ async def shutdown():
     if redis_pubsub_client:
         await redis_pubsub_client.close()
         logger.info("Redis connection closed")
+        
+    try:
+        await db_pool.close()
+        logger.info("Database pool closed")
+    except Exception as e:
+        logger.warning(f"Database pool cleanup failed: {e}")
     
     try:
         await kafka_manager.close()
         logger.info("Kafka manager closed")
     except Exception as e:
         logger.warning(f"Kafka manager cleanup failed: {e}")
+    
+    try:
+        # Cleanup auth rate limiter
+        auth_limiter = get_auth_limiter()
+        await auth_limiter.close()
+        logger.info("Auth rate limiter closed")
+    except Exception as e:
+        logger.warning(f"Auth rate limiter cleanup failed: {e}")
     
     logger.info("Admin application shutdown complete")
 

@@ -1,0 +1,72 @@
+{
+  "type": "record",
+  "name": "MarketDataRaw",
+  "namespace": "com.hft.market",
+  "doc": "Raw market data from ingestion service",
+  "fields": [
+    {
+      "name": "symbol",
+      "type": "string",
+      "doc": "Trading symbol (e.g., NIFTY, BANKNIFTY)"
+    },
+    {
+      "name": "symbol_id",
+      "type": "int",
+      "doc": "Unique symbol identifier"
+    },
+    {
+      "name": "segment_id",
+      "type": "int",
+      "doc": "Market segment identifier"
+    },
+    {
+      "name": "expiry",
+      "type": "string",
+      "doc": "Expiry date in ISO format (YYYY-MM-DD)"
+    },
+    {
+      "name": "timestamp",
+      "type": "string",
+      "doc": "Message timestamp in ISO format"
+    },
+    {
+      "name": "option_chain",
+      "type": {
+        "type": "map",
+        "values": "string"
+      },
+      "doc": "Option chain data (JSON-like structure)"
+    },
+    {
+      "name": "futures_list",
+      "type": {
+        "type": "map",
+        "values": "string"
+      },
+      "default": {},
+      "doc": "Futures data"
+    },
+    {
+      "name": "global_context",
+      "type": {
+        "type": "record",
+        "name": "GlobalContext",
+        "fields": [
+          {"name": "spot_ltp", "type": ["null", "double"], "default": null},
+          {"name": "spot_volume", "type": ["null", "long"], "default": null},
+          {"name": "spot_change", "type": ["null", "double"], "default": null},
+          {"name": "spot_pct_change", "type": ["null", "double"], "default": null},
+          {"name": "atm_iv", "type": ["null", "double"], "default": null},
+          {"name": "atm_iv_pct_change", "type": ["null", "double"], "default": null},
+          {"name": "total_call_oi", "type": ["null", "long"], "default": null},
+          {"name": "total_put_oi", "type": ["null", "long"], "default": null},
+          {"name": "pcr_ratio", "type": ["null", "double"], "default": null},
+          {"name": "option_lot_size", "type": ["null", "int"], "default": null},
+          {"name": "days_to_expiry", "type": ["null", "int"], "default": null},
+          {"name": "max_pain_strike", "type": ["null", "double"], "default": null}
+        ]
+      },
+      "doc": "Global market context"
+    }
+  ]
+}

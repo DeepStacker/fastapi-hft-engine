@@ -5,7 +5,7 @@ WebSocket endpoint for streaming Docker container logs.
 """
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Depends, Query
 from services.admin.services.docker_manager import docker_manager
-from services.api_gateway.auth import get_current_admin_user
+from services.admin.auth import get_current_admin_user
 import asyncio
 import logging
 

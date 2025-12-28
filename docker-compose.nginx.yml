@@ -1,0 +1,39 @@
+version: '3.8'
+
+# NGINX Load Balancer Service
+# Distributes traffic across 3 API Gateway instances
+
+services:
+  nginx-lb:
+    image: nginx:alpine
+    container_name: stockify-nginx-lb
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro  # SSL certificates
+      - nginx_logs:/var/log/nginx
+    networks:
+      - stockify-network
+    depends_on:
+      - gateway-service
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  nginx_logs:
+    driver: local
+
+networks:
+  stockify-network:
+    external: true

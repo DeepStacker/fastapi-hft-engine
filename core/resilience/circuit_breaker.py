@@ -129,6 +129,27 @@ class CircuitBreaker:
         elapsed = (datetime.utcnow() - self.last_failure_time).total_seconds()
         return max(0.0, self.timeout - elapsed)
     
+    def allow_request(self) -> bool:
+        """
+        Check if a request should be allowed.
+        Returns True if circuit is closed/half-open, False if open.
+        """
+        if self.state == CircuitState.OPEN:
+            if self._should_attempt_reset():
+                self.state = CircuitState.HALF_OPEN
+                logger.info("Circuit breaker entering HALF_OPEN state")
+                return True
+            return False
+        return True
+    
+    def record_success(self):
+        """Record a successful call (alias for _on_success)"""
+        self._on_success()
+    
+    def record_failure(self):
+        """Record a failed call (alias for _on_failure)"""
+        self._on_failure()
+    
     def get_state(self) -> dict:
         """Get current circuit breaker state"""
         return {

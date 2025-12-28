@@ -121,7 +121,9 @@ class InstrumentCreate(BaseModel):
     is_active: bool = True
 
 class InstrumentUpdate(BaseModel):
+    symbol_id: Optional[int] = None
     symbol: Optional[str] = None
+    segment_id: Optional[int] = None
     is_active: Optional[bool] = None
 
 

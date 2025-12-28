@@ -168,11 +168,21 @@ class TokenCacheManager:
                         data = json.loads(message["data"])
                         logger.info(f"Received token update notification: {data}")
                         
-                        # Invalidate cache
-                        await self.invalidate()
+                        # Clear L1 cache immediately
+                        self._l1_cache.clear()
                         
-                        # Immediately reload fresh tokens
-                        await self.get_dhan_tokens()
+                        # Load fresh tokens directly from Redis (not ConfigManager!)
+                        # This ensures we get the newly written tokens from admin
+                        tokens = await self._get_from_redis()
+                        if tokens:
+                            self._l1_cache = tokens
+                            logger.info(f"Token cache refreshed from Redis - auth preview: {tokens.get('auth_token', '')[:50]}...")
+                        else:
+                            # Fallback to ConfigManager only if Redis fails
+                            logger.warning("Redis read failed, falling back to ConfigManager")
+                            tokens = self._load_from_config()
+                            await self._set_to_redis(tokens)
+                            self._l1_cache = tokens
                         
                         logger.info("Token cache refreshed with new values")
                     except Exception as e:

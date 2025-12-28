@@ -1,0 +1,120 @@
+groups:
+- name: production_alerts
+  interval: 30s
+  rules:
+  
+  # Kafka Alerts
+  - alert: HighKafkaConsumerLag
+    expr: kafka_consumergroup_lag > 10000
+    for: 5m
+    labels:
+      severity: critical
+      component: kafka
+    annotations:
+      summary: "Critical: Kafka consumer lag exceeding 10K messages"
+      description: "Consumer group {{ $labels.consumergroup }} has lag of {{ $value }} on topic {{ $labels.topic }}"
+  
+  - alert: KafkaBrokerDown
+    expr: kafka_server_replicamanager_leadercount == 0
+    for: 1m
+    labels:
+      severity: critical
+      component: kafka
+    annotations:
+      summary: "Critical: Kafka broker is down"
+      description: "Broker {{ $labels.instance }} has no leaders"
+  
+  # API Gateway Alerts
+  - alert: HighAPILatency
+    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="gateway-service"}[5m])) > 0.2
+    for: 5m
+    labels:
+      severity: warning
+      component: api-gateway
+    annotations:
+      summary: "Warning: API p95 latency above 200ms"
+      description: "Current p95 latency: {{ $value }}s"
+  
+  - alert: High5xxErrorRate
+    expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+    for: 2m
+    labels:
+      severity: critical
+      component: api-gateway
+    annotations:
+      summary: "Critical: High 5xx error rate"
+      description: "5xx error rate: {{ $value }} req/sec"
+  
+  # Cache Alerts
+  - alert: LowCacheHitRate
+    expr: rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m])) < 0.7
+    for: 10m
+    labels:
+      severity: warning
+      component: cache
+    annotations:
+      summary: "Warning: Cache hit rate below 70%"
+      description: "Current hit rate: {{ $value | humanizePercentage }}"
+  
+  - alert: RedisDown
+    expr: redis_up == 0
+    for: 1m
+    labels:
+      severity: critical
+      component: redis
+    annotations:
+      summary: "Critical: Redis is down"
+      description: "Redis instance {{ $labels.instance }} is unreachable"
+  
+  # Database Alerts
+  - alert: HighDatabaseConnections
+expr: pg_stat_database_numbackends{datname="stockify_db"} > 80
+    for: 5m
+    labels:
+      severity: warning
+      component: database
+    annotations:
+      summary: "Warning: High database connection count"
+      description: "Active connections: {{ $value }}"
+  
+  - alert: DatabaseDown
+    expr: pg_up == 0
+    for: 1m
+    labels:
+      severity: critical
+      component: database
+    annotations:
+      summary: "Critical: Database is down"
+      description: "PostgreSQL instance {{ $labels.instance }} is unreachable"
+  
+  # Service Health Alerts
+  - alert: ServiceDown
+    expr: up{job=~".*-service"} == 0
+    for: 2m
+    labels:
+      severity: critical
+      component: microservice
+    annotations:
+      summary: "Critical: Service is down"
+      description: "Service {{ $labels.job }} is not responding"
+  
+  - alert: HighCPUUsage
+    expr: rate(process_cpu_seconds_total[5m]) > 0.8
+    for: 10m
+    labels:
+      severity: warning
+      component: system
+    annotations:
+      summary: "Warning: High CPU usage"
+      description: "CPU usage for {{ $labels.job }}: {{ $value | humanizePercentage }}"
+  
+  # Tenant Quota Alerts
+  - alert: TenantQuotaExceeded
+    expr: rate(http_requests_total{status="429"}[5m]) > 10
+    for: 5m
+    labels:
+      severity: info
+      component: tenancy
+    annotations:
+      summary: "Info: Tenant hitting rate limits"
+      description: "Tenant {{ $labels.tenant_id }} exceeded quota {{ $value }} times/sec"

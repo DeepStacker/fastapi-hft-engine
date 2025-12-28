@@ -31,12 +31,14 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_MAX_CONNECTIONS: int = 50
 
-    # Auth - FIXED: SECRET_KEY must come from environment in production
-    SECRET_KEY: str = Field(
-        default_factory=lambda: os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
-    )
+    # Auth - SECRET_KEY must ALWAYS come from environment
+    SECRET_KEY: str = Field(default="")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    # Rate Limiting - Auth endpoints
+    AUTH_RATE_LIMIT_PER_MINUTE: int = 5  # Login attempts per IP
+    TOKEN_RATE_LIMIT_PER_MINUTE: int = 10  # Token refresh per IP
 
     # Dhan API - FIXED: Removed hardcoded token
     DHAN_CLIENT_ID: Optional[str] = None
@@ -47,7 +49,12 @@ class Settings(BaseSettings):
     PROMETHEUS_URL: str = "http://prometheus:9090"
     
     # Security
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8000"  # Comma-separated list
+    
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        """Parse ALLOWED_ORIGINS into list"""
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
     
     # Performance
     SLOW_QUERY_THRESHOLD_MS: int = 1000  # Log queries slower than 1s
@@ -59,8 +66,8 @@ class Settings(BaseSettings):
     # WebSocket
     MAX_WEBSOCKET_CONNECTIONS_PER_USER: int = 10
     
-    # Admin
-    DEFAULT_ADMIN_PASSWORD: str = "ChangeMe123!"
+    # Admin - REMOVED: No default passwords for security
+    # Admin password MUST be set during initial setup
     
     # SMTP Email Configuration
     SMTP_HOST: str = "smtp.gmail.com"
@@ -78,13 +85,42 @@ class Settings(BaseSettings):
     @field_validator('SECRET_KEY')
     @classmethod
     def validate_secret_key(cls, v, info):
-        """Ensure SECRET_KEY is strong enough for production"""
+        """Ensure SECRET_KEY is set and strong enough"""
+        # Always require SECRET_KEY from environment
+        if not v or v == "":
+            # Try to get from environment directly
+            v = os.getenv("SECRET_KEY", "")
+            if not v:
+                raise ValueError(
+                    "SECRET_KEY must be set via environment variable. "
+                    "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                )
+        
+        # In production, enforce minimum length
         if info.data.get('ENVIRONMENT') == 'production':
             if len(v) < 32:
                 raise ValueError(
                     "SECRET_KEY must be at least 32 characters in production. "
-                    "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                    "Current length: {}".format(len(v))
                 )
+        else:
+            # Even in dev, require reasonable length
+            if len(v) < 16:
+                raise ValueError(
+                    "SECRET_KEY must be at least 16 characters. "
+                    "Current length: {}".format(len(v))
+                )
+        return v
+    
+    @field_validator('ALLOWED_ORIGINS')
+    @classmethod
+    def validate_allowed_origins(cls, v):
+        """Ensure ALLOWED_ORIGINS doesn't contain wildcards in production"""
+        if "*" in v and os.getenv("ENVIRONMENT") == "production":
+            raise ValueError(
+                "Wildcard CORS origins are not allowed in production. "
+                "Specify exact origins: 'https://app.example.com,https://admin.example.com'"
+            )
         return v
 
 @lru_cache()

@@ -21,6 +21,7 @@ class InstrumentDB(Base):
     symbol_id = Column(Integer, unique=True, nullable=False, index=True)  # Dhan's symbol ID
     symbol = Column(String(50), nullable=False, index=True)  # NIFTY, BANKNIFTY, etc.
     segment_id = Column(Integer, nullable=False, index=True)  # 0=Indices, 1=Stocks, 5=Commodities
+    exchange = Column(String(10), default='NSE', nullable=False, index=True)  # NSE, BSE, MCX
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -428,6 +429,203 @@ class TradingSessionDB(Base):
 
 
 # Create all indexes on module import
+class FIIDIIDataDB(Base):
+    """
+    FII/DII (Foreign Institutional Investors / Domestic Institutional Investors) Data
+    Daily institutional trading activity data
+    """
+    __tablename__ = "fii_dii_data"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    date = Column(DateTime, nullable=False, index=True)
+    category = Column(String(10), nullable=False, index=True)  # FII, DII, PRO, CLIENT
+    
+    # Trading values (in crores)
+    buy_value = Column(Float, nullable=True)
+    sell_value = Column(Float, nullable=True)
+    net_value = Column(Float, nullable=True)
+    
+    # Additional metrics
+    buy_contracts = Column(BigInteger, nullable=True)
+    sell_contracts = Column(BigInteger, nullable=True)
+    oi_contracts = Column(BigInteger, nullable=True)
+    
+    # Metadata
+    source = Column(String(50), default='NSE', nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_fiidii_date_category', 'date', 'category'),
+        CheckConstraint("category IN ('FII', 'DII', 'PRO', 'CLIENT')", name='chk_valid_category'),
+    )
+    
+    def __repr__(self):
+        return f"<FIIDIIData(date={self.date}, category={self.category}, net={self.net_value})>"
+
+
+class MarketMoodIndexDB(Base):
+    """
+    Market Mood Index - Composite sentiment indicator
+    Calculated from PCR, OI distribution, FII/DII activity, price momentum, IV changes
+    """
+    __tablename__ = "market_mood_index"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True)
+    symbol_id = Column(Integer, ForeignKey('instruments.symbol_id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Main mood score and sentiment
+    mood_score = Column(Float, nullable=False)  # -100 to +100
+    sentiment = Column(String(20), nullable=False)  # EXTREME_FEAR, FEAR, NEUTRAL, GREED, EXTREME_GREED
+    
+    # Component scores (weights can vary)
+    pcr_score = Column(Float, nullable=True)  # PCR component
+    oi_distribution_score = Column(Float, nullable=True)  # OI skew component
+    fii_activity_score = Column(Float, nullable=True)  # FII/DII component
+    price_momentum_score = Column(Float, nullable=True)  # Price momentum component
+    iv_change_score = Column(Float, nullable=True)  # IV change component
+    
+    # Supporting data
+    pcr = Column(Float, nullable=True)
+    vix_value = Column(Float, nullable=True)
+    advance_decline_ratio = Column(Float, nullable=True)
+    fii_activity = Column(Float, nullable=True)
+    
+    # Metadata
+    meta_data = Column(JSON, nullable=True)  # Algorithm params, component details
+    version = Column(String(10), default='1.0')  # Algorithm version
+    
+    # Relationships
+    instrument = relationship("InstrumentDB", foreign_keys=[symbol_id])
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_mood_time_symbol', 'timestamp', 'symbol_id'),
+        Index('idx_mood_sentiment', 'sentiment'),
+        CheckConstraint('mood_score >= -100 AND mood_score <= 100', name='chk_mood_score_range'),
+        CheckConstraint(
+            "sentiment IN ('EXTREME_FEAR', 'FEAR', 'NEUTRAL', 'GREED', 'EXTREME_GREED')",
+            name='chk_valid_sentiment'
+        ),
+    )
+    
+    def __repr__(self):
+        return f"<MarketMood(symbol_id={self.symbol_id}, score={self.mood_score}, sentiment={self.sentiment})>"
+
+
+class PCRHistoryDB(Base):
+    """
+    Put-Call Ratio (PCR) Historical Tracking
+    Tracks PCR based on OI and Volume over time
+    """
+    __tablename__ = "pcr_history"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True)
+    symbol_id = Column(Integer, ForeignKey('instruments.symbol_id', ondelete='CASCADE'), nullable=False, index=True)
+    expiry = Column(String(20), nullable=False, index=True)
+    
+    # PCR values
+    pcr_oi = Column(Float, nullable=False)  # Put OI / Call OI
+    pcr_volume = Column(Float, nullable=False)  # Put Volume / Call Volume
+    
+    # Supporting data
+    total_call_oi = Column(BigInteger, default=0)
+    total_put_oi = Column(BigInteger, default=0)
+    total_call_volume = Column(BigInteger, default=0)
+    total_put_volume = Column(BigInteger, default=0)
+    
+    # Change tracking
+    pcr_oi_change = Column(Float, nullable=True)  # Change from previous reading
+    pcr_volume_change = Column(Float, nullable=True)
+    
+    # Strike-wise distribution (for heatmaps)
+    strike_distribution = Column(JSON, nullable=True)  # {strike: {call_oi, put_oi, pcr}}
+    
+    # Max Pain and other derivatives
+    max_pain_strike = Column(Float, nullable=True)
+    
+    # Relationships
+    instrument = relationship("InstrumentDB", foreign_keys=[symbol_id])
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_pcr_time_symbol', 'timestamp', 'symbol_id'),
+        Index('idx_pcr_symbol_expiry', 'symbol_id', 'expiry'),
+        CheckConstraint('pcr_oi >= 0', name='chk_pcr_oi_nonneg'),
+        CheckConstraint('pcr_volume >= 0', name='chk_pcr_volume_nonneg'),
+    )
+    
+    def __repr__(self):
+        return f"<PCRHistory(symbol_id={self.symbol_id}, pcr_oi={self.pcr_oi}, pcr_vol={self.pcr_volume})>"
+
+
+class SupportResistanceLevelDB(Base):
+    """
+    Support and Resistance Levels detected from option chain data
+    Uses OI concentration, OI buildup patterns, and price action
+    """
+    __tablename__ = "support_resistance_levels"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True)
+    symbol_id = Column(Integer, ForeignKey('instruments.symbol_id', ondelete='CASCADE'), nullable=False, index=True)
+    expiry = Column(String(20), nullable=False, index=True)
+    
+    # Level details
+    level_type = Column(String(10), nullable=False, index=True)  # SUPPORT, RESISTANCE
+    price = Column(Float, nullable=False, index=True)
+    
+    # Confidence and strength
+    strength = Column(Integer, nullable=False)  # 1-10 confidence score
+    confidence = Column(Float, default=50.0)  # Percentage confidence
+    
+    # Detection source
+    source = Column(String(20), nullable=False)  # OI_MAX, OI_BUILDUP, PRICE_ACTION, COMBINED
+    
+    # Supporting metrics
+    total_oi = Column(BigInteger, nullable=True)  # Total OI at this level
+    call_oi = Column(BigInteger, nullable=True)
+    put_oi = Column(BigInteger, nullable=True)
+    oi_buildup_pct = Column(Float, nullable=True)  # OI change percentage
+    
+    # Zone definition (range around the level)
+    zone_lower = Column(Float, nullable=True)
+    zone_upper = Column(Float, nullable=True)
+    
+    # Metadata
+    meta_data = Column(JSON, nullable=True)  # Detection algorithm details, additional metrics
+    
+    # Status flags
+    is_active = Column(Boolean, default=True, index=True)
+    is_breached = Column(Boolean, default=False)  # Price crossed this level
+    breached_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    instrument = relationship("InstrumentDB", foreign_keys=[symbol_id])
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_sr_time_symbol', 'timestamp', 'symbol_id'),
+        Index('idx_sr_symbol_expiry_type', 'symbol_id', 'expiry', 'level_type'),
+        Index('idx_sr_active_levels', 'is_active', 'symbol_id'),
+        CheckConstraint("level_type IN ('SUPPORT', 'RESISTANCE')", name='chk_valid_level_type'),
+        CheckConstraint('strength >= 1 AND strength <= 10', name='chk_strength_range'),
+        CheckConstraint('confidence >= 0 AND confidence <= 100', name='chk_confidence_range'),
+        CheckConstraint(
+            "source IN ('OI_MAX', 'OI_BUILDUP', 'PRICE_ACTION', 'COMBINED')",
+            name='chk_valid_source'
+        ),
+    )
+    
+    def __repr__(self):
+        return f"<SupportResistance(type={self.level_type}, price={self.price}, strength={self.strength})>"
+
+
+# Create all indexes on module import
 def create_indexes():
     """Create additional performance indexes"""
     from sqlalchemy import text
@@ -443,6 +641,10 @@ def create_indexes():
         
         # Expression indexes
         "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_snapshots_date ON market_snapshots(DATE(timestamp))",
+        
+        # Phase 1 indexes
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_mood_recent ON market_mood_index(symbol_id, timestamp DESC) WHERE timestamp > NOW() - INTERVAL '7 days'",
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_active_sr_levels ON support_resistance_levels(symbol_id, price) WHERE is_active = true",
     ]
     
     # These would be applied via Alembic migrations

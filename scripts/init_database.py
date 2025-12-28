@@ -6,8 +6,7 @@ import asyncio
 from sqlalchemy import text
 from core.database.db import async_session_factory, engine
 from core.database.models import Base
-from services.api_gateway.models import APIKey
-from services.analytics.models import AnalyticsCumulativeOI, AnalyticsPatterns
+# Note: api_gateway and analytics services have been removed
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -21,24 +20,6 @@ async def init_database():
     # Create all tables defined in models
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        
-    # Execute TimescaleDB setup (must be outside transaction block for continuous aggregates)
-    from services.analytics.models import TIMESCALE_SETUP_SQL
-    logger.info("Setting up TimescaleDB hypertables and aggregates...")
-    
-    # Use autocommit for TimescaleDB operations
-    async with engine.connect() as conn:
-        await conn.execution_options(isolation_level="AUTOCOMMIT")
-        # Split by semicolon to execute statements individually
-        for statement in TIMESCALE_SETUP_SQL.split(';'):
-            if statement.strip():
-                try:
-                    await conn.execute(text(statement))
-                except Exception as e:
-                    # Ignore "already exists" errors
-                    if "already exists" in str(e) or "already a hypertable" in str(e):
-                        continue
-                    logger.warning(f"Error executing statement: {e}")
     
     logger.info("✓ All tables created successfully!")
     

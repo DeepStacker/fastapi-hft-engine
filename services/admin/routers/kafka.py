@@ -5,7 +5,7 @@ Handles Kafka topic and consumer group management.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
-from services.api_gateway.auth import get_current_admin_user
+from services.admin.auth import get_current_admin_user
 from services.admin.models import KafkaTopic, KafkaConsumerGroup, KafkaTopicCreate
 from services.admin.services.kafka_manager import kafka_manager
 from services.admin.services.cache import cache_service

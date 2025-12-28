@@ -1,0 +1,21 @@
+version: '3.8'
+
+# Override configuration to enable Kafka cluster and production-ready infrastructure
+# This file extends docker-compose.yml with the Kafka cluster from docker-compose.kafka-cluster.yml
+
+# Include Kafka cluster (3 brokers, 60 partitions, RF=3)
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d
+
+name: stockify-hft-production
+
+# This override removes the single-broker Kafka and uses the cluster instead
+services:
+  # Remove single-broker Kafka (it's replaced by kafka-cluster.yml)
+  kafka:
+    profiles: ["disabled"]  # Disable single broker
+  
+  zookeeper:
+    profiles: ["disabled"]  # Use zookeeper from cluster file
+
+# All services will automatically use KAFKA_BOOTSTRAP_SERVERS from .env
+# Set in .env: KAFKA_BOOTSTRAP_SERVERS=kafka-broker-1:29092,kafka-broker-2:29093,kafka-broker-3:29094

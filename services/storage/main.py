@@ -1,32 +1,45 @@
 """
-Optimized Storage Service with Adaptive Batching (Dynamic Config)
+Storage Service - Optimized with Avro Deserialization
 
-Implements intelligent batch sizing based on load for 10-100x faster writes.
+BREAKING CHANGES:
+- Kafka consumer groups for write scaling
+- Avro binary deserialization
+- Write routing to primary database via PgBouncer
+- Adaptive batch sizing for 10-100x faster writes
 """
 import asyncio
 import signal
 import time
-from datetime import datetime, timezone
-from sqlalchemy import insert, text
-from typing import List, Dict, Any
+import os
 import json
+from datetime import datetime, timezone
+from sqlalchemy import text
+from typing import List, Dict, Any
+
 from core.config.settings import get_settings
 from core.logging.logger import configure_logger, get_logger
-from core.messaging.consumer import KafkaConsumerClient
-from core.database.db import async_session_factory
-from core.database.models import MarketSnapshotDB, OptionContractDB
+from core.database.pool import db_pool, read_session, write_session
 from core.monitoring.metrics import start_metrics_server, MESSAGES_PROCESSED, DB_WRITE_LATENCY
 from core.config.dynamic_config import get_config_manager
+
+# BREAKING CHANGE: Avro deserialization
+from aiokafka import AIOKafkaConsumer
+from core.serialization.avro_serializer import avro_deserializer
+
+# BREAKING CHANGE: Distributed tracing
+from core.observability.tracing import (
+    distributed_tracer,
+    extract_trace_from_kafka_headers,
+    traced
+)
 
 # Configure logging
 configure_logger()
 logger = get_logger("storage-service")
 settings = get_settings()
 
-# Dynamic configuration manager
+# Global state
 config_manager = None
-
-# Buffers
 market_buffer: List[Dict[str, Any]] = []
 option_buffer: List[Dict[str, Any]] = []
 last_flush = time.time()
@@ -37,6 +50,7 @@ async def flush_buffers():
     HIGH-PERFORMANCE flush using SQLAlchemy Core with executemany().
     
     OPTIMIZED: 3-5x faster than ORM insert() - uses prepared statements
+    UPDATED: Now uses write_session for automatic connection pooling via PgBouncer
     """
     global market_buffer, option_buffer, last_flush
     
@@ -44,7 +58,11 @@ async def flush_buffers():
         return
     
     start_time = time.time()
-    async with async_session_factory() as session:
+    
+    # UPDATED: Use write_session for connection pooling (1000 clients → 20 connections)
+    from core.database.pool import write_session
+    
+    async with write_session() as session:
         try:
             # Flush market snapshots
             if market_buffer:
@@ -83,7 +101,7 @@ async def flush_buffers():
                 logger.info(f"Flushed {market_count} market snapshots")
                 market_buffer.clear()
             
-            # Flush option contracts (54 columns!)
+            # Flush option contracts
             if option_buffer:
                 stmt = text("""
                     INSERT INTO option_contracts (
@@ -131,19 +149,20 @@ async def flush_buffers():
                 logger.info(f"Flushed {option_count} option contracts")
                 option_buffer.clear()
             
-            await session.commit()
+            # Commit happens automatically via write_session context manager
             
             latency = time.time() - start_time
             DB_WRITE_LATENCY.labels(table="executemany").observe(latency)
             last_flush = time.time()
             
-            throughput = (len(market_buffer) + len(option_buffer)) / max(latency, 0.001)
-            logger.info(f"Flush completed: {latency:.3f}s, throughput: {throughput:.0f} records/sec")
+            if market_buffer or option_buffer:
+                throughput = (len(market_buffer) + len(option_buffer)) / max(latency, 0.001)
+                logger.info(f"Flush completed: {latency:.3f}s, throughput: {throughput:.0f} records/sec")
             
         except Exception as e:
             MESSAGES_PROCESSED.labels(service="storage", status="error").inc()
             logger.error(f"Flush failed: {e}", exc_info=True)
-            await session.rollback()
+            # Rollback happens automatically via write_session context manager
 
 
 def get_adaptive_batch_size() -> int:
@@ -152,56 +171,20 @@ def get_adaptive_batch_size() -> int:
     
     OPTIMIZED: More aggressive batching for high throughput
     """
-    MIN_BATCH_SIZE = config_manager.get_int("storage_min_batch_size", 500)  # Was 100
-    MAX_BATCH_SIZE = config_manager.get_int("storage_max_batch_size", 10000)  # Was 5000
+    MIN_BATCH_SIZE = config_manager.get_int("storage_min_batch_size", 500)
+    MAX_BATCH_SIZE = config_manager.get_int("storage_max_batch_size", 10000)
     
-    current_size = len(market_buffer) + len(option_buffer)
     time_since_flush = time.time() - last_flush
     
-    if time_since_flush < 0.3:  # Was 0.5 - more aggressive
+    if time_since_flush < 0.3:
         # High load - use larger batches
         return MAX_BATCH_SIZE
-    elif time_since_flush < 0.7:  # Was 2.0 - medium cutoff
+    elif time_since_flush < 0.7:
         # Medium load - adaptive sizing
         return MIN_BATCH_SIZE * 3
     else:
         # Low load - use smaller batches
         return MIN_BATCH_SIZE
-
-
-def _extract_order_flow(analyses: dict, strike_key: str) -> dict:
-    """Extract order flow analysis for specific strike"""
-    order_flow = analyses.get("order_flow", {})
-    strikes = order_flow.get("strikes", {})
-    strike_data = strikes.get(strike_key)
-    return strike_data if strike_data else None
-
-
-def _extract_smart_money(analyses: dict, strike_key: str) -> dict:
-    """Extract smart money context (aggregate analysis)"""
-    smart_money = analyses.get("smart_money", {})
-    if not smart_money:
-        return None
-    # Store aggregate market-wide score since smart money is not per-strike
-    return {
-        "market_score": smart_money.get("smart_money_score"),
-        "market_dumb_score": smart_money.get("dumb_money_score"),
-        "recommendation": smart_money.get("recommendation")
-    }
-
-
-def _extract_liquidity(analyses: dict, strike_key: str) -> dict:
-    """Extract liquidity stress (aggregate)"""
-    liquidity = analyses.get("liquidity_stress", {})
-    if not liquidity:
-        return None
-    # Store market-wide liquidity metrics
-    return {
-        "stress_level": liquidity.get("stress_level"),
-        "avg_stress_score": liquidity.get("avg_stress_score"),
-        "max_spread_bps": liquidity.get("max_spread_bps"),
-        "recommendation": liquidity.get("recommendation")
-    }
 
 
 def _extract_market_analyses(analyses: dict) -> dict:
@@ -219,35 +202,43 @@ def _extract_market_analyses(analyses: dict) -> dict:
     }
 
 
-async def process_message(msg: dict):
+def _extract_order_flow(analyses: dict, strike_key: str) -> dict:
+    """Extract order flow analysis for specific strike"""
+    order_flow = analyses.get("order_flow", {})
+    strikes = order_flow.get("strikes", {})
+    strike_data = strikes.get(strike_key)
+    return strike_data if strike_data else None
+
+
+async def process_message(msg: dict, span=None):
     """
     Buffer messages with intelligent batching.
     
+    BREAKING CHANGE: Now accepts span for distributed tracing
     OPTIMIZED: Adaptive batch sizing for optimal throughput
     """
+    if span:
+        span.set_attribute("symbol_id", msg.get("symbol_id", "unknown"))
+    
     try:
         # Extract data from enriched message
         context = msg.get("context", {})
-        futures = msg.get("futures", {})
         options = msg.get("options", [])
         
-        # Extract symbol_id from the message root or context
         symbol_id = msg.get("symbol_id") or context.get("symbol_id")
         timestamp_str = msg.get("timestamp")
         
         # Parse timestamp
         try:
             timestamp = datetime.fromisoformat(timestamp_str) if timestamp_str else datetime.utcnow()
-            # Ensure timestamp is offset-naive UTC for DB compatibility
             if timestamp.tzinfo is not None:
                 timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
         except (ValueError, TypeError):
             timestamp = datetime.utcnow()
         
-        # Extract analyses from enriched message
         analyses = msg.get("analyses", {})
         
-        # Process market snapshot from context with ALL fields
+        # Process market snapshot
         if context and symbol_id:
             market_analyses = _extract_market_analyses(analyses)
             market_record = {
@@ -255,13 +246,9 @@ async def process_message(msg: dict):
                 "symbol_id": symbol_id,
                 "exchange": context.get("exchange", "NSE"),
                 "segment": context.get("segment", "D"),
-                
-                # Price data
                 "ltp": float(context.get("spot_price", 0)),
-                "volume": 0,  # Not available in context
+                "volume": 0,
                 "oi": int(context.get("total_call_oi", 0) + context.get("total_put_oi", 0)),
-                
-                # Global context fields (ALL NEW)
                 "spot_change": float(context.get("spot_change", 0)),
                 "spot_change_pct": float(context.get("spot_change_pct", 0)),
                 "total_call_oi": int(context.get("total_call_oi", 0)),
@@ -273,10 +260,7 @@ async def process_message(msg: dict):
                 "days_to_expiry": int(context.get("days_to_expiry", 0)),
                 "lot_size": int(context.get("lot_size", 75)),
                 "tick_size": float(context.get("tick_size", 0.05)),
-                
                 "raw_data": context,
-                
-                # Aggregate analysis
                 "gex_analysis": market_analyses.get("gex_analysis"),
                 "iv_skew_analysis": market_analyses.get("iv_skew_analysis"),
                 "pcr_analysis": market_analyses.get("pcr_analysis"),
@@ -284,19 +268,16 @@ async def process_message(msg: dict):
             }
             market_buffer.append(market_record)
         
-        # Process option contracts with ALL fields (54 total)
+        # Process option contracts
         for option in options:
             strike_key = f"{option.get('strike', 0)}_{option.get('option_type', 'CE')}"
             
             option_record = {
-                # Metadata
                 "timestamp": timestamp,
                 "symbol_id": symbol_id,
-                "expiry": "2025-12-31",  # TODO: Extract from global context
+                "expiry": option.get("expiry", "2025-12-31"),
                 "strike_price": float(option.get("strike", 0)),
                 "option_type": option.get("option_type", "CE"),
-                
-                # Price data (ALL fields)
                 "ltp": float(option.get("ltp", 0)),
                 "bid": float(option.get("bid")) if option.get("bid") else None,
                 "ask": float(option.get("ask")) if option.get("ask") else None,
@@ -305,58 +286,40 @@ async def process_message(msg: dict):
                 "price_change": float(option.get("price_change", 0)),
                 "price_change_pct": float(option.get("price_change_pct", 0)),
                 "avg_traded_price": float(option.get("avg_traded_price", 0)),
-                
-                # Volume (ALL fields)
                 "volume": int(option.get("volume", 0)),
                 "prev_volume": int(option.get("prev_volume", 0)),
                 "volume_change": int(option.get("volume_change", 0)),
                 "volume_change_pct": float(option.get("volume_change_pct", 0)),
-                
-                # OI (ALL fields)
                 "oi": int(option.get("oi", 0)),
                 "prev_oi": int(option.get("prev_oi", 0)),
                 "oi_change": int(option.get("oi_change", 0)),
                 "oi_change_pct": float(option.get("oi_change_pct", 0)),
-                
-                # Greeks
                 "delta": float(option.get("delta", 0)),
                 "gamma": float(option.get("gamma", 0)),
                 "theta": float(option.get("theta", 0)),
                 "vega": float(option.get("vega", 0)),
                 "rho": float(option.get("rho", 0)),
                 "iv": float(option.get("iv")) if option.get("iv") else None,
-                
-                # Market data
                 "bid_qty": int(option.get("bid_qty", 0)),
                 "ask_qty": int(option.get("ask_qty", 0)),
-                
-                # Calculated fields
                 "theoretical_price": float(option.get("theoretical_price")) if option.get("theoretical_price") else None,
                 "intrinsic_value": float(option.get("intrinsic_value", 0)),
                 "time_value": float(option.get("time_value")) if option.get("time_value") else None,
                 "moneyness": float(option.get("moneyness", 0)),
                 "moneyness_type": option.get("moneyness_type", "OTM"),
-                
-                # Classification
                 "buildup_type": option.get("buildup_type", ""),
                 "buildup_name": option.get("buildup_name", ""),
-                
-                # Reversal & Support/Resistance
                 "reversal_price": float(option.get("reversal_price")) if option.get("reversal_price") else None,
                 "support_price": float(option.get("support_price")) if option.get("support_price") else None,
                 "resistance_price": float(option.get("resistance_price")) if option.get("resistance_price") else None,
                 "resistance_range_price": float(option.get("resistance_range_price")) if option.get("resistance_range_price") else None,
                 "weekly_reversal_price": float(option.get("weekly_reversal_price")) if option.get("weekly_reversal_price") else None,
                 "future_reversal_price": float(option.get("future_reversal_price")) if option.get("future_reversal_price") else None,
-                
-                # Flags
                 "is_liquid": option.get("is_liquid", True),
                 "is_valid": option.get("is_valid", True),
-                
-                # Analysis data (JSON)
                 "order_flow_analysis": _extract_order_flow(analyses, strike_key),
-                "smart_money_analysis": _extract_smart_money(analyses, strike_key),
-                "liquidity_analysis": _extract_liquidity(analyses, strike_key)
+                "smart_money_analysis": None,  # Aggregate only
+                "liquidity_analysis": None  # Aggregate only
             }
             option_buffer.append(option_record)
         
@@ -374,42 +337,100 @@ async def process_message(msg: dict):
 async def storage_loop():
     """Main storage service loop with optimized batching"""
     global config_manager
+    logger.info("Initializing Storage Service...")
+    
+    # Get instance information
+    instance_id = int(os.getenv("INSTANCE_ID", "1"))
+    total_instances = int(os.getenv("TOTAL_INSTANCES", "1"))
+    logger.info(f"Storage instance {instance_id}/{total_instances} starting")
     
     # Initialize ConfigManager
     config_manager = await get_config_manager()
     logger.info("ConfigManager initialized")
     
-    start_metrics_server(8000)
+    # Initialize database pool (required for write_session)
+    await db_pool.initialize()
+    logger.info("✓ Database pool initialized")
     
-    consumer = KafkaConsumerClient(topic="market.enriched", group_id="storage-group")
+    # BREAKING CHANGE: Initialize distributed tracing
+    distributed_tracer.initialize(
+        service_name="storage-service",
+        jaeger_host=os.getenv("JAEGER_HOST", "jaeger"),
+        jaeger_port=int(os.getenv("JAEGER_PORT", "6831"))
+    )
+    logger.info("✓ Distributed tracing initialized (Jaeger)")
+    
+    # BREAKING CHANGE: Initialize Kafka consumer with CLUSTER configuration
+    consumer = AIOKafkaConsumer(
+        settings.KAFKA_TOPIC_ENRICHED,
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS.split(","),
+        group_id="storage-group",  # Consumer group for load balancing
+        auto_offset_reset='earliest',
+        enable_auto_commit=True,
+        value_deserializer=avro_deserializer(settings.KAFKA_TOPIC_ENRICHED),
+        # Performance tuning for batch writes
+        fetch_max_wait_ms=1000,
+        fetch_min_bytes=10240,
+        fetch_max_bytes=52428800,
+    )
+    
     await consumer.start()
+    logger.info(f"✓ Kafka consumer started with group 'storage-group'")
+    logger.info(f"✓ Bootstrap servers: {settings.KAFKA_BOOTSTRAP_SERVERS}")
+    logger.info("✓ Using Avro binary deserialization (2-3x faster than JSON)")
     
-    logger.info("Starting optimized storage loop with adaptive batching...")
+    # Log partition assignment
+    partitions = consumer.assignment()
+    if partitions:
+        logger.info(f"✓ Assigned partitions: {[p.partition for p in partitions]}")
+    else:
+        logger.info("⚠ No partitions assigned yet (will be assigned on first poll)")
     
     # Background flush task
     async def time_based_flush():
+        """Periodic flush based on time"""
         while True:
             flush_interval = config_manager.get_float("storage_flush_interval", 1.0)
             await asyncio.sleep(flush_interval)
-            if market_buffer or option_buffer:
-                await flush_buffers()
+            await flush_buffers()
     
+    # Start background flush
     flush_task = asyncio.create_task(time_based_flush())
     
     try:
-        await consumer.consume(process_message)
+        # BREAKING CHANGE: Iterate over consumer messages directly
+        # Consumer groups automatically distribute partitions across instances
+        async for message in consumer:
+            # Log partition rebalancing
+            current_partitions = consumer.assignment()
+            if not hasattr(storage_loop, '_logged_partitions') or storage_loop._logged_partitions != current_partitions:
+                storage_loop._logged_partitions = current_partitions
+                logger.info(f"Storing from partitions: {[p.partition for p in current_partitions]}")
+            
+            # BREAKING CHANGE: Extract trace context from Kafka message headers
+            trace_context = extract_trace_from_kafka_headers(message.headers)
+            
+            # Create span within parent trace
+            tracer = distributed_tracer.get_tracer()
+            with tracer.start_as_current_span("store_message", context=trace_context) as span:
+                # Process message with tracing
+                await process_message(message.value, span=span)
+            
     except asyncio.CancelledError:
-        logger.info("Storage loop cancelled")
+        logger.info("Storage Service cancelled")
     finally:
         flush_task.cancel()
+        await flush_buffers()  # Final flush
         await consumer.stop()
-        await config_manager.close()
-        # Final flush
-        await flush_buffers()
-        logger.info("Storage service shutdown complete")
+        if config_manager:
+            await config_manager.close()
+        logger.info("Storage Service stopped")
 
 
 def main():
+    """Entry point with signal handling"""
+    start_metrics_server(8400)
+    
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     

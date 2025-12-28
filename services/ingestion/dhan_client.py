@@ -20,16 +20,15 @@ class DhanApiClient:
         self.base_url = "https://scanx.dhan.co/scanx"
         self.token_cache = token_cache
         
-        # Initialize with default tokens (will be updated async)
+        # Initialize with default token (will be updated async)
         self.auth_token = self._get_default_auth_token()
-        self.authorization_token = self._get_default_authorization_token()
         
+        # Headers - only use 'auth' header like option-chain-d implementation
         self.headers = {
             "accept": "application/json, text/plain, */*",
             "accept-encoding": "gzip, deflate, br, zstd",
             "accept-language": "en-GB,en-US;q=0.9,en;q=0.8,hi;q=0.7",
             "auth": self.auth_token,
-            "authorisation": self.authorization_token,
             "content-type": "application/json",
             "cache-control": "no-cache",
             "pragma": "no-cache",
@@ -54,19 +53,19 @@ class DhanApiClient:
             await self._reload_tokens()
     
     async def _reload_tokens(self):
-        """Reload tokens from cache (ultra-fast L1 access)."""
+        """Reload auth token from cache (ultra-fast L1 access)."""
         if not self.token_cache:
+            logger.warning("No token cache available, using default token")
             return
         
         tokens = await self.token_cache.get_dhan_tokens()
         self.auth_token = tokens["auth_token"]
-        self.authorization_token = tokens["authorization_token"]
         
-        # Update headers
+        # Update auth header only
         self.headers["auth"] = self.auth_token
-        self.headers["authorisation"] = self.authorization_token
         
-        logger.debug("Tokens reloaded from cache")
+        # Debug: show token prefix to verify correct token is loaded
+        logger.debug(f"Token reloaded - auth prefix: {self.auth_token[:50]}...")
     
     async def close(self):
         """Clean up HTTP client resources"""
@@ -106,44 +105,69 @@ class DhanApiClient:
         """
         Fetch expiry dates for a symbol
         """
+        # Reload tokens before each request to ensure freshness
+        await self._reload_tokens()
+        
         url = f"{self.base_url}/futoptsum"
         payload = self._create_fut_payload(symbol_id, segment_id)
         
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(url, headers=self.headers, json=payload)
+            # Use persistent client with updated headers (includes fresh tokens)
+            response = await self.client.post(url, headers=self.headers, json=payload, timeout=10.0)
+            
+            if response.status_code != 200:
+                logger.error(f"Error fetching expiry for {symbol_id}: {response.status_code}")
+                return []
+            
+            data = response.json()
+            if not data or 'data' not in data:
+                return []
+            
+            # Extract expiry list from 'opsum' keys (logic from Utils.filter_fut_data)
+            # The API returns expiries as keys in 'opsum' dictionary
+            response_data = data.get('data', {})
+            if isinstance(response_data, str):
+                logger.warning(f"Unexpected data format for {symbol_id}: {response_data}")
+                return []
                 
-                if response.status_code != 200:
-                    logger.error(f"Error fetching expiry for {symbol_id}: {response.status_code}")
-                    return []
+            opsum = response_data.get('opsum', {})
+            if not opsum:
+                return []
                 
-                data = response.json()
-                if not data or 'data' not in data:
-                    return []
-                
-                # Extract expiry list from 'opsum' keys (logic from Utils.filter_fut_data)
-                # The API returns expiries as keys in 'opsum' dictionary
-                response_data = data.get('data', {})
-                if isinstance(response_data, str):
-                    logger.warning(f"Unexpected data format for {symbol_id}: {response_data}")
-                    return []
+            # Extract keys and convert to current/future year
+            # Dhan returns old year timestamps (2015-2020) with correct month/day
+            from datetime import datetime
+            current_year = datetime.now().year
+            now = datetime.now()
+            
+            expiries = []
+            for key in opsum.keys():
+                if key.isdigit():
+                    old_ts = int(key)
+                    old_dt = datetime.fromtimestamp(old_ts)
                     
-                opsum = response_data.get('opsum', {})
-                if not opsum:
-                    return []
+                    # Replace year with current year
+                    try:
+                        new_dt = old_dt.replace(year=current_year)
+                    except ValueError:
+                        # Handle Feb 29 in non-leap years
+                        new_dt = old_dt.replace(year=current_year, day=28)
                     
-                # Extract keys, convert to int for sorting
-                # The keys are unix timestamps
-                expiries = []
-                for key in opsum.keys():
-                    if key.isdigit():
-                        expiries.append(int(key))
-                
-                # Sort expiries
-                expiries.sort()
-                
-                return expiries
-                
+                    # If the date is in the past, use next year
+                    if new_dt < now:
+                        try:
+                            new_dt = old_dt.replace(year=current_year + 1)
+                        except ValueError:
+                            new_dt = old_dt.replace(year=current_year + 1, day=28)
+                    
+                    new_ts = int(new_dt.timestamp())
+                    expiries.append(new_ts)
+            
+            # Sort expiries by date
+            expiries.sort()
+            
+            return expiries
+            
         except Exception as e:
             logger.error(f"Exception fetching expiry for {symbol_id}: {e}")
             return []
@@ -161,6 +185,9 @@ class DhanApiClient:
         Returns:
             Dict containing option chain data
         """
+        # Reload tokens before each request to ensure freshness
+        await self._reload_tokens()
+        
         url = f"{self.base_url}/optchain"
         payload = self._create_payload(symbol_id, exp, seg)
         
@@ -184,14 +211,17 @@ class DhanApiClient:
         """
         Fetch spot price data
         """
+        # Reload tokens before each request to ensure freshness
+        await self._reload_tokens()
+        
         url = f"{self.base_url}/rtscrdt"
         payload = self._create_spot_payload(symbol_id, segment_id)
         
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(url, headers=self.headers, json=payload)
-                response.raise_for_status()
-                return response.json()
+            # Use persistent client with updated headers (includes fresh tokens)
+            response = await self.client.post(url, headers=self.headers, json=payload, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             logger.error(f"Error fetching spot data for {symbol_id}: {e}")
             return None

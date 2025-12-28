@@ -5,7 +5,7 @@ Handles microservice monitoring and management with real Docker stats.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
-from services.api_gateway.auth import get_current_admin_user
+from services.admin.auth import get_current_admin_user
 from services.admin.models import ServiceStatus
 from services.admin.services.metrics_collector import metrics_collector
 from services.admin.services.docker_manager import docker_manager

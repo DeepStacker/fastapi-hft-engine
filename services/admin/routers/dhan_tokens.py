@@ -8,12 +8,12 @@ import json
 import redis.asyncio as redis
 from core.logging.logger import get_logger
 from core.config.settings import get_settings
-from core.database.db import async_session_factory
+from core.database.pool import db_pool, read_session, write_session
 from core.database.models import SystemConfigDB
 from sqlalchemy import select, update
 from datetime import datetime
 
-from services.api_gateway.auth import get_current_admin_user
+from services.admin.auth import get_current_admin_user
 
 router = APIRouter(prefix="/dhan-tokens", tags=["Dhan API Tokens"])
 logger = get_logger("admin.dhan_tokens")
@@ -40,7 +40,7 @@ async def get_dhan_tokens(admin = Depends(get_current_admin_user)):
     """
     Get current Dhan API tokens (with preview for security)
     """
-    async with async_session_factory() as session:
+    async with read_session() as session:
         # Get auth token
         auth_result = await session.execute(
             select(SystemConfigDB).where(SystemConfigDB.key == "dhan_auth_token")
@@ -83,7 +83,7 @@ async def update_dhan_tokens(
             detail="At least one token must be provided"
         )
     
-    async with async_session_factory() as session:
+    async with write_session() as session:
         updated_tokens = []
         
         # Helper to upsert
@@ -119,12 +119,39 @@ async def update_dhan_tokens(
         
         await session.commit()
         
-        # NEW: Invalidate token cache across all services via Redis Pub/Sub
+        # Get current token values for Redis write
+        # Need to read current values for tokens not being updated
+        current_auth = request.auth_token
+        current_authz = request.authorization_token
+        
+        if not current_auth or not current_authz:
+            # Fetch existing values if only one token is being updated
+            result = await session.execute(
+                select(SystemConfigDB).where(SystemConfigDB.key.in_(["dhan_auth_token", "dhan_authorization_token"]))
+            )
+            existing_configs = {c.key: c.value for c in result.scalars().all()}
+            if not current_auth:
+                current_auth = existing_configs.get("dhan_auth_token", "")
+            if not current_authz:
+                current_authz = existing_configs.get("dhan_authorization_token", "")
+        
+        # CRITICAL: Write new tokens directly to Redis (not just clear cache)
+        # This ensures all services immediately have access to new tokens
         try:
             redis_client = await redis.from_url(settings.REDIS_URL, decode_responses=True)
             
-            # Clear Redis cache
-            await redis_client.delete("dhan:tokens")
+            # Write new tokens to Redis with 24-hour TTL
+            await redis_client.setex(
+                "dhan:tokens",
+                86400,  # 24 hours TTL
+                json.dumps({
+                    "auth_token": current_auth,
+                    "authorization_token": current_authz,
+                    "updated_at": datetime.utcnow().isoformat(),
+                    "updated_by": admin.username
+                })
+            )
+            logger.info("New tokens written directly to Redis cache")
             
             # Publish update notification to all services
             await redis_client.publish(
@@ -139,8 +166,8 @@ async def update_dhan_tokens(
             await redis_client.close()
             logger.info(f"Published token update notification to all services")
         except Exception as e:
-            logger.error(f"Failed to invalidate cache: {e}")
-            # Don't fail the request if cache invalidation fails
+            logger.error(f"Failed to update Redis cache: {e}")
+            # Don't fail the request if cache update fails
         
         return {
             "status": "success",
@@ -159,7 +186,7 @@ async def test_dhan_tokens(admin = Depends(get_current_admin_user)):
     """
     import httpx
     
-    async with async_session_factory() as session:
+    async with read_session() as session:
         # Get tokens
         auth_result = await session.execute(
             select(SystemConfigDB).where(SystemConfigDB.key == "dhan_auth_token")

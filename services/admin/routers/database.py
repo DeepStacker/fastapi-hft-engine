@@ -6,9 +6,9 @@ Handles database operations, table browsing, and statistics.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Dict, Any
 from sqlalchemy import text, inspect
-from services.api_gateway.auth import get_current_admin_user
+from services.admin.auth import get_current_admin_user
 from services.admin.models import TableInfo, DatabaseStats
-from core.database.db import async_session_factory
+from core.database.pool import db_pool, read_session, write_session
 from services.admin.services.cache import cache_service
 import logging
 import pydantic
@@ -27,7 +27,7 @@ async def get_database_stats(admin = Depends(get_current_admin_user)):
     if cached_data:
         return DatabaseStats(**cached_data)
 
-    async with async_session_factory() as session:
+    async with read_session() as session:
         try:
             # Get total tables
             tables_result = await session.execute(text("""
@@ -87,7 +87,7 @@ async def list_tables(admin = Depends(get_current_admin_user)):
     if cached_data:
         return [TableInfo(**item) for item in cached_data]
 
-    async with async_session_factory() as session:
+    async with read_session() as session:
         try:
             result = await session.execute(text("""
                 SELECT 
@@ -144,7 +144,7 @@ async def get_table_schema(
     if cached_data:
         return cached_data
 
-    async with async_session_factory() as session:
+    async with read_session() as session:
         try:
             result = await session.execute(text("""
                 SELECT 
@@ -190,7 +190,7 @@ async def browse_table_data(
 ):
     """Browse table data with pagination (read-only, safe)"""
     # No caching for data browsing - needs to be fresh
-    async with async_session_factory() as session:
+    async with read_session() as session:
         try:
             # Validate table exists and get column names
             schema_result = await session.execute(text("""
@@ -255,7 +255,7 @@ async def get_slow_queries(
     if cached_data:
         return cached_data
 
-    async with async_session_factory() as session:
+    async with read_session() as session:
         try:
             # Check if pg_stat_statements is available
             result = await session.execute(text("""
@@ -334,7 +334,8 @@ async def execute_query(
                 detail="Write operations are not allowed in read-only mode. Uncheck 'Read Only' to proceed (Caution!)."
             )
     
-    async with async_session_factory() as session:
+    # Use write_session to allow potentially modifying queries
+    async with write_session() as session:
         try:
             # Execute query
             result = await session.execute(text(request.query))

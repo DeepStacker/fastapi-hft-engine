@@ -24,6 +24,10 @@ psutil>=5.9.0
 aiodocker>=0.21.0
 aiosmtplib>=2.0.0
 
+# Firebase & Authentication
+firebase-admin>=6.2.0
+PyJWT>=2.8.0
+
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
@@ -43,3 +47,16 @@ grpcio-health-checking>=1.60.0
 protobuf>=4.25.0
 docker>=7.0.0
 python-on-whales>=0.68.0
+apscheduler>=3.10.0
+fastavro>=1.9.0
+
+# Observability & Distributed Tracing
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-instrumentation-fastapi==0.42b0
+opentelemetry-instrumentation-asyncpg==0.42b0
+opentelemetry-instrumentation-redis==0.42b0
+opentelemetry-instrumentation-logging==0.42b0
+opentelemetry-exporter-jaeger==1.21.0
+opentelemetry-exporter-jaeger-thrift==1.21.0
+python-snappy>=0.6.0

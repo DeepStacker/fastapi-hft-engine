@@ -12,9 +12,9 @@ Exposes ALL system configurations for admin control including:
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any
 from sqlalchemy import select, update
-from services.api_gateway.auth import get_current_admin_user
+from services.admin.auth import get_current_admin_user
 from services.admin.models import ConfigItem, ConfigUpdate
-from core.database.db import async_session_factory
+from core.database.pool import db_pool, read_session, write_session
 from core.database.models import SystemConfigDB
 from services.admin.services.cache import cache_service
 import redis.asyncio as redis
@@ -59,7 +59,7 @@ SYSTEM_CONFIGS = {
         "requires_restart": False
     },
     "bypass_trading_hours": {
-        "value": "false",
+        "value": "true",
         "description": "Force data fetching regardless of time/holiday (Testing Mode)",
         "category": "ingestion",
         "data_type": "bool",
@@ -294,7 +294,7 @@ async def list_configs(
     if cached_data:
         return [ConfigItem(**item) for item in cached_data]
 
-    async with async_session_factory() as session:
+    async with read_session() as session:
         query = select(SystemConfigDB)
         
         if category:
@@ -352,7 +352,7 @@ async def list_categories(admin = Depends(get_current_admin_user)):
 
     categories = set()
     
-    async with async_session_factory() as session:
+    async with read_session() as session:
         result = await session.execute(
             select(SystemConfigDB.category).distinct()
         )
@@ -384,7 +384,7 @@ async def get_config(
     if cached_data:
         return ConfigItem(**cached_data)
 
-    async with async_session_factory() as session:
+    async with read_session() as session:
         result = await session.execute(
             select(SystemConfigDB).where(SystemConfigDB.key == key)
         )
@@ -430,7 +430,7 @@ async def update_config(
     
     Broadcasts change via Redis Pub/Sub to all services
     """
-    async with async_session_factory() as session:
+    async with write_session() as session:
         # Check if config exists
         result = await session.execute(
             select(SystemConfigDB).where(SystemConfigDB.key == key)
@@ -492,7 +492,7 @@ async def update_config(
 @router.post("/initialize")
 async def initialize_configs(admin = Depends(get_current_admin_user)):
     """Initialize all default configurations in database"""
-    async with async_session_factory() as session:
+    async with write_session() as session:
         created_count = 0
         
         for key, meta in SYSTEM_CONFIGS.items():
@@ -533,7 +533,7 @@ async def delete_config(
     admin = Depends(get_current_admin_user)
 ):
     """Delete a custom configuration (resets to default)"""
-    async with async_session_factory() as session:
+    async with write_session() as session:
         result = await session.execute(
             select(SystemConfigDB).where(SystemConfigDB.key == key)
         )
@@ -564,7 +564,7 @@ async def delete_config(
 @router.post("/export")
 async def export_configs(admin = Depends(get_current_admin_user)):
     """Export all configurations as JSON"""
-    async with async_session_factory() as session:
+    async with read_session() as session:
         result = await session.execute(select(SystemConfigDB))
         configs = result.scalars().all()
         
@@ -586,7 +586,7 @@ async def import_configs(
     admin = Depends(get_current_admin_user)
 ):
     """Import configurations from JSON"""
-    async with async_session_factory() as session:
+    async with write_session() as session:
         imported_count = 0
         
         for key, data in configs.items():
@@ -666,7 +666,7 @@ async def websocket_config(
                     })
                 else:
                     # Fallback to DB if cache miss
-                    async with async_session_factory() as session:
+                    async with read_session() as session:
                         result = await session.execute(select(SystemConfigDB))
                         configs = result.scalars().all()
                         

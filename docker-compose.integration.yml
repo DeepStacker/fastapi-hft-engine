@@ -1,0 +1,20 @@
+# =================================================================
+# HFT Engine - OCD Integration Profile
+# =================================================================
+# Use this profile alongside the main docker-compose for OCD integration.
+# Storage service remains ENABLED for historical data + stateful analysis.
+#
+# Usage: docker compose -f docker-compose.yml -f docker-compose.integration.yml up -d
+# =================================================================
+
+services:
+  # Ensure realtime service publishes to correct Redis keys for OCD
+  realtime-service:
+    environment:
+      # Explicit config for OCD integration
+      REDIS_KEY_PREFIX: "latest:"
+      REDIS_CHANNEL_PREFIX: "live:option_chain:"
+      BATCH_SIZE: 50
+  
+  # Storage service: ENABLED for historical queries + stateful analysis
+  # All enriched data is persisted to TimescaleDB

@@ -1,0 +1,132 @@
+{
+    "dashboard": {
+        "title": "HFT Data Engine - System Overview",
+        "tags": [
+            "hft",
+            "system",
+            "overview"
+        ],
+        "timezone": "browser",
+        "panels": [
+            {
+                "title": "Overall System Health",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "up{job=~\".*-service\"}",
+                        "legendFormat": "{{job}}"
+                    }
+                ],
+                "options": {
+                    "colorMode": "background",
+                    "graphMode": "area"
+                }
+            },
+            {
+                "title": "Kafka Throughput (msg/sec)",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "rate(kafka_server_brokertopicmetrics_messagesin_total[1m])",
+                        "legendFormat": "Messages In/sec"
+                    },
+                    {
+                        "expr": "rate(kafka_server_brokertopicmetrics_bytesout_total[1m])",
+                        "legendFormat": "Bytes Out/sec"
+                    }
+                ]
+            },
+            {
+                "title": "API Gateway Latency (p95)",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"gateway-service\"}[5m]))",
+                        "legendFormat": "p95 Latency"
+                    },
+                    {
+                        "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job=\"gateway-service\"}[5m]))",
+                        "legendFormat": "p99 Latency"
+                    }
+                ]
+            },
+            {
+                "title": "Cache Hit Rate",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m])) * 100",
+                        "legendFormat": "{{layer}} Cache Hit %"
+                    }
+                ]
+            },
+            {
+                "title": "Database Connections",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "pg_stat_database_numbackends{datname=\"stockify_db\"}",
+                        "legendFormat": "Active Connections"
+                    }
+                ]
+            },
+            {
+                "title": "Service Instance Count",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "count by (job) (up{job=~\".*-service\"})",
+                        "legendFormat": "{{job}}"
+                    }
+                ]
+            },
+            {
+                "title": "Kafka Consumer Lag",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "kafka_consumergroup_lag{topic=~\"market.*\"}",
+                        "legendFormat": "{{consumergroup}} - {{topic}}"
+                    }
+                ],
+                "alert": {
+                    "name": "High Consumer Lag",
+                    "conditions": [
+                        {
+                            "evaluator": {
+                                "params": [
+                                    10000
+                                ],
+                                "type": "gt"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "title": "Request Rate by Tenant",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "rate(http_requests_total{job=\"gateway-service\"}[5m])",
+                        "legendFormat": "{{tenant_id}}"
+                    }
+                ]
+            },
+            {
+                "title": "Error Rate",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "rate(http_requests_total{status=~\"5..\"}[5m])",
+                        "legendFormat": "5xx Errors"
+                    },
+                    {
+                        "expr": "rate(http_requests_total{status=~\"4..\"}[5m])",
+                        "legendFormat": "4xx Errors"
+                    }
+                ]
+            }
+        ]
+    }
+}

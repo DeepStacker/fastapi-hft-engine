@@ -1,0 +1,42 @@
+# Stockify Trading Platform - FastAPI Backend
+# Unpinned requirements for dependency resolution
+
+# Core Framework
+fastapi
+uvicorn[standard]
+pydantic>=2.0.0
+pydantic-settings
+
+# Database
+sqlalchemy[asyncio]>=2.0.0
+asyncpg
+alembic
+psycopg2-binary
+
+# Cache
+redis
+
+# Authentication
+firebase-admin
+python-jose[cryptography]
+
+# HTTP Client
+httpx
+
+# Data Processing
+numpy
+scipy
+msgpack
+
+# Utilities
+python-multipart
+python-dotenv
+pytz
+email-validator
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+gunicorn==21.2.0
+uvicorn[standard]==0.24.0

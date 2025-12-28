@@ -6,9 +6,9 @@ Handles instrument CRUD operations and activation for ingestion.
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from sqlalchemy import select, update, delete
-from services.api_gateway.auth import get_current_admin_user
+from services.admin.auth import get_current_admin_user
 from services.admin.models import Instrument, InstrumentCreate, InstrumentUpdate
-from core.database.db import async_session_factory
+from core.database.pool import db_pool, read_session, write_session
 from core.database.models import InstrumentDB
 from services.admin.services.cache import cache_service
 import logging
@@ -45,7 +45,7 @@ async def list_instruments(
     if cached_data:
         return [Instrument(**item) for item in cached_data]
 
-    async with async_session_factory() as session:
+    async with read_session() as session:
         query = select(InstrumentDB)
         
         if active_only:
@@ -90,7 +90,7 @@ async def get_instrument(
     if cached_data:
         return Instrument(**cached_data)
 
-    async with async_session_factory() as session:
+    async with read_session() as session:
         result = await session.execute(
             select(InstrumentDB).where(InstrumentDB.id == instrument_id)
         )
@@ -121,7 +121,7 @@ async def create_instrument(
     admin = Depends(get_current_admin_user)
 ):
     """Create a new instrument"""
-    async with async_session_factory() as session:
+    async with write_session() as session:
         # Check if symbol_id already exists
         existing = await session.execute(
             select(InstrumentDB).where(InstrumentDB.symbol_id == instrument.symbol_id)
@@ -167,7 +167,7 @@ async def update_instrument(
     admin = Depends(get_current_admin_user)
 ):
     """Update an instrument"""
-    async with async_session_factory() as session:
+    async with write_session() as session:
         result = await session.execute(
             select(InstrumentDB).where(InstrumentDB.id == instrument_id)
         )
@@ -177,8 +177,13 @@ async def update_instrument(
             raise HTTPException(status_code=404, detail="Instrument not found")
         
         # Update fields
+        # Update fields
+        if instrument.symbol_id is not None:
+            db_instrument.symbol_id = instrument.symbol_id
         if instrument.symbol is not None:
             db_instrument.symbol = instrument.symbol
+        if instrument.segment_id is not None:
+            db_instrument.segment_id = instrument.segment_id
         if instrument.is_active is not None:
             db_instrument.is_active = instrument.is_active
         
@@ -209,7 +214,7 @@ async def delete_instrument(
     admin = Depends(get_current_admin_user)
 ):
     """Delete an instrument"""
-    async with async_session_factory() as session:
+    async with write_session() as session:
         result = await session.execute(
             select(InstrumentDB).where(InstrumentDB.id == instrument_id)
         )
@@ -239,7 +244,7 @@ async def activate_instrument(
     admin = Depends(get_current_admin_user)
 ):
     """Activate an instrument for ingestion"""
-    async with async_session_factory() as session:
+    async with write_session() as session:
         await session.execute(
             update(InstrumentDB)
             .where(InstrumentDB.id == instrument_id)
@@ -263,7 +268,7 @@ async def deactivate_instrument(
     admin = Depends(get_current_admin_user)
 ):
     """Deactivate an instrument"""
-    async with async_session_factory() as session:
+    async with write_session() as session:
         await session.execute(
             update(InstrumentDB)
             .where(InstrumentDB.id == instrument_id)
@@ -327,7 +332,7 @@ async def websocket_instruments(
                     })
                 else:
                     # Fallback to DB if cache miss (and populate it)
-                    async with async_session_factory() as session:
+                    async with read_session() as session:
                         result = await session.execute(select(InstrumentDB))
                         instruments = result.scalars().all()
                         

@@ -1,0 +1,81 @@
+# Stockify Trading Platform - Docker Compose
+# Development environment setup with PostgreSQL and Redis
+
+version: '3.8'
+
+services:
+  # ═══════════════════════════════════════════════════════════════════
+  # PostgreSQL Database
+  # ═══════════════════════════════════════════════════════════════════
+  postgres:
+    image: postgres:15-alpine
+    container_name: stockify-postgres
+    environment:
+      POSTGRES_USER: stockify
+      POSTGRES_PASSWORD: stockify_secure_password
+      POSTGRES_DB: stockify
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockify"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Redis Cache
+  # ═══════════════════════════════════════════════════════════════════
+  redis:
+    image: redis:7-alpine
+    container_name: stockify-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════════════
+  # FastAPI Application (Optional - for containerized development)
+  # ═══════════════════════════════════════════════════════════════════
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockify-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://stockify:stockify_secure_password@postgres:5432/stockify
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=DEBUG
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./credentials:/app/credentials
+      - ./.env:/app/.env
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: stockify-network

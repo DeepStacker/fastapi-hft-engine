@@ -1,0 +1,294 @@
+version: '3.8'
+
+# TimescaleDB with Read Replicas and PgBouncer Connection Pooling
+# 1 Primary (write) + 2 Read Replicas (queries) for horizontal scaling
+
+services:
+
+  # TimescaleDB Primary (Write node)
+  timescaledb-primary:
+    image: timescale/timescaledb-ha:pg15-latest
+    container_name: stockify-timescaledb-primary
+    hostname: timescaledb-primary
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stockify_db}
+      POSTGRES_USER: ${POSTGRES_USER:-stockify}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_WALDIR: /var/lib/postgresql/wal
+      TIMESCALEDB_TELEMETRY: 'off'
+      
+      # Replication settings
+      POSTGRES_REPLICA_USER: replicator
+      POSTGRES_REPLICA_PASSWORD: ${POSTGRES_REPLICA_PASSWORD:-replicator_pass}
+      
+      # Performance tuning
+      POSTGRES_SHARED_BUFFERS: 4GB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 12GB
+      POSTGRES_MAINTENANCE_WORK_MEM: 1GB
+      POSTGRES_CHECKPOINT_COMPLETION_TARGET: 0.9
+      POSTGRES_WAL_BUFFERS: 16MB
+      POSTGRES_MAX_CONNECTIONS: 200
+      
+      # WAL settings for replication
+      POSTGRES_WAL_LEVEL: replica
+      POSTGRES_MAX_WAL_SENDERS: 5
+      POSTGRES_MAX_REPLICATION_SLOTS: 5
+      POSTGRES_HOT_STANDBY: 'on'
+      
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb_primary_data:/var/lib/postgresql/data
+      - timescaledb_primary_wal:/var/lib/postgresql/wal
+      - ./scripts/init-replication.sh:/docker-entrypoint-initdb.d/10-init-replication.sh
+    networks:
+      - stockify-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockify -d stockify_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 16G
+        reservations:
+          cpus: '2.0'
+          memory: 8G
+
+  # TimescaleDB Read Replica 1
+  timescaledb-replica-1:
+    image: timescale/timescaledb-ha:pg15-latest
+    container_name: stockify-timescaledb-replica-1
+    hostname: timescaledb-replica-1
+    depends_on:
+      timescaledb-primary:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stockify_db}
+      POSTGRES_USER: ${POSTGRES_USER:-stockify}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TIMESCALEDB_TELEMETRY: 'off'
+      
+      # Replica configuration
+      POSTGRES_PRIMARY_HOST: timescaledb-primary
+      POSTGRES_PRIMARY_PORT: 5432
+      POSTGRES_REPLICA_USER: replicator
+      POSTGRES_REPLICA_PASSWORD: ${POSTGRES_REPLICA_PASSWORD:-replicator_pass}
+      
+      # Performance tuning (same as primary)
+      POSTGRES_SHARED_BUFFERS: 4GB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 12GB
+      POSTGRES_MAX_CONNECTIONS: 200
+      
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescaledb_replica_1_data:/var/lib/postgresql/data
+      - ./scripts/init-replica.sh:/docker-entrypoint-initdb.d/10-init-replica.sh
+    networks:
+      - stockify-network
+    command: >
+      bash -c "
+        until pg_isready -h timescaledb-primary -p 5432 -U stockify; do
+          echo 'Waiting for primary to be ready...'
+          sleep 2
+        done
+        echo 'Primary is ready, starting replica...'
+        /docker-entrypoint-initdb.d/10-init-replica.sh
+        postgres -c hot_standby=on
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockify -d stockify_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 16G
+        reservations:
+          cpus: '2.0'
+          memory: 8G
+
+  # TimescaleDB Read Replica 2
+  timescaledb-replica-2:
+    image: timescale/timescaledb-ha:pg15-latest
+    container_name: stockify-timescaledb-replica-2
+    hostname: timescaledb-replica-2
+    depends_on:
+      timescaledb-primary:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stockify_db}
+      POSTGRES_USER: ${POSTGRES_USER:-stockify}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TIMESCALEDB_TELEMETRY: 'off'
+      
+      # Replica configuration
+      POSTGRES_PRIMARY_HOST: timescaledb-primary
+      POSTGRES_PRIMARY_PORT: 5432
+      POSTGRES_REPLICA_USER: replicator
+      POSTGRES_REPLICA_PASSWORD: ${POSTGRES_REPLICA_PASSWORD:-replicator_pass}
+      
+      # Performance tuning
+      POSTGRES_SHARED_BUFFERS: 4GB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 12GB
+      POSTGRES_MAX_CONNECTIONS: 200
+      
+    ports:
+      - "5434:5432"
+    volumes:
+      - timescaledb_replica_2_data:/var/lib/postgresql/data
+      - ./scripts/init-replica.sh:/docker-entrypoint-initdb.d/10-init-replica.sh
+    networks:
+      - stockify-network
+    command: >
+      bash -c "
+        until pg_isready -h timescaledb-primary -p 5432 -U stockify; do
+          echo 'Waiting for primary to be ready...'
+          sleep 2
+        done
+        echo 'Primary is ready, starting replica...'
+        /docker-entrypoint-initdb.d/10-init-replica.sh
+        postgres -c hot_standby=on
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockify -d stockify_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 16G
+        reservations:
+          cpus: '2.0'
+          memory: 8G
+
+  # PgBouncer - Connection pooler for primary (writes)
+  pgbouncer-primary:
+    image: edoburu/pgbouncer:latest
+    container_name: stockify-pgbouncer-primary
+    depends_on:
+      timescaledb-primary:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-stockify}:${POSTGRES_PASSWORD}@timescaledb-primary:5432/${POSTGRES_DB:-stockify_db}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 5000
+      DEFAULT_POOL_SIZE: 25
+      MIN_POOL_SIZE: 10
+      RESERVE_POOL_SIZE: 5
+      MAX_DB_CONNECTIONS: 100
+      SERVER_IDLE_TIMEOUT: 600
+      SERVER_LIFETIME: 3600
+    ports:
+      - "6432:5432"
+    networks:
+      - stockify-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PgBouncer - Connection pooler for read replicas (queries)
+  pgbouncer-replicas:
+    image: edoburu/pgbouncer:latest
+    container_name: stockify-pgbouncer-replicas
+    depends_on:
+      timescaledb-replica-1:
+        condition: service_healthy
+      timescaledb-replica-2:
+        condition: service_healthy
+    environment:
+      # Round-robin between replicas (configured in userlist.txt)
+      DATABASE_URL: postgres://${POSTGRES_USER:-stockify}:${POSTGRES_PASSWORD}@timescaledb-replica-1:5432/${POSTGRES_DB:-stockify_db}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 10000
+      DEFAULT_POOL_SIZE: 30
+      MIN_POOL_SIZE: 15
+      RESERVE_POOL_SIZE: 10
+      MAX_DB_CONNECTIONS: 150
+      SERVER_IDLE_TIMEOUT: 600
+      SERVER_LIFETIME: 3600
+    ports:
+      - "6433:5432"
+    networks:
+      - stockify-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # pg_admin - Web UI for database management (optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: stockify-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@stockify.com
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  timescaledb_primary_data:
+    driver: local
+  timescaledb_primary_wal:
+    driver: local
+  timescaledb_replica_1_data:
+    driver: local
+  timescaledb_replica_2_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  stockify-network:
+    external: true  # Use existing network from main docker-compose.yml

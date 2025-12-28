@@ -1,18 +1,18 @@
 """
 Processor Service - Main Entry Point
 
-Consumes raw market data, enriches it with:
-- Data cleaning (NA/null handling)
-- BSM theoretical pricing
-- Futures-Spot Basis analysis
-- VIX-IV Divergence analysis
-- Gamma Exposure analysis
+Consumes raw market data, enriches it with analytics, and publishes enriched data to Kafka.
 
-Then publishes enriched data to Kafka.
+BREAKING CHANGES:
+- Consumer groups for partition distribution
+- Avro binary serialization
+- Distributed tracing with OpenTelemetry
 """
 import asyncio
+import json
 import signal
 import time
+import os
 from datetime import datetime, timezone
 from typing import Dict
 
@@ -27,22 +27,25 @@ from core.monitoring.metrics import (
     DATA_QUALITY_ISSUES
 )
 
-# Use shared messaging infrastructure
-from core.messaging.consumer import KafkaConsumerClient
-from core.messaging.producer import kafka_producer
+# BREAKING CHANGE: Distributed tracing
+from core.observability.tracing import (
+    distributed_tracer,
+    extract_trace_from_kafka_headers,
+    create_kafka_headers_with_trace,
+    traced
+)
 
 from services.processor.data_cleaner import DataCleaner
 from services.processor.analyzers.bsm import BlackScholesModel
 from services.processor.analyzers.futures_basis import FuturesBasisAnalyzer
 from services.processor.analyzers.vix_divergence import VIXDivergenceAnalyzer
 from services.processor.analyzers.gamma_exposure import GammaExposureAnalyzer
-from services.processor.analyzers.pcr_analyzer import PCRAnalyzer
 from services.processor.analyzers.iv_skew_analyzer import IVSkewAnalyzer
 from services.processor.analyzers.reversal import ReversalAnalyzer
-from services.processor.analyzers.order_flow import OrderFlowToxicityAnalyzer
-from services.processor.analyzers.smart_money import SmartMoneyAnalyzer
-from services.processor.analyzers.liquidity import LiquidityStressAnalyzer
 from services.processor.analyzer_cache import AnalyzerCacheManager
+
+# Use consolidated PCR utility
+from core.analytics.stateless import calculate_pcr_detailed
 
 # Configure logging
 configure_logger()
@@ -59,6 +62,7 @@ class ProcessorService:
         """Initialize processor components"""
         self.config_manager = None
         self.consumer = None
+        self.producer = None  # Dedicated Avro producer for this service
         
         # Data processing components
         self.cleaner = DataCleaner()
@@ -66,12 +70,11 @@ class ProcessorService:
         self.futures_analyzer = None
         self.vix_analyzer = None
         self.gamma_analyzer = None
-        self.pcr_analyzer = None
-        self.pcr_analyzer = None
         self.iv_skew_analyzer = None
-        self.order_flow_analyzer = None
-        self.smart_money_analyzer = None
-        self.liquidity_analyzer = None
+        # Advanced analyzers moved to analytics service
+        # self.order_flow_analyzer = None
+        # self.smart_money_analyzer = None
+        # self.liquidity_analyzer = None
         
         # Service state
         self.running = False
@@ -80,6 +83,20 @@ class ProcessorService:
     async def initialize(self):
         """Initialize all components"""
         logger.info("Initializing Processor Service...")
+        
+        # Get instance information from environment
+        import os
+        instance_id = int(os.getenv("INSTANCE_ID", "1"))
+        total_instances = int(os.getenv("TOTAL_INSTANCES", "1"))
+        logger.info(f"Processor instance {instance_id}/{total_instances} starting")
+        
+        # BREAKING CHANGE: Initialize distributed tracing
+        distributed_tracer.initialize(
+            service_name="processor-service",
+            jaeger_host=os.getenv("JAEGER_HOST", "jaeger"),
+            jaeger_port=int(os.getenv("JAEGER_PORT", "6831"))
+        )
+        logger.info("✓ Distributed tracing initialized (Jaeger)")
         
         # Initialize config manager
         self.config_manager = await get_config_manager()
@@ -93,35 +110,81 @@ class ProcessorService:
         self.futures_analyzer = FuturesBasisAnalyzer(risk_free_rate=risk_free_rate)
         self.vix_analyzer = VIXDivergenceAnalyzer(self.config_manager)
         self.gamma_analyzer = GammaExposureAnalyzer()
-        self.pcr_analyzer = PCRAnalyzer()
-        self.iv_skew_analyzer = IVSkewAnalyzer()
         self.iv_skew_analyzer = IVSkewAnalyzer()
         self.reversal_analyzer = ReversalAnalyzer()
-        self.order_flow_analyzer = OrderFlowToxicityAnalyzer()
-        self.smart_money_analyzer = SmartMoneyAnalyzer()
-        self.liquidity_analyzer = LiquidityStressAnalyzer()
         
         # OPTIMIZATION: Analyzer result cache (2-3x speedup)
         self.cache_manager = AnalyzerCacheManager(maxsize=1000, ttl=5)
         
-        # Initialize Kafka components using shared infrastructure
-        self.consumer = KafkaConsumerClient(
-            topic=settings.KAFKA_TOPIC_MARKET_RAW,
-            group_id="processor-service"
+        # BREAKING CHANGE: Initialize Kafka consumer with CLUSTER configuration
+        # Consumer groups enable automatic partition distribution across instances
+        # BREAKING CHANGE: Now uses Avro binary deserialization instead of JSON
+        from aiokafka import AIOKafkaConsumer
+        from core.serialization.avro_serializer import avro_deserializer
+        
+        self.consumer = AIOKafkaConsumer(
+            settings.KAFKA_TOPIC_MARKET_RAW,
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS.split(","),  # Cluster support
+            group_id="processor-group",  # Consumer group for load balancing
+            auto_offset_reset='earliest',  # Start from beginning if no offset stored
+            enable_auto_commit=True,  # Commit offsets automatically
+            value_deserializer=avro_deserializer(settings.KAFKA_TOPIC_MARKET_RAW),  # Avro binary input
+            # Performance tuning
+            fetch_max_wait_ms=500,  # Max wait for batching
+            fetch_min_bytes=1024,  # Min data to fetch (1KB)
+            fetch_max_bytes=52428800,  # Max data to fetch (50MB)
+            max_partition_fetch_bytes=1048576,  # Max per partition (1MB)
         )
         
         await self.consumer.start()
-        await kafka_producer.start()
+        logger.info(f"✓ Kafka consumer started with group 'processor-group'")
+        logger.info(f"✓ Bootstrap servers: {settings.KAFKA_BOOTSTRAP_SERVERS}")
+        logger.info("✓ Using Avro binary deserialization (2-3x faster than JSON)")
+        
+        # Log partition assignment
+        partitions = self.consumer.assignment()
+        if partitions:
+            logger.info(f"✓ Assigned partitions: {[p.partition for p in partitions]}")
+        else:
+            logger.info("⚠ No partitions assigned yet (will be assigned on first poll)")
+        
+        # BREAKING CHANGE: Initialize dedicated Avro producer for enriched messages
+        from core.serialization.avro_serializer import avro_serializer
+        from aiokafka import AIOKafkaProducer
+        
+        self.producer = AIOKafkaProducer(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS.split(","),
+            value_serializer=avro_serializer(settings.KAFKA_TOPIC_ENRICHED),  # Avro binary output
+            compression_type='snappy',
+            acks='all'
+        )
+        await self.producer.start()
+        logger.info("✓ Kafka producer started (Avro format for enriched messages)")
         
         logger.info("Processor Service initialized successfully")
     
-    async def process_message(self, raw_data: dict):
+    async def process_message(self, raw_data: dict, trace_context=None):
         """
-        Main processing pipeline for each message
+        Process and enrich a single raw market data message
         
-        Args:
-            raw_data: Raw market data from ingestion service
+        BREAKING CHANGE: Now accepts trace_context for distributed tracing
+        
+        Pipeline:
+        1. Data cleaning (handle NaN, nulls)
+        2. Calculate Greeks (BSM pricing)
+        3. Run analysis (Futures, VIX, PCR, GEX, IV Skew)
+        4. Construct enriched message
+        5. Publish to Kafka
         """
+        # BREAKING CHANGE: Create span within parent trace context
+        tracer = distributed_tracer.get_tracer()
+        with tracer.start_as_current_span("process_message", context=trace_context) as span:
+            span.set_attribute("symbol", raw_data.get("symbol", "unknown"))
+            
+            return await self._process_message_internal(raw_data, span)
+    
+    async def _process_message_internal(self, raw_data: dict, span):
+        """Internal processing with tracing"""
         start_time = time.time()
         
         try:
@@ -187,17 +250,9 @@ class ProcessorService:
             # Gamma Exposure
             if self.config_manager.get('enable_gamma_analysis', True):
                 tasks.append(self._analyze_gamma_exposure(cleaned))
-            # Order Flow Toxicity
-            if self.config_manager.get('enable_order_flow_analysis', True):
-                tasks.append(self._analyze_order_flow(cleaned))
-                
-            # Smart Money
-            if self.config_manager.get('enable_smart_money_analysis', True):
-                tasks.append(self._analyze_smart_money(cleaned))
-                
-            # Liquidity Stress
-            if self.config_manager.get('enable_liquidity_analysis', True):
-                tasks.append(self._analyze_liquidity(cleaned))
+            
+            # Advanced analyzers (order_flow, smart_money, liquidity) moved to Analytics service
+            # They are now processed separately as stateful analysis with historical context
             
             # Run all analyses concurrently
             if tasks:
@@ -214,8 +269,17 @@ class ProcessorService:
             # 4. Construct enriched message
             enriched_data = self._build_enriched_message(cleaned, analyses, expiry)
             
-            # 5. Publish to Kafka using shared producer
-            await kafka_producer.send(settings.KAFKA_TOPIC_ENRICHED, enriched_data)
+            # 5. Publish to Kafka with trace headers
+            # BREAKING CHANGE: Inject trace context into outgoing Kafka message
+            headers = create_kafka_headers_with_trace()
+            await self.producer.send_and_wait(
+                settings.KAFKA_TOPIC_ENRICHED,
+                value=enriched_data,
+                headers=headers
+            )
+            
+            span.set_attribute("output_topic", settings.KAFKA_TOPIC_ENRICHED)
+            span.set_attribute("options_count", len(cleaned.get('options', [])))
             
             # Metrics
             self.messages_processed += 1
@@ -262,12 +326,12 @@ class ProcessorService:
             return {}
             
     async def _analyze_pcr(self, cleaned: dict, expiry: str) -> Dict:
-        """Run PCR analysis with caching"""
+        """Run PCR analysis with caching - uses consolidated stateless utility"""
         try:
             # Try cache first
             cache_key_data = {
                 "symbol_id": cleaned['context'].symbol_id,
-                "expiry": expiry,  # Use expiry from raw message
+                "expiry": expiry,
                 "strikes": [o.strike for o in cleaned['options']]
             }
             
@@ -285,7 +349,8 @@ class ProcessorService:
             total_call_vol = sum(o.volume for o in cleaned['options'] if o.option_type == 'CE')
             total_put_vol = sum(o.volume for o in cleaned['options'] if o.option_type == 'PE')
             
-            result = self.pcr_analyzer.analyze(
+            # Use consolidated stateless PCR function
+            result = calculate_pcr_detailed(
                 total_call_oi=cleaned['context'].total_call_oi,
                 total_put_oi=cleaned['context'].total_put_oi,
                 total_call_vol=total_call_vol,
@@ -332,49 +397,12 @@ class ProcessorService:
         except Exception as e:
             logger.error(f"Gamma exposure analysis failed: {e}")
             return {}
-
-    async def _analyze_order_flow(self, cleaned: dict) -> Dict:
-        """Run order flow toxicity analysis"""
-        try:
-            # Calculate minutes since open (approximate)
-            # Market opens at 9:15 IST (03:45 UTC)
-            now = datetime.now(timezone.utc)
-            market_open = now.replace(hour=3, minute=45, second=0, microsecond=0)
-            if now < market_open:
-                market_open = market_open.replace(day=now.day - 1)
-            
-            minutes_since_open = int((now - market_open).total_seconds() / 60)
-            
-            result = self.order_flow_analyzer.analyze(
-                options=cleaned['options'],
-                minutes_since_open=minutes_since_open
-            )
-            return {'order_flow': result}
-        except Exception as e:
-            logger.error(f"Order flow analysis failed: {e}")
-            return {}
-
-    async def _analyze_smart_money(self, cleaned: dict) -> Dict:
-        """Run smart money analysis"""
-        try:
-            result = self.smart_money_analyzer.analyze(
-                options=cleaned['options']
-            )
-            return {'smart_money': result}
-        except Exception as e:
-            logger.error(f"Smart money analysis failed: {e}")
-            return {}
-
-    async def _analyze_liquidity(self, cleaned: dict) -> Dict:
-        """Run liquidity stress analysis"""
-        try:
-            result = self.liquidity_analyzer.analyze(
-                options=cleaned['options']
-            )
-            return {'liquidity_stress': result}
-        except Exception as e:
-            logger.error(f"Liquidity stress analysis failed: {e}")
-            return {}
+    
+    # Advanced analyzer methods moved to Analytics service:
+    # - _analyze_order_flow (order flow toxicity)
+    # - _analyze_smart_money (smart money detection)
+    # - _analyze_liquidity (liquidity stress)
+    # These now run as stateful analysis with historical context in Analytics service
     
     def _build_enriched_message(self, cleaned: dict, analyses: dict, expiry: str) -> dict:
         """
@@ -404,6 +432,8 @@ class ProcessorService:
         options_list = []
         for opt in cleaned['options']:
             opt_dict = opt.model_dump()
+            # Rename fields to match Avro schema (oi_change -> change_oi)
+            opt_dict['change_oi'] = opt_dict.pop('oi_change', 0)
             options_list.append(opt_dict)
         
         # Calculate data quality metrics
@@ -422,7 +452,8 @@ class ProcessorService:
             'futures': futures_dict,
             'options': options_list,
             
-            'analyses': analyses,
+            # Serialize analyses values to JSON strings for Avro map<string>
+            'analyses': {k: json.dumps(v) if not isinstance(v, str) else v for k, v in analyses.items()},
             
             'data_quality': {
                 'total_options': total_options,
@@ -433,13 +464,26 @@ class ProcessorService:
         }
     
     async def run(self):
-        """Main run loop"""
+        """Main run loop with consumer group support"""
         self.running = True
         logger.info("Processor Service running...")
         
         try:
-            # Start consumption using shared consumer (blocks until stopped)
-            await self.consumer.consume(self.process_message)
+            # BREAKING CHANGE: Iterate over consumer messages directly
+            # Consumer groups automatically distribute partitions across instances
+            async for message in self.consumer:
+                # Log partition rebalancing
+                current_partitions = self.consumer.assignment()
+                if not hasattr(self, '_logged_partitions') or self._logged_partitions != current_partitions:
+                    self._logged_partitions = current_partitions
+                    logger.info(f"Processing partitions: {[p.partition for p in current_partitions]}")
+                
+                # BREAKING CHANGE: Extract trace context from Kafka message headers
+                trace_context = extract_trace_from_kafka_headers(message.headers)
+                
+                # Process message with trace context
+                await self.process_message(message.value, trace_context=trace_context)
+                
         except asyncio.CancelledError:
             logger.info("Processor Service cancelled")
         finally:
