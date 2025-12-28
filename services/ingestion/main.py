@@ -279,14 +279,33 @@ async def process_instrument_with_resilience(
                     target_expiry = future_expiries[0]  # Nearest future expiry
                     logger.debug(f"Got expiry for {symbol}: {target_expiry} (from {len(future_expiries)} future expiries)")
                 
+                # Convert expiry to Dhan API format (old year: 2015-2020)
+                # Dhan API uses timestamps from 2015-2020 range for the same month/day
+                from datetime import datetime
+                current_year = datetime.now().year
+                exp_dt = datetime.fromtimestamp(target_expiry)
+                
+                if exp_dt.year >= current_year:
+                    # Convert to old year format (2025 -> 2015, 2026 -> 2016, etc.)
+                    old_year = exp_dt.year - 10
+                    try:
+                        old_exp_dt = exp_dt.replace(year=old_year)
+                    except ValueError:
+                        # Handle Feb 29 in non-leap years
+                        old_exp_dt = exp_dt.replace(year=old_year, day=28)
+                    api_expiry = int(old_exp_dt.timestamp())
+                    logger.debug(f"Converted expiry for {symbol}: {exp_dt.strftime('%Y-%m-%d')} -> {old_exp_dt.strftime('%Y-%m-%d')} (API format)")
+                else:
+                    api_expiry = target_expiry  # Already in old year format
+                
                 # 2. Fetch Option Chain with circuit breaker protection
                 with tracer.start_as_current_span("fetch_option_chain") as span:
                     span.set_attribute("symbol", symbol)
-                    span.set_attribute("expiry", target_expiry)
+                    span.set_attribute("expiry", api_expiry)
                     
                     chain_response = await dhan_client.fetch_option_chain(
                         symbol_id,
-                        target_expiry,
+                        api_expiry,  # Use API-format expiry
                         segment_id
                     )
                     

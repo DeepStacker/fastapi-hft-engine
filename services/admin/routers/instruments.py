@@ -3,7 +3,7 @@ Instruments Management Router
 
 Handles instrument CRUD operations and activation for ingestion.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import List
 from sqlalchemy import select, update, delete
 from services.admin.auth import get_current_admin_user
@@ -11,6 +11,7 @@ from services.admin.models import Instrument, InstrumentCreate, InstrumentUpdate
 from core.database.pool import db_pool, read_session, write_session
 from core.database.models import InstrumentDB
 from services.admin.services.cache import cache_service
+from services.admin.services.audit import audit_service
 import logging
 import json
 
@@ -118,6 +119,7 @@ async def get_instrument(
 @router.post("", response_model=Instrument)
 async def create_instrument(
     instrument: InstrumentCreate,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """Create a new instrument"""
@@ -149,6 +151,15 @@ async def create_instrument(
         await cache_service.invalidate_pattern("instruments:list:*")
         await notify_instrument_update()
         
+        # Audit
+        await audit_service.log(
+            action="CREATE",
+            resource_type="INSTRUMENT",
+            resource_id=str(new_instrument.id),
+            details={"symbol": instrument.symbol, "symbol_id": instrument.symbol_id, "segment_id": instrument.segment_id},
+            ip_address=request.client.host if request.client else None
+        )
+        
         return Instrument(
             id=new_instrument.id,
             symbol_id=new_instrument.symbol_id,
@@ -164,6 +175,7 @@ async def create_instrument(
 async def update_instrument(
     instrument_id: int,
     instrument: InstrumentUpdate,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """Update an instrument"""
@@ -211,6 +223,7 @@ async def update_instrument(
 @router.delete("/{instrument_id}")
 async def delete_instrument(
     instrument_id: int,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """Delete an instrument"""
@@ -235,12 +248,22 @@ async def delete_instrument(
         await cache_service.invalidate_pattern("instruments:list:*")
         await notify_instrument_update()
         
+        # Audit
+        await audit_service.log(
+            action="DELETE",
+            resource_type="INSTRUMENT",
+            resource_id=str(instrument_id),
+            details={"symbol": instrument.symbol},
+            ip_address=request.client.host if request.client else None
+        )
+        
         return {"message": f"Instrument {instrument_id} deleted successfully"}
 
 
 @router.post("/{instrument_id}/activate")
 async def activate_instrument(
     instrument_id: int,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """Activate an instrument for ingestion"""
@@ -259,12 +282,21 @@ async def activate_instrument(
         await cache_service.invalidate_pattern("instruments:list:*")
         await notify_instrument_update()
         
+        # Audit
+        await audit_service.log(
+            action="ACTIVATE",
+            resource_type="INSTRUMENT",
+            resource_id=str(instrument_id),
+            ip_address=request.client.host if request.client else None
+        )
+        
         return {"message": f"Instrument {instrument_id} activated"}
 
 
 @router.post("/{instrument_id}/deactivate")
 async def deactivate_instrument(
     instrument_id: int,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """Deactivate an instrument"""
@@ -282,6 +314,14 @@ async def deactivate_instrument(
         await cache_service.delete(f"instruments:detail:{instrument_id}")
         await cache_service.invalidate_pattern("instruments:list:*")
         await notify_instrument_update()
+        
+        # Audit
+        await audit_service.log(
+            action="DEACTIVATE",
+            resource_type="INSTRUMENT",
+            resource_id=str(instrument_id),
+            ip_address=request.client.host if request.client else None
+        )
         
         return {"message": f"Instrument {instrument_id} deactivated"}
 

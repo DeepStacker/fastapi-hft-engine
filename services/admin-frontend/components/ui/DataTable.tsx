@@ -14,7 +14,7 @@ import { Input } from './Input';
 import { cn } from '@/lib/utils';
 
 export interface Column<T> {
-  header: string;
+  header: React.ReactNode;
   accessorKey?: keyof T;
   cell?: (item: T) => React.ReactNode;
   className?: string;
@@ -37,8 +37,11 @@ export function DataTable<T extends Record<string, any>>({
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: keyof T; direction: 'asc' | 'desc' } | null>(null);
 
+  // Ensure data is always an array
+  const safeData = data || [];
+
   // Filter
-  const filteredData = data.filter((item) => {
+  const filteredData = safeData.filter((item) => {
     if (!searchKey || !searchTerm) return true;
     const value = item[searchKey];
     return String(value).toLowerCase().includes(searchTerm.toLowerCase());

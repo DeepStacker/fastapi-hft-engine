@@ -37,7 +37,7 @@ const SplitView = lazy(() => import("./pages/SplitView"));
 const Screeners = lazy(() => import("./pages/Screeners"));
 const Calculators = lazy(() => import("./pages/Calculators"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-const Admin = lazy(() => import("./pages/Admin"));
+
 
 import { activateServices } from "./services/healthCheck";
 
@@ -132,7 +132,7 @@ function App() {
                       <Route path="/calculators" element={<Calculators />} />
                       <Route path="/position-sizing" element={<PositionSizing />} />
                       <Route path="/tca" element={<Tca />} />
-                      <Route path="/admin" element={<Admin />} />
+
                     </Route>
                   </Route>
                   {/* 404 Route */}

@@ -40,11 +40,12 @@ services:
   redis:
     image: redis:7-alpine
     container_name: stockify-redis
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "2gb", "--maxmemory-policy", "allkeys-lru"]
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     networks:
       - stockify-network
     healthcheck:
@@ -113,6 +114,50 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # ============================================
+  # GATEWAY
+  # ============================================
+
+  gateway:
+    image: nginx:alpine
+    container_name: stockify-gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - admin-service
+      - ocd-backend
+    networks:
+      - stockify-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: stockify-pgbouncer
+    environment:
+      DB_USER: ${POSTGRES_USER:-stockify}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      LISTEN_PORT: 6432
+      AUTH_TYPE: plain
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 20
+    ports:
+      - "6432:6432"
+    depends_on:
+      - timescaledb
+    networks:
+      - stockify-network
+    restart: unless-stopped
 
   # ============================================
   # DATABASE INITIALIZATION
@@ -322,7 +367,8 @@ services:
       - .:/app
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-stockify}:${POSTGRES_PASSWORD}@pgbouncer:6432/${POSTGRES_DB:-stockify_db}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
       ENVIRONMENT: production
@@ -333,8 +379,6 @@ services:
         condition: service_healthy
       timescaledb:
         condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
     networks:
       - stockify-network
     healthcheck:
@@ -360,13 +404,26 @@ services:
   admin-frontend:
     build:
       context: ./services/admin-frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: stockify-admin-frontend
     environment:
-      - NEXT_PUBLIC_API_URL=http://admin-service:8001
-      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost/api/admin
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
     ports:
       - "3000:3000"
+    volumes:
+      - ./services/admin-frontend/app:/app/app
+      - ./services/admin-frontend/components:/app/components
+      - ./services/admin-frontend/lib:/app/lib
+      - ./services/admin-frontend/public:/app/public
+      - ./services/admin-frontend/styles:/app/styles
+      - ./services/admin-frontend/next.config.js:/app/next.config.js
+      - ./services/admin-frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./services/admin-frontend/postcss.config.mjs:/app/postcss.config.mjs
+      - ./services/admin-frontend/tsconfig.json:/app/tsconfig.json
+      - /app/node_modules
+      - /app/.next
     depends_on:
       - admin-service
     networks:
@@ -414,26 +471,26 @@ services:
   # ============================================
 
   # OCD's dedicated PostgreSQL (for users, sessions, etc.)
-  ocd-postgres:
-    image: postgres:15-alpine
-    container_name: stockify-ocd-postgres
-    environment:
-      POSTGRES_USER: stockify
-      POSTGRES_PASSWORD: stockify_secure_password
-      POSTGRES_DB: stockify
-    ports:
-      - "5433:5432"  # Different port to avoid conflict with TimescaleDB
-    volumes:
-      - ocd_postgres_data:/var/lib/postgresql/data
-      - ./services/ocd-backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stockify"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - stockify-network
-    restart: unless-stopped
+  # ocd-postgres:
+  #   image: postgres:15-alpine
+  #   container_name: stockify-ocd-postgres
+  #   environment:
+  #     POSTGRES_USER: stockify
+  #     POSTGRES_PASSWORD: stockify_secure_password
+  #     POSTGRES_DB: stockify
+  #   ports:
+  #     - "5433:5432"  # Different port to avoid conflict with TimescaleDB
+  #   volumes:
+  #     - ocd_postgres_data:/var/lib/postgresql/data
+  #     - ./services/ocd-backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U stockify"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - stockify-network
+  #   restart: unless-stopped
 
   ocd-backend:
     build:
@@ -444,7 +501,7 @@ services:
       - "8000:8000"
     environment:
       # Database (OCD's dedicated postgres for user data)
-      DATABASE_URL: postgresql+asyncpg://stockify:stockify_secure_password@ocd-postgres:5432/stockify
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-stockify}:${POSTGRES_PASSWORD}@pgbouncer:6432/${POSTGRES_DB:-stockify_db}
       # Redis (using HFT's Redis for caching AND market data)
       REDIS_URL: redis://redis:6379/0
       REDIS_HOST: redis
@@ -463,11 +520,11 @@ services:
       - ./services/ocd-backend/app:/app/app
       - ./services/ocd-backend/credentials:/app/credentials
     depends_on:
-      ocd-postgres:
+      timescaledb:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: gunicorn --config gunicorn.conf.py app.main:app
+    command: sh -c "alembic upgrade head && gunicorn --config gunicorn.conf.py app.main:app"
     networks:
       - stockify-network
     healthcheck:

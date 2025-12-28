@@ -89,20 +89,6 @@ export const historicalService = {
         });
         return response.data;
     },
-
-    /**
-     * Save current option chain as historical snapshot (admin only)
-     * @param {Object} params - Parameters
-     * @param {string} params.symbol - Trading symbol
-     * @param {string} params.expiry - Expiry timestamp
-     * @returns {Promise<{success: boolean, message: string}>}
-     */
-    saveCurrentSnapshot: async ({ symbol, expiry }) => {
-        const response = await apiClient.post(
-            `${HISTORICAL_BASE}/save/${symbol}/${expiry}`
-        );
-        return response.data;
-    },
 };
 
 export default historicalService;

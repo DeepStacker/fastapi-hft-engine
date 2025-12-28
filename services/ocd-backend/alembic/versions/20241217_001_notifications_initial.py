@@ -28,7 +28,7 @@ def upgrade() -> None:
     op.create_table(
         'notifications',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True),
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('app_users.id', ondelete='CASCADE'), nullable=True, index=True),
         sa.Column('title', sa.String(100), nullable=False),
         sa.Column('message', sa.Text(), nullable=False),
         sa.Column('type', postgresql.ENUM('info', 'success', 'warning', 'error', 'trade', 'price', name='notificationtype', create_type=False), nullable=False, server_default='info'),

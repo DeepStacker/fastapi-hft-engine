@@ -3,7 +3,10 @@ Complete Database Models - Production Ready
 
 All models fully implemented with proper relationships, indexes, and constraints.
 """
-from sqlalchemy import Column, Integer, String, Float, BigInteger, Boolean, DateTime, Text, JSON, ForeignKey, Index, CheckConstraint, desc
+from sqlalchemy import Column, Integer, String, Float, BigInteger, Boolean, DateTime, Text, JSON, ForeignKey, Index, CheckConstraint, desc, Enum
+from sqlalchemy.dialects.postgresql import UUID
+from uuid import uuid4
+import enum
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from core.database.db import Base
@@ -648,4 +651,113 @@ def create_indexes():
     ]
     
     # These would be applied via Alembic migrations
-    pass
+    
+    
+class UserRole(str, enum.Enum):
+    """User role enumeration"""
+    USER = "user"
+    PREMIUM = "premium"
+    ADMIN = "admin"
+
+
+class AppUserDB(Base):
+    """
+    Application User (Trader) - Synced with ocd-backend
+    Matches the schema of ocd-backend's User model
+    """
+    __tablename__ = "app_users"
+    
+    # Primary key
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        index=True
+    )
+    
+    # Firebase authentication
+    firebase_uid = Column(
+        String(128),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+    
+    # User info
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    username = Column(String(80), unique=True, nullable=False, index=True)
+    full_name = Column(String(255), nullable=True)
+    profile_image = Column(Text, nullable=True)
+    
+    # Authentication status
+    is_email_verified = Column(Boolean, default=False, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    login_provider = Column(String(50), default="email", nullable=False)
+    
+    # Role and subscription
+    role = Column(
+        Enum(UserRole),
+        default=UserRole.USER,
+        nullable=False
+    )
+    subscription_expires = Column(DateTime(timezone=True), nullable=True)
+    
+    # Session tracking
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    last_logout = Column(DateTime(timezone=True), nullable=True)
+    
+    # Timestamps provided by Base/TimestampMixin in OCD, implementing manually here or using Mixin if available
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('ix_app_users_active_role', 'is_active', 'role'),
+        Index('ix_app_users_role_subscription', 'role', 'subscription_expires'),
+        Index('ix_app_users_last_login', 'last_login'),
+    )
+
+    def __repr__(self):
+        return f"<AppUser {self.username} ({self.email})>"
+
+
+
+class AdminAuditLogDB(Base):
+    """
+    Admin Audit Log - Tracks administrative actions for security and compliance.
+    """
+    __tablename__ = "admin_audit_logs"
+    
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        index=True
+    )
+    timestamp = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    
+    # Actor (Admin)
+    actor_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+        index=True
+    )
+    
+    # Action details
+    action = Column(String(50), nullable=False, index=True)  # CREATE, DELETE, UPDATE, LOGIN
+    resource_type = Column(String(50), nullable=False, index=True)  # USER, CONFIG, SYSTEM
+    resource_id = Column(String(128), nullable=True)
+    
+    # Context
+    details = Column(JSON, nullable=True)  # Changes, snapshots
+    ip_address = Column(String(45), nullable=True)
+    status = Column(String(20), default="success", nullable=False)  # success, failure
+    
+    # Indexes
+    __table_args__ = (
+        Index('ix_admin_audit_actor_time', 'actor_id', 'timestamp'),
+        Index('ix_admin_audit_resource', 'resource_type', 'resource_id'),
+    )
+    
+    def __repr__(self):
+        return f"<AdminAuditLog {self.action} on {self.resource_type} by {self.actor_id}>"
+

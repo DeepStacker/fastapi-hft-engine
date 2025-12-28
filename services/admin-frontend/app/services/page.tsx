@@ -7,6 +7,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { RefreshCw, Power } from 'lucide-react';
+import { toast } from '@/components/ui/Toaster';
 
 export default function ServicesPage() {
   const [services, setServices] = useState<any[]>([]);
@@ -97,23 +98,23 @@ export default function ServicesPage() {
       // Fire and forget - don't await
       api.restartService(name)
         .then(() => {
-          alert(`Service ${name} restart initiated`);
+          toast.success(`Service ${name} restart initiated`);
           setTimeout(loadServices, 2000);
         })
         .catch((error) => {
           console.error(`Error performing ${action}:`, error);
-          alert(`Failed to ${action} service`);
+          toast.error(`Failed to ${action} service`);
         });
     } else {
       // Fire and forget - don't await
       api.reloadServiceConfig(name)
         .then(() => {
-          alert(`Configuration reload triggered for ${name}`);
+          toast.success(`Configuration reload triggered for ${name}`);
           setTimeout(loadServices, 1000);
         })
         .catch((error) => {
           console.error(`Error performing ${action}:`, error);
-          alert(`Failed to ${action} service`);
+          toast.error(`Failed to ${action} service`);
         });
     }
   };

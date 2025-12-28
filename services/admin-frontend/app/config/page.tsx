@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { Switch } from '@/components/ui/Switch';
 import { RefreshCw, Save, X, Edit2, RotateCcw, Power } from 'lucide-react';
 import { TradingSchedule } from '@/components/TradingSchedule';
+import { toast } from '@/components/ui/Toaster';
 
 export default function ConfigPage() {
   const [allConfigs, setAllConfigs] = useState<any[]>([]);
@@ -86,9 +87,10 @@ export default function ConfigPage() {
     try {
       await api.updateConfig(key, value);
       setEditingKey(null);
+      toast.success(`Configuration ${key} updated`);
       loadConfigs();
     } catch (err: any) {
-      alert(`❌ Failed to update: ${err.message}`);
+      toast.error(`Failed to update: ${err.message}`);
     }
   };
 
@@ -96,9 +98,10 @@ export default function ConfigPage() {
     if (confirm('Initialize all default configs? This will not overwrite existing custom values.')) {
       try {
         await api.initializeConfigs();
+        toast.success('Configurations initialized');
         loadConfigs();
       } catch (err: any) {
-        alert(`❌ Failed: ${err.message}`);
+        toast.error(`Failed: ${err.message}`);
       }
     }
   };
@@ -107,9 +110,10 @@ export default function ConfigPage() {
     if (confirm(`Reset '${key}' to default value?`)) {
       try {
         await api.deleteConfig(key);
+        toast.success(`${key} reset to default`);
         loadConfigs();
       } catch (err: any) {
-        alert(`❌ Failed to reset: ${err.message}`);
+        toast.error(`Failed to reset: ${err.message}`);
       }
     }
   };
@@ -131,14 +135,14 @@ export default function ConfigPage() {
         // Fire and forget - don't await
         api.restartService(serviceName)
           .then(() => {
-            alert(`✅ Service ${serviceName} restarting...`);
+            toast.success(`Service ${serviceName} restarting...`);
           })
           .catch((err: any) => {
-            alert(`❌ Failed to restart: ${err.message}`);
+            toast.error(`Failed to restart: ${err.message}`);
           });
       }
     } else {
-      alert("Please restart the relevant service manually from the Services page.");
+      toast.info('Please restart the relevant service manually from the Services page.');
     }
   };
 

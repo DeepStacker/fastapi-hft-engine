@@ -24,7 +24,7 @@ class UserRole(str, enum.Enum):
 class User(Base, TimestampMixin):
     """User model for authentication and authorization"""
     
-    __tablename__ = "users"
+    __tablename__ = "app_users"
     
     # Composite indexes for common query patterns
     __table_args__ = (

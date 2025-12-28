@@ -1,7 +1,7 @@
 """
 API Router for Dhan API Token Management
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from typing import Optional
 import json
@@ -14,6 +14,7 @@ from sqlalchemy import select, update
 from datetime import datetime
 
 from services.admin.auth import get_current_admin_user
+from services.admin.services.audit import audit_service
 
 router = APIRouter(prefix="/dhan-tokens", tags=["Dhan API Tokens"])
 logger = get_logger("admin.dhan_tokens")
@@ -68,7 +69,8 @@ async def get_dhan_tokens(admin = Depends(get_current_admin_user)):
 
 @router.put("")
 async def update_dhan_tokens(
-    request: UpdateDhanTokensRequest,
+    data: UpdateDhanTokensRequest,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """
@@ -77,7 +79,7 @@ async def update_dhan_tokens(
     This will update the tokens in the database and they will be picked up
     by the ingestion service on next config refresh.
     """
-    if not request.auth_token and not request.authorization_token:
+    if not data.auth_token and not data.authorization_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least one token must be provided"
@@ -106,14 +108,14 @@ async def update_dhan_tokens(
                 session.add(new_config)
         
         # Update auth token
-        if request.auth_token:
-            await upsert_config("dhan_auth_token", request.auth_token)
+        if data.auth_token:
+            await upsert_config("dhan_auth_token", data.auth_token)
             updated_tokens.append("auth_token")
             logger.info(f"Dhan auth_token updated by admin {admin.username}")
         
         # Update authorization token
-        if request.authorization_token:
-            await upsert_config("dhan_authorization_token", request.authorization_token)
+        if data.authorization_token:
+            await upsert_config("dhan_authorization_token", data.authorization_token)
             updated_tokens.append("authorization_token")
             logger.info(f"Dhan authorization_token updated by admin {admin.username}")
         
@@ -121,8 +123,8 @@ async def update_dhan_tokens(
         
         # Get current token values for Redis write
         # Need to read current values for tokens not being updated
-        current_auth = request.auth_token
-        current_authz = request.authorization_token
+        current_auth = data.auth_token
+        current_authz = data.authorization_token
         
         if not current_auth or not current_authz:
             # Fetch existing values if only one token is being updated
@@ -168,6 +170,15 @@ async def update_dhan_tokens(
         except Exception as e:
             logger.error(f"Failed to update Redis cache: {e}")
             # Don't fail the request if cache update fails
+        
+        # Audit log
+        await audit_service.log(
+            action="UPDATE",
+            resource_type="DHAN_TOKENS",
+            resource_id="api_tokens",
+            details={"updated_tokens": updated_tokens},
+            ip_address=request.client.host if request.client else None
+        )
         
         return {
             "status": "success",

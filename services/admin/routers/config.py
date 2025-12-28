@@ -17,10 +17,12 @@ from services.admin.models import ConfigItem, ConfigUpdate
 from core.database.pool import db_pool, read_session, write_session
 from core.database.models import SystemConfigDB
 from services.admin.services.cache import cache_service
+from services.admin.services.audit import audit_service
 import redis.asyncio as redis
 from core.config.settings import get_settings
 import json
 import logging
+from fastapi import Request
 
 logger = logging.getLogger("stockify.admin.config")
 router = APIRouter(prefix="/config", tags=["configuration"])
@@ -423,6 +425,7 @@ async def get_config(
 async def update_config(
     key: str,
     config_update: ConfigUpdate,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """
@@ -481,6 +484,15 @@ async def update_config(
         except Exception as e:
             logger.error(f"Failed to broadcast config change: {e}")
         
+        # Log audit event
+        await audit_service.log(
+            action="UPDATE",
+            resource_type="CONFIG",
+            resource_id=key,
+            details={"new_value": config_update.value},
+            ip_address=request.client.host if request.client else None
+        )
+        
         return {
             "message": "Configuration updated successfully",
             "key": key,
@@ -530,6 +542,7 @@ async def initialize_configs(admin = Depends(get_current_admin_user)):
 @router.delete("/{key}")
 async def delete_config(
     key: str,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """Delete a custom configuration (resets to default)"""
@@ -542,6 +555,7 @@ async def delete_config(
         if not config:
             raise HTTPException(status_code=404, detail=f"Config '{key}' not found")
         
+        old_value = config.value
         await session.delete(config)
         await session.commit()
         
@@ -557,6 +571,15 @@ async def delete_config(
             await redis_client.close()
         except Exception as e:
             logger.error(f"Failed to broadcast config deletion: {e}")
+        
+        # Audit log
+        await audit_service.log(
+            action="DELETE",
+            resource_type="CONFIG",
+            resource_id=key,
+            details={"old_value": old_value},
+            ip_address=request.client.host if request.client else None
+        )
         
         return {"message": f"Configuration '{key}' deleted (reset to default)"}
 

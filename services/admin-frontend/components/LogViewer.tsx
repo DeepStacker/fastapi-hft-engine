@@ -145,6 +145,12 @@ export default function LogViewer({ containerId, containerName, onClose }: LogVi
               Download
             </button>
             <button
+              onClick={() => setLogs([])}
+              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
+            >
+              Clear
+            </button>
+            <button
               onClick={onClose}
               className="text-gray-400 hover:text-white transition-colors p-1"
             >
@@ -157,11 +163,27 @@ export default function LogViewer({ containerId, containerName, onClose }: LogVi
 
         {/* Log Content */}
         <div className="flex-1 overflow-auto p-4 font-mono text-sm bg-black text-gray-300">
-          {logs.map((log, index) => (
-            <div key={index} className="whitespace-pre-wrap break-all hover:bg-gray-900 px-1">
-              {log}
-            </div>
-          ))}
+          {logs.map((log, index) => {
+            // Determine log level color
+            const isError = /error|exception|fail|critical/i.test(log);
+            const isWarn = /warn|warning/i.test(log);
+            const isInfo = /info/i.test(log);
+            const isDebug = /debug/i.test(log);
+            
+            return (
+              <div 
+                key={index} 
+                className={`whitespace-pre-wrap break-all px-1 ${
+                  isError ? 'text-red-400 bg-red-900/20' :
+                  isWarn ? 'text-yellow-400 bg-yellow-900/10' :
+                  isDebug ? 'text-gray-500' :
+                  'text-gray-300'
+                }`}
+              >
+                {log}
+              </div>
+            );
+          })}
           <div ref={logsEndRef} />
         </div>
       </div>

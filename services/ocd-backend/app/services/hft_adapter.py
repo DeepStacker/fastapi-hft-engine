@@ -158,20 +158,105 @@ def _format_expiry_date(expiry: str, expiry_list: List[int] = None) -> str:
     except Exception:
         return datetime.now().strftime("%Y-%m-%d")
 
-
-# Symbol ID mapping (same as HFT Engine's instruments)
-SYMBOL_ID_MAP = {
+# Symbol ID mapping - defaults only, will be populated dynamically from Redis
+_DEFAULT_SYMBOL_ID_MAP = {
     "NIFTY": 13,
     "BANKNIFTY": 25,
     "FINNIFTY": 27,
     "MIDCPNIFTY": 442,
     "SENSEX": 51,
     "BANKEX": 52,
-    # Stocks can be added dynamically from instruments table
 }
 
-# Reverse mapping for ID to symbol
-ID_TO_SYMBOL = {v: k for k, v in SYMBOL_ID_MAP.items()}
+# Dynamic symbol maps - populated at runtime from database
+SYMBOL_ID_MAP: Dict[str, int] = _DEFAULT_SYMBOL_ID_MAP.copy()
+ID_TO_SYMBOL: Dict[int, str] = {v: k for k, v in SYMBOL_ID_MAP.items()}
+
+# Cache for symbol refresh timing
+_symbol_cache_last_refresh = 0
+_SYMBOL_CACHE_TTL = 300  # Refresh every 5 minutes
+
+
+async def _load_symbols_from_redis(redis_client: redis.Redis) -> bool:
+    """
+    Load symbol mappings from Redis cache (populated by ingestion service).
+    
+    The ingestion service stores active instruments in Redis with format:
+    - Key: instrument:active_list
+    - Value: JSON array of {symbol, symbol_id, segment_id}
+    
+    Returns True if symbols were loaded successfully.
+    """
+    global SYMBOL_ID_MAP, ID_TO_SYMBOL, _symbol_cache_last_refresh
+    
+    import time
+    current_time = time.time()
+    
+    # Check if refresh is needed
+    if current_time - _symbol_cache_last_refresh < _SYMBOL_CACHE_TTL:
+        return True  # Cache is fresh
+    
+    try:
+        # Try to get from ingestion service's cache key
+        instruments_data = await redis_client.get("instrument:active_list")
+        
+        if instruments_data:
+            instruments = json.loads(instruments_data)
+            
+            # Build new maps
+            new_symbol_map = {}
+            for inst in instruments:
+                symbol = inst.get("symbol", "").upper()
+                symbol_id = inst.get("symbol_id") or inst.get("security_id")
+                if symbol and symbol_id:
+                    new_symbol_map[symbol] = int(symbol_id)
+            
+            if new_symbol_map:
+                SYMBOL_ID_MAP.clear()
+                SYMBOL_ID_MAP.update(new_symbol_map)
+                ID_TO_SYMBOL.clear()
+                ID_TO_SYMBOL.update({v: k for k, v in SYMBOL_ID_MAP.items()})
+                _symbol_cache_last_refresh = current_time
+                logger.info(f"Loaded {len(SYMBOL_ID_MAP)} symbols from Redis cache")
+                return True
+        
+        # Fallback: Try to get from direct database query key
+        # (in case ingestion uses different cache pattern)
+        all_keys = []
+        async for key in redis_client.scan_iter("latest:*"):
+            all_keys.append(key)
+        
+        if all_keys:
+            for key in all_keys[:100]:  # Limit to avoid overload
+                try:
+                    data = await redis_client.get(key)
+                    if data:
+                        parsed = json.loads(data)
+                        symbol = parsed.get("symbol", "").upper()
+                        symbol_id = (
+                            parsed.get("symbol_id") or 
+                            parsed.get("context", {}).get("symbol_id") or
+                            int(key.split(":")[-1])
+                        )
+                        if symbol and symbol_id:
+                            SYMBOL_ID_MAP[symbol] = int(symbol_id)
+                except:
+                    continue
+            
+            if len(SYMBOL_ID_MAP) > len(_DEFAULT_SYMBOL_ID_MAP):
+                ID_TO_SYMBOL.clear()
+                ID_TO_SYMBOL.update({v: k for k, v in SYMBOL_ID_MAP.items()})
+                _symbol_cache_last_refresh = current_time
+                logger.info(f"Loaded {len(SYMBOL_ID_MAP)} symbols from Redis latest:* keys")
+                return True
+        
+        # If nothing found, keep defaults
+        logger.warning("No symbols found in Redis, using defaults")
+        return False
+        
+    except Exception as e:
+        logger.error(f"Failed to load symbols from Redis: {e}")
+        return False
 
 
 class HFTDataAdapter:
@@ -195,6 +280,7 @@ class HFTDataAdapter:
         self.redis_url = redis_url or getattr(settings, 'HFT_REDIS_URL', settings.REDIS_URL)
         self.redis_client: Optional[redis.Redis] = None
         self._connected = False
+        self._symbols_loaded = False
     
     async def connect(self) -> bool:
         """
@@ -214,6 +300,12 @@ class HFTDataAdapter:
             await self.redis_client.ping()
             self._connected = True
             logger.info(f"Connected to HFT Engine Redis at {self.redis_url}")
+            
+            # Load symbols on first connect
+            if not self._symbols_loaded:
+                await _load_symbols_from_redis(self.redis_client)
+                self._symbols_loaded = True
+            
             return True
         except Exception as e:
             logger.error(f"Failed to connect to HFT Redis: {e}")
@@ -230,6 +322,13 @@ class HFTDataAdapter:
     @property
     def is_connected(self) -> bool:
         return self._connected
+    
+    async def refresh_symbols(self):
+        """Force refresh of symbol mappings from Redis"""
+        global _symbol_cache_last_refresh
+        _symbol_cache_last_refresh = 0  # Reset cache
+        if self._connected and self.redis_client:
+            await _load_symbols_from_redis(self.redis_client)
     
     def _get_symbol_id(self, symbol: str) -> Optional[int]:
         """Get symbol ID from symbol name"""
@@ -253,7 +352,7 @@ class HFTDataAdapter:
         """
         symbol_id = self._get_symbol_id(symbol)
         if not symbol_id:
-            logger.warning(f"Unknown symbol: {symbol}")
+            logger.debug(f"Unknown symbol for expiry dates: {symbol}")
             return []
         
         try:
@@ -401,7 +500,7 @@ class HFTDataAdapter:
         """
         symbol_id = self._get_symbol_id(symbol)
         if not symbol_id:
-            logger.warning(f"Unknown symbol: {symbol}")
+            logger.debug(f"Unknown symbol for option chain: {symbol}")
             return {"error": f"Unknown symbol: {symbol}"}
         
         if not self._connected:

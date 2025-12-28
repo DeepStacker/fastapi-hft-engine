@@ -3,12 +3,13 @@ Kafka Management Router
 
 Handles Kafka topic and consumer group management.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import List
 from services.admin.auth import get_current_admin_user
 from services.admin.models import KafkaTopic, KafkaConsumerGroup, KafkaTopicCreate
 from services.admin.services.kafka_manager import kafka_manager
 from services.admin.services.cache import cache_service
+from services.admin.services.audit import audit_service
 import logging
 
 logger = logging.getLogger("stockify.admin.kafka")
@@ -43,6 +44,7 @@ async def list_topics(admin = Depends(get_current_admin_user)):
 @router.post("/topics", response_model=dict)
 async def create_topic(
     topic: KafkaTopicCreate,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """Create a new Kafka topic"""
@@ -56,6 +58,16 @@ async def create_topic(
         if success:
             # Invalidate cache
             await cache_service.delete("kafka:topics")
+            
+            # Audit log
+            await audit_service.log(
+                action="CREATE",
+                resource_type="KAFKA_TOPIC",
+                resource_id=topic.name,
+                details={"partitions": topic.partitions, "replication": topic.replication_factor},
+                ip_address=request.client.host if request.client else None
+            )
+            
             return {"message": f"Topic '{topic.name}' created successfully"}
         else:
             raise HTTPException(status_code=400, detail="Failed to create topic")
@@ -68,6 +80,7 @@ async def create_topic(
 @router.delete("/topics/{topic_name}")
 async def delete_topic(
     topic_name: str,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """Delete a Kafka topic"""
@@ -77,6 +90,15 @@ async def delete_topic(
         if success:
             # Invalidate cache
             await cache_service.delete("kafka:topics")
+            
+            # Audit log
+            await audit_service.log(
+                action="DELETE",
+                resource_type="KAFKA_TOPIC",
+                resource_id=topic_name,
+                ip_address=request.client.host if request.client else None
+            )
+            
             return {"message": f"Topic '{topic_name}' deleted successfully"}
         else:
             raise HTTPException(status_code=400, detail="Failed to delete topic")
@@ -111,10 +133,6 @@ async def list_consumer_groups(admin = Depends(get_current_admin_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-    except Exception as e:
-        return {"status": "unhealthy", "connected": False, "error": str(e)}
-
-
 # WebSocket for real-time Kafka updates
 from fastapi import WebSocket, WebSocketDisconnect, Query, status
 from jose import jwt, JWTError
@@ -146,9 +164,10 @@ async def websocket_kafka(
         return
 
     await websocket.accept()
+    connection_active = True
     
     try:
-        while True:
+        while connection_active:
             # Fetch real-time data
             try:
                 topics = await kafka_manager.list_topics()
@@ -157,14 +176,17 @@ async def websocket_kafka(
                 await websocket.send_json({
                     "type": "kafka_update",
                     "data": {
-                    "data": {
-                        "topics": topics,
-                        "groups": groups
-                    }
+                        "topics": topics or [],
+                        "groups": groups or []
                     }
                 })
+            except WebSocketDisconnect:
+                connection_active = False
+                break
             except Exception as e:
-                logger.error(f"Error fetching Kafka metrics: {e}")
+                # Only log if it's not a websocket close issue
+                if "close message" not in str(e).lower():
+                    logger.debug(f"Error fetching Kafka metrics: {e}")
             
             # Poll every 5 seconds (Kafka operations can be heavy)
             await asyncio.sleep(5)
@@ -172,4 +194,6 @@ async def websocket_kafka(
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        logger.error(f"WebSocket error in Kafka: {e}")
+        if "close message" not in str(e).lower():
+            logger.debug(f"WebSocket error in Kafka: {e}")
+

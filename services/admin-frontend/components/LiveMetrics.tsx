@@ -1,8 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { Activity, Cpu, HardDrive, Server, Wifi } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
+// Types
 interface MetricPoint {
   timestamp: number;
   value: number;
@@ -23,6 +28,10 @@ export default function LiveMetrics() {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const wsRef = useRef<WebSocket | null>(null);
 
+  // Calculate Aggregates
+  const totalCpu = Object.values(metrics).reduce((acc, curr) => acc + curr.currentCpu, 0);
+  const totalMemory = Object.values(metrics).reduce((acc, curr) => acc + curr.currentMemory, 0);
+
   useEffect(() => {
     // Get auth token
     const token = localStorage.getItem('access_token');
@@ -34,40 +43,58 @@ export default function LiveMetrics() {
       ? process.env.NEXT_PUBLIC_API_URL.replace(/^https?:\/\//, '')
       : 'localhost:8001';
       
+    // Use /metrics/ws (Nginx routes /api/admin/metrics -> admin-service/metrics)
+    // We assume NEXT_PUBLIC_API_URL is "http://localhost/api/admin"
+    // So host becomes "localhost/api/admin"
+    // URL: ws://localhost/api/admin/metrics/ws?token=...
     const wsUrl = `${protocol}//${host}/metrics/ws?token=${token}`;
     
+    let reconnectTimer: NodeJS.Timeout;
+
     const connect = () => {
       try {
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
-        ws.onopen = () => setStatus('connected');
+        ws.onopen = () => {
+             console.log("WS Connected");
+             setStatus('connected');
+        };
         
         ws.onmessage = (event) => {
-          const message = JSON.parse(event.data);
-          if (message.type === 'metrics_update') {
-            updateMetrics(message.data, message.timestamp);
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type === 'metrics_update') {
+              updateMetrics(message.data, message.timestamp);
+            }
+          } catch (e) {
+            console.error("Parse error", e);
           }
         };
 
-        ws.onclose = () => {
+        ws.onclose = (e) => {
+          console.log("WS Closed", e.code, e.reason);
           setStatus('disconnected');
-          // Reconnect after 5s
-          setTimeout(connect, 5000);
+          reconnectTimer = setTimeout(connect, 3000);
+        };
+
+        ws.onerror = (e) => {
+           console.error('WebSocket error:', e);
+           ws.close();
         };
 
       } catch (e) {
-        console.error('WebSocket error:', e);
+        console.error('WebSocket connection error:', e);
         setStatus('disconnected');
+        reconnectTimer = setTimeout(connect, 3000);
       }
     };
 
     connect();
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      if (wsRef.current) wsRef.current.close();
+      clearTimeout(reconnectTimer);
     };
   }, []);
 
@@ -77,8 +104,11 @@ export default function LiveMetrics() {
       
       data.forEach((item: any) => {
         const id = item.id;
+        
+        let containerEntry: ContainerMetrics;
+        
         if (!next[id]) {
-          next[id] = {
+          containerEntry = {
             id,
             name: item.name.replace('stockify-', ''),
             cpu: [],
@@ -87,21 +117,27 @@ export default function LiveMetrics() {
             currentMemory: 0,
             memoryLimit: 0
           };
+        } else {
+             // Clone existing entry deep enough for arrays
+             containerEntry = {
+                 ...next[id],
+                 cpu: [...next[id].cpu],
+                 memory: [...next[id].memory]
+             };
         }
         
-        // Add new points
-        const time = new Date(timestamp * 1000).toLocaleTimeString();
+        containerEntry.currentCpu = item.stats.cpu_percent;
+        containerEntry.currentMemory = item.stats.memory_usage;
+        containerEntry.memoryLimit = item.stats.memory_limit;
         
-        next[id].currentCpu = item.stats.cpu_percent;
-        next[id].currentMemory = item.stats.memory_usage;
-        next[id].memoryLimit = item.stats.memory_limit;
+        containerEntry.cpu.push({ timestamp, value: item.stats.cpu_percent });
+        containerEntry.memory.push({ timestamp, value: item.stats.memory_usage / 1024 / 1024 }); // MB
         
-        next[id].cpu.push({ timestamp, value: item.stats.cpu_percent });
-        next[id].memory.push({ timestamp, value: item.stats.memory_usage / 1024 / 1024 }); // MB
+        // Keep last 30 points
+        if (containerEntry.cpu.length > 30) containerEntry.cpu.shift();
+        if (containerEntry.memory.length > 30) containerEntry.memory.shift();
         
-        // Keep last 20 points
-        if (next[id].cpu.length > 20) next[id].cpu.shift();
-        if (next[id].memory.length > 20) next[id].memory.shift();
+        next[id] = containerEntry;
       });
       
       return next;
@@ -118,59 +154,112 @@ export default function LiveMetrics() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-gray-900">Live Container Metrics</h2>
-        <span className={`px-2 py-1 text-xs rounded-full ${
-          status === 'connected' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-        }`}>
-          {status === 'connected' ? 'Live' : 'Disconnected'}
-        </span>
+      {/* Overview Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Connection Status</CardTitle>
+            <Wifi className={`h-4 w-4 ${status === 'connected' ? 'text-green-500' : 'text-red-500'}`} />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold capitalize">{status}</div>
+             <p className="text-xs text-muted-foreground">Real-time WebSocket stream</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Services Monitored</CardTitle>
+            <Server className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{Object.keys(metrics).length}</div>
+            <p className="text-xs text-muted-foreground">Active Containers</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total CPU Load</CardTitle>
+                <Cpu className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{totalCpu.toFixed(1)}%</div>
+                <p className="text-xs text-muted-foreground">Across all services</p>
+            </CardContent>
+        </Card>
+
+        <Card>
+             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Memory</CardTitle>
+                <HardDrive className="h-4 w-4 text-muted-foreground" />
+             </CardHeader>
+             <CardContent>
+                <div className="text-2xl font-bold">{formatBytes(totalMemory)}</div>
+                <p className="text-xs text-muted-foreground">Combined RAM Usage</p>
+             </CardContent>
+        </Card>
       </div>
 
+      {/* Services Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {Object.values(metrics).map((container) => (
-          <div key={container.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-gray-800">{container.name}</h3>
-              <div className="text-xs text-gray-500 font-mono">{container.id.substring(0, 8)}</div>
-            </div>
-            
-            <div className="space-y-4">
-              {/* CPU Chart */}
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-500">CPU Usage</span>
-                  <span className="font-bold text-blue-600">{container.currentCpu.toFixed(1)}%</span>
+          <Card key={container.id} className="overflow-hidden border-t-4 border-t-primary/20 hover:shadow-md transition-shadow">
+             <CardHeader className="pb-2">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle className="text-lg">{container.name}</CardTitle>
+                        <CardDescription className="font-mono text-xs">{container.id.substring(0, 8)}</CardDescription>
+                    </div>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Running</Badge>
                 </div>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={container.cpu}>
-                      <Line type="monotone" dataKey="value" stroke="#2563eb" dot={false} strokeWidth={2} />
-                      <YAxis hide domain={[0, 'auto']} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+             </CardHeader>
+             <CardContent className="space-y-4">
+                 {/* CPU Chart */}
+                 <div>
+                    <div className="flex justify-between text-xs mb-2">
+                        <span className="text-muted-foreground flex items-center gap-1"><Cpu className="w-3 h-3"/> CPU</span>
+                        <span className="font-bold">{container.currentCpu.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-24 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={container.cpu}>
+                                <defs>
+                                    <linearGradient id={`colorCpu-${container.id}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <Area type="monotone" dataKey="value" stroke="#2563eb" fillOpacity={1} fill={`url(#colorCpu-${container.id})`} strokeWidth={2} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                 </div>
 
-              {/* Memory Chart */}
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-500">Memory</span>
-                  <span className="font-bold text-purple-600">
-                    {formatBytes(container.currentMemory)} / {formatBytes(container.memoryLimit)}
-                  </span>
-                </div>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={container.memory}>
-                      <Line type="monotone" dataKey="value" stroke="#9333ea" dot={false} strokeWidth={2} />
-                      <YAxis hide domain={[0, 'auto']} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          </div>
+                 {/* Memory Chart */}
+                 <div>
+                    <div className="flex justify-between text-xs mb-2">
+                        <span className="text-muted-foreground flex items-center gap-1"><HardDrive className="w-3 h-3"/> RAM</span>
+                        <span className="font-bold">
+                            {formatBytes(container.currentMemory)} <span className="text-muted-foreground font-normal">/ {formatBytes(container.memoryLimit)}</span>
+                        </span>
+                    </div>
+                    <div className="h-24 w-full">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={container.memory}>
+                                <defs>
+                                    <linearGradient id={`colorMem-${container.id}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#9333ea" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#9333ea" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <Area type="monotone" dataKey="value" stroke="#9333ea" fillOpacity={1} fill={`url(#colorMem-${container.id})`} strokeWidth={2} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                 </div>
+             </CardContent>
+          </Card>
         ))}
       </div>
     </div>

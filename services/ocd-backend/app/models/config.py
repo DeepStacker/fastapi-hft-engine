@@ -75,7 +75,7 @@ class SystemConfig(Base, TimestampMixin):
     # Admin who last updated this config
     updated_by = Column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
+        ForeignKey("app_users.id"),
         nullable=True
     )
     

@@ -103,6 +103,14 @@ async def get_current_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload",
             )
+        
+        # Verify user is an admin
+        if username not in ADMIN_USERS:
+             raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized as admin",
+            )
+            
         return AdminUser(username=username, is_admin=True)
     except JWTError as e:
         raise HTTPException(

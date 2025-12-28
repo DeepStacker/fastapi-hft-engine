@@ -2,6 +2,8 @@
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from uuid import UUID
+from enum import Enum
 
 # System Models
 class SystemStats(BaseModel):
@@ -111,8 +113,8 @@ class Instrument(BaseModel):
     symbol: str
     segment_id: int  # 0=Indices, 1=Stocks, 5=Commodities
     is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 class InstrumentCreate(BaseModel):
     symbol_id: int
@@ -161,3 +163,50 @@ class WebSocketConnection(BaseModel):
     connected_at: datetime
     messages_sent: int
     remote_addr: str
+
+# App User (Trader) Models
+class UserRole(str, Enum):
+    USER = "user"
+    PREMIUM = "premium"
+    ADMIN = "admin"
+
+class AppUser(BaseModel):
+    id: UUID
+    firebase_uid: str
+    email: str
+    username: str
+    full_name: Optional[str]
+    is_active: bool
+    role: UserRole
+    created_at: datetime
+    last_login: Optional[datetime]
+    
+    class Config:
+        from_attributes = True
+
+class AppUserUpdate(BaseModel):
+    is_active: Optional[bool] = None
+    role: Optional[UserRole] = None
+    full_name: Optional[str] = None
+
+class AppUserCreate(BaseModel):
+    email: str
+    username: str
+    firebase_uid: str
+    full_name: Optional[str] = None
+    role: UserRole = UserRole.USER
+
+class AuditLog(BaseModel):
+    id: UUID
+    timestamp: datetime
+    actor_id: Optional[UUID]
+    action: str
+    resource_type: str
+    resource_id: Optional[str]
+    details: Optional[Dict[str, Any]]
+    ip_address: Optional[str]
+    status: str
+
+    class Config:
+        from_attributes = True
+

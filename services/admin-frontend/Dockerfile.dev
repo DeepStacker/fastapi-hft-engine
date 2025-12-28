@@ -1,0 +1,16 @@
+# Admin Frontend Development Dockerfile with Hot Reload
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Note: Source code is mounted as volume for hot reload
+# Don't copy source here - it's mounted in docker-compose.yml
+
+EXPOSE 3000
+
+# Run dev server with hot reload
+CMD ["npm", "run", "dev"]

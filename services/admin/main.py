@@ -22,7 +22,9 @@ from services.admin.routers import (
     logs_router,
     metrics_router,
     deployment_router,
-    dhan_tokens_router
+    dhan_tokens_router,
+    traders_router,
+    audit_router
 )
 
 # Import services for lifecycle management
@@ -67,7 +69,9 @@ admin_app.include_router(docker_router)
 admin_app.include_router(logs_router)
 admin_app.include_router(metrics_router)
 admin_app.include_router(deployment_router)
-admin_app.include_router(dhan_tokens_router)  # Dhan API token management
+admin_app.include_router(dhan_tokens_router)
+admin_app.include_router(traders_router)
+admin_app.include_router(audit_router)
 
 # Root endpoint
 @admin_app.get("/")

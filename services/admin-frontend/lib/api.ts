@@ -105,6 +105,17 @@ export const api = {
   // SQL Query
   executeQuery: (query: string, readOnly: boolean = true) =>
     apiClient.post('/database/query', { query, read_only: readOnly }),
+  getSlowQueries: (limit: number = 20) =>
+    apiClient.get('/database/slow-queries', { params: { limit } }),
+
+  // Traders
+  getTraders: (params?: any) => apiClient.get('/traders', { params }),
+  updateTrader: (id: string, data: any) => apiClient.put(`/traders/${id}`, data),
+  createTrader: (data: any) => apiClient.post('/traders', data),
+  deleteTrader: (id: string) => apiClient.delete(`/traders/${id}`),
+
+  // Audit
+  getAuditLogs: (params?: any) => apiClient.get('/audit', { params }),
 
   // Dhan API Tokens
   getDhanTokens: () => apiClient.get('/dhan-tokens'),

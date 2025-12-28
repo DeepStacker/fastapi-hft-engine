@@ -29,20 +29,31 @@ class DockerManager:
         
         try:
             containers = self.client.containers.list(all=all)
-            return [
-                {
-                    "id": c.id[:12],
-                    "name": c.name,
-                    "image": c.image.tags[0] if c.image.tags else c.image.id[:12],
-                    "status": str(c.status),
-                    "state": c.attrs['State'].get('Status', 'unknown'),
-                    "started_at": c.attrs['State'].get('StartedAt'),
-                    "restart_count": c.attrs.get('RestartCount', 0),
-                    "created": c.attrs['Created'],
-                    "ports": c.attrs['NetworkSettings']['Ports'],
-                }
-                for c in containers
-            ]
+            results = []
+            for c in containers:
+                try:
+                    # Safely get image info without triggering API call if possible
+                    image_tag = "unknown"
+                    if c.attrs.get('Config', {}).get('Image'):
+                         image_tag = c.attrs['Config']['Image']
+                    elif c.tags:
+                         image_tag = c.tags[0]
+                    
+                    results.append({
+                        "id": c.id[:12],
+                        "name": c.name,
+                        "image": image_tag,
+                        "status": str(c.status),
+                        "state": c.attrs['State'].get('Status', 'unknown'),
+                        "started_at": c.attrs['State'].get('StartedAt'),
+                        "restart_count": c.attrs.get('RestartCount', 0),
+                        "created": c.attrs['Created'],
+                        "ports": c.attrs['NetworkSettings']['Ports'],
+                    })
+                except Exception as inner_e:
+                     logger.warning(f"Error processing container {c.id}: {inner_e}")
+                     continue
+            return results
         except Exception as e:
             logger.error(f"Error listing containers: {e}")
             return []

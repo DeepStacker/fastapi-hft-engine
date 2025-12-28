@@ -52,7 +52,7 @@ class Notification(Base, TimestampMixin):
     # User relationship (nullable for broadcast notifications)
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("app_users.id", ondelete="CASCADE"),
         nullable=True,
         index=True
     )

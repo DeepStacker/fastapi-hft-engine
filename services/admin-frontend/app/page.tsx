@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import LiveChart from '@/components/dashboard/LiveChart';
-import { Activity, Cpu, HardDrive, Network, Server } from 'lucide-react';
+import { Activity, Cpu, HardDrive, Network, Server, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DashboardSkeleton } from '@/components/ui/Skeleton';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -123,6 +124,18 @@ export default function Dashboard() {
     }
   };
 
+  if (loading && !stats) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground">Real-time system overview and health status.</p>
+        </div>
+        <DashboardSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -132,53 +145,65 @@ export default function Dashboard() {
 
       {/* Key Metrics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total CPU</CardTitle>
-            <Cpu className="h-4 w-4 text-muted-foreground" />
+            <div className="p-2 bg-blue-500/10 rounded-lg">
+              <Cpu className="h-4 w-4 text-blue-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.cpu_percent?.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-3xl font-bold">{stats?.cpu_percent?.toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
               {services.length} active services
             </p>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-purple-500/10 rounded-full blur-2xl" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Memory Usage</CardTitle>
-            <HardDrive className="h-4 w-4 text-muted-foreground" />
+            <div className="p-2 bg-purple-500/10 rounded-lg">
+              <HardDrive className="h-4 w-4 text-purple-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.memory_percent?.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-3xl font-bold">{stats?.memory_percent?.toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
               System wide allocation
             </p>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-green-500/10 via-green-500/5 to-transparent">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-green-500/10 rounded-full blur-2xl" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-            <Network className="h-4 w-4 text-muted-foreground" />
+            <div className="p-2 bg-green-500/10 rounded-lg">
+              <Network className="h-4 w-4 text-green-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.active_connections || 0}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-3xl font-bold">{stats?.active_connections || 0}</div>
+            <p className="text-xs text-muted-foreground mt-1">
               WebSocket connections
             </p>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-orange-500/10 via-orange-500/5 to-transparent">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/10 rounded-full blur-2xl" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Cache Hit Rate</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <div className="p-2 bg-orange-500/10 rounded-lg">
+              <Zap className="h-4 w-4 text-orange-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.cache_hit_rate?.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-3xl font-bold">{stats?.cache_hit_rate?.toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
               Redis performance
             </p>
           </CardContent>

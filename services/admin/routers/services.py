@@ -3,13 +3,14 @@ Services Management Router
 
 Handles microservice monitoring and management with real Docker stats.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import List
 from services.admin.auth import get_current_admin_user
 from services.admin.models import ServiceStatus
 from services.admin.services.metrics_collector import metrics_collector
 from services.admin.services.docker_manager import docker_manager
 from services.admin.services.cache import cache_service
+from services.admin.services.audit import audit_service
 import logging
 from datetime import datetime
 
@@ -23,14 +24,14 @@ KNOWN_SERVICES = [
     "processor",
     "storage",
     "realtime",
-    "grpc-server",
-    "admin"
+    "admin",
+    "ocd-backend"
 ]
 
 # Map service names to actual container names (without stockify- prefix if standard)
 # Default behavior assumes stockify-{service_name}
 SERVICE_CONTAINER_MAP = {
-    "grpc-server": "stockify-grpc",
+    "ocd-backend": "stockify-ocd-backend"
 }
 
 def get_container_name(service_name: str) -> str:
@@ -187,6 +188,7 @@ async def get_service(
 @router.post("/{service_name}/restart")
 async def restart_service(
     service_name: str,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """Restart a service using Docker API"""
@@ -202,6 +204,14 @@ async def restart_service(
             await cache_service.delete("services:list")
             await cache_service.delete(f"services:detail:{service_name}")
             
+            # Audit log
+            await audit_service.log(
+                action="RESTART",
+                resource_type="SERVICE",
+                resource_id=service_name,
+                ip_address=request.client.host if request.client else None
+            )
+            
             return {"message": f"Service {service_name} restarted successfully"}
         else:
             raise HTTPException(status_code=500, detail="Failed to restart container")
@@ -214,6 +224,7 @@ async def restart_service(
 @router.post("/{service_name}/reload-config")
 async def reload_service_config(
     service_name: str,
+    request: Request,
     admin = Depends(get_current_admin_user)
 ):
     """Trigger hot configuration reload for a service"""
@@ -222,6 +233,14 @@ async def reload_service_config(
     success = await config_reloader.trigger_reload(service_name)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to trigger config reload")
+    
+    # Audit log
+    await audit_service.log(
+        action="RELOAD_CONFIG",
+        resource_type="SERVICE",
+        resource_id=service_name,
+        ip_address=request.client.host if request.client else None
+    )
         
     return {"message": f"Configuration reload triggered for {service_name}"}
 

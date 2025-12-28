@@ -16,15 +16,19 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  Key
+  Key,
+  Users,
+  History
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Traders', href: '/traders', icon: Users },
   { name: 'Services', href: '/services', icon: Server },
-  { name: 'Logs', href: '/logs', icon: FileText },
+  { name: 'Audit Logs', href: '/audit', icon: History },
+  { name: 'System Logs', href: '/logs', icon: FileText },
   { name: 'Metrics', href: '/metrics', icon: Activity },
   { name: 'Orchestration', href: '/orchestration', icon: Box },
   { name: 'Kafka', href: '/kafka', icon: MessageSquare },

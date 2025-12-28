@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { Trash2, Plus, RefreshCw } from 'lucide-react';
+import { toast } from '@/components/ui/Toaster';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 export default function KafkaPage() {
   const [topics, setTopics] = useState<any[]>([]);
@@ -48,8 +50,9 @@ export default function KafkaPage() {
           try {
             const message = JSON.parse(event.data);
             if (message.type === 'kafka_update') {
-              setTopics(message.data.topics);
-              setConsumerGroups(message.data.groups);
+              // Only update if data is valid to prevent overwriting with empty
+              if (message.data?.topics) setTopics(message.data.topics);
+              if (message.data?.groups) setConsumerGroups(message.data.groups);
             }
           } catch (err) {
             console.error('Failed to parse WS message:', err);
@@ -86,8 +89,8 @@ export default function KafkaPage() {
         api.getKafkaTopics(),
         api.getKafkaConsumerGroups()
       ]);
-      setTopics(topicsRes.data);
-      setConsumerGroups(groupsRes.data);
+      setTopics(topicsRes.data || []);
+      setConsumerGroups(groupsRes.data || []);
     } catch (err) {
       console.error('Failed to load Kafka data:', err);
     } finally {
@@ -98,12 +101,12 @@ export default function KafkaPage() {
   const handleCreateTopic = async () => {
     try {
       await api.createKafkaTopic(newTopic);
-      alert('✅ Topic created successfully!');
+      toast.success('Topic created successfully!');
       setShowCreateModal(false);
       setNewTopic({ name: '', partitions: 3, replication_factor: 1 });
       loadData();
     } catch (err: any) {
-      alert(`❌ Failed to create topic: ${err.message}`);
+      toast.error(`Failed to create topic: ${err.message}`);
     }
   };
 
@@ -111,10 +114,10 @@ export default function KafkaPage() {
     if (confirm(`Delete topic "${name}"? This cannot be undone!`)) {
       try {
         await api.deleteKafkaTopic(name);
-        alert('✅ Topic deleted');
+        toast.success('Topic deleted');
         loadData();
       } catch (err: any) {
-        alert(`❌ Failed: ${err.message}`);
+        toast.error(`Failed: ${err.message}`);
       }
     }
   };
@@ -142,7 +145,7 @@ export default function KafkaPage() {
     { header: 'Group ID', accessorKey: 'group_id' },
     { 
       header: 'Topics', 
-      cell: (row: any) => row.topics.join(', ') 
+      cell: (row: any) => row.topics?.join(', ') || 'N/A' 
     },
     { header: 'Members', accessorKey: 'members' },
     { 
@@ -177,8 +180,8 @@ export default function KafkaPage() {
 
       <Tabs defaultValue="topics">
         <TabsList>
-          <TabsTrigger value="topics">Topics ({topics.length})</TabsTrigger>
-          <TabsTrigger value="consumers">Consumer Groups ({consumerGroups.length})</TabsTrigger>
+          <TabsTrigger value="topics">Topics ({topics?.length || 0})</TabsTrigger>
+          <TabsTrigger value="consumers">Consumer Groups ({consumerGroups?.length || 0})</TabsTrigger>
         </TabsList>
         
         <TabsContent value="topics">

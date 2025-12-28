@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import Shell from '@/components/layout/Shell';
-
-const inter = Inter({ subsets: ['latin'] });
+import { Toaster } from '@/components/ui/Toaster';
 
 export const metadata: Metadata = {
   title: 'Stockify Admin Dashboard',
@@ -13,10 +11,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased`}>
+      <body className="font-sans antialiased">
         <Shell>
           {children}
         </Shell>
+        <Toaster />
       </body>
     </html>
   );
