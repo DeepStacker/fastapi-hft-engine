@@ -98,9 +98,6 @@ def verify_firebase_token(token: str) -> Optional[Dict[str, Any]]:
     except ExpiredIdTokenError:
         _log_token_error_throttled("Firebase token expired")
         return None
-    except InvalidIdTokenError as e:
-        _log_token_error_throttled(f"Invalid Firebase token: {e}")
-        return None
     except Exception as e:
         _log_token_error_throttled(f"Error verifying Firebase token: {e}")
         # In development, try to decode token payload without verification

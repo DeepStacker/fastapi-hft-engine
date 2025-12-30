@@ -355,7 +355,7 @@ async def process_instrument_with_resilience(
                         "symbol_id": symbol_id,
                         "segment_id": segment_id,
                         "expiry": expiry_str,  # ISO date string for Avro
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(pytz.timezone('Asia/Kolkata')).isoformat(),
                         "option_chain": option_chain_serialized,
                         "futures_list": futures_list_serialized,
                         "global_context": {

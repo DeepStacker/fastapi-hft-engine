@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, TimestampMixin
+from app.models.user import User
 
 
 class NotificationType(str, enum.Enum):
@@ -76,9 +77,10 @@ class Notification(Base, TimestampMixin):
     
     # Optional extra data (JSON stored as text)
     extra_data = Column(Text, nullable=True)
-    
+
+
     # Relationship to user
-    user = relationship("User", backref="notifications", lazy="select")
+    user = relationship(User, backref="notifications", lazy="select")
     
     def to_dict(self) -> dict:
         """Convert to dictionary for API response"""

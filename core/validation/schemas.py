@@ -2,18 +2,42 @@
 Input Validation Schemas
 
 Pydantic models for request validation across all endpoints.
+Uses consolidated enums from core.schemas.
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
+
+# Import from single source of truth
+from core.schemas.enums import OptionType, TimeFrame
+from core.schemas.common import (
+    ErrorResponse,
+    HealthResponse as HealthCheckResponse,
+    PaginationParams,
+)
+
+
+# Re-export for backward compatibility
+__all__ = [
+    "OptionType",
+    "IntervalType",
+    "TierType",
+    "HistoricalOIRequest",
+    "PatternRequest",
+    "CreateAPIKeyRequest",
+    "UpdateAPIKeyRequest",
+    "AdminLoginRequest",
+    "PaginationParams",
+    "SymbolQueryParams",
+    "HealthCheckResponse",
+    "ErrorResponse",
+    "QueryParameters",
+    "OptionTypeValidator",
+]
+
+
 from enum import Enum
-
-
-class OptionType(str, Enum):
-    """Option type enum"""
-    CE = "CE"
-    PE = "PE"
 
 
 class IntervalType(str, Enum):
@@ -41,9 +65,10 @@ class HistoricalOIRequest(BaseModel):
     expiry: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$', description="Expiry date (YYYY-MM-DD)")
     from_time: datetime
     to_time: Optional[datetime] = None
-    interval: IntervalType = IntervalType.ONE_MIN
+    interval: str = Field(default="1m", pattern=r'^(1m|5m|15m|1h)$')
     
-    @validator('expiry')
+    @field_validator('expiry')
+    @classmethod
     def validate_expiry(cls, v):
         """Validate expiry is a valid date"""
         try:
@@ -52,13 +77,14 @@ class HistoricalOIRequest(BaseModel):
         except ValueError:
             raise ValueError('Invalid expiry date format. Use YYYY-MM-DD')
     
-    @validator('to_time', always=True)
-    def validate_time_range(cls, v, values):
+    @field_validator('to_time')
+    @classmethod
+    def validate_time_range(cls, v, info):
         """Validate time range"""
         if v is None:
             v = datetime.utcnow()
         
-        from_time = values.get('from_time')
+        from_time = info.data.get('from_time')
         if from_time and v < from_time:
             raise ValueError('to_time must be after from_time')
         
@@ -77,7 +103,8 @@ class PatternRequest(BaseModel):
     min_confidence: float = Field(50.0, ge=0, le=100, description="Minimum confidence (0-100)")
     pattern_type: Optional[str] = None
     
-    @validator('min_confidence')
+    @field_validator('min_confidence')
+    @classmethod
     def validate_confidence(cls, v):
         """Ensure confidence is in valid range"""
         if not 0 <= v <= 100:
@@ -91,12 +118,13 @@ class CreateAPIKeyRequest(BaseModel):
     key_name: str = Field(..., min_length=1, max_length=100, description="Key name")
     client_name: str = Field(..., min_length=1, max_length=100, description="Client name")
     contact_email: Optional[str] = Field(None, pattern=r'^[\w\.-]+@[\w\.-]+\.\w+$')
-    tier: TierType
+    tier: str = Field(..., pattern=r'^(free|basic|pro|enterprise)$')
     allowed_symbols: Optional[List[int]] = Field(None, description="Allowed symbol IDs")
     notes: Optional[str] = Field(None, max_length=500)
     expires_in_days: Optional[int] = Field(None, gt=0, le=3650, description="Expiry in days (max 10 years)")
     
-    @validator('allowed_symbols')
+    @field_validator('allowed_symbols')
+    @classmethod
     def validate_symbols(cls, v):
         """Validate symbol IDs"""
         if v is not None:
@@ -123,23 +151,6 @@ class AdminLoginRequest(BaseModel):
     password: str = Field(..., min_length=8, max_length=100)
 
 
-# Pagination Validation
-class PaginationParams(BaseModel):
-    """Standard pagination parameters"""
-    page: int = Field(1, ge=1, description="Page number (1-indexed)")
-    page_size: int = Field(50, ge=1, le=1000, description="Items per page (max 1000)")
-    
-    @property
-    def offset(self) -> int:
-        """Calculate offset from page"""
-        return (self.page - 1) * self.page_size
-    
-    @property
-    def limit(self) -> int:
-        """Get limit"""
-        return self.page_size
-
-
 # Symbol Query Validation
 class SymbolQueryParams(BaseModel):
     """Validation for symbol queries"""
@@ -148,19 +159,17 @@ class SymbolQueryParams(BaseModel):
     active_only: bool = Field(True, description="Return only active symbols")
 
 
-# Health Check Response
-class HealthCheckResponse(BaseModel):
-    """Health check response schema"""
-    status: str = Field(..., pattern="^(healthy|degraded|unhealthy)$")
-    timestamp: datetime
-    checks: dict
-    version: Optional[str] = None
+# Query Parameter Validators
+class QueryParameters(BaseModel):
+    """Base class for query parameter validation"""
+    
+    class Config:
+        extra = "forbid"  # Reject unknown query parameters
 
 
-# Error Response
-class ErrorResponse(BaseModel):
-    """Standard error response"""
-    error: str
-    status_code: int
-    timestamp: datetime
-    details: Optional[dict] = None
+class OptionTypeValidator(QueryParameters):
+    """Validate option type query parameter"""
+    option_type: Optional[OptionType] = Field(
+        None, 
+        description="Option type: CE or PE"
+    )

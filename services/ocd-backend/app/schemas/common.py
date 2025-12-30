@@ -1,16 +1,35 @@
 """
-Common Schemas - Shared response models and utilities
+Common Schemas - OCD Backend
+
+Re-exports core schemas and adds OCD-specific schemas.
+Import core.schemas for the canonical versions; this module
+provides backward compatibility and OCD-specific additions.
 """
 from typing import Any, Generic, List, Optional, TypeVar
 from datetime import datetime
 from pydantic import BaseModel, Field
+
+# Re-export from core schemas (single source of truth)
+from core.schemas.common import (
+    ErrorResponse,
+    PaginatedResponse as CorePaginatedResponse,
+    HealthResponse as CoreHealthResponse,
+    ResponseWrapper,
+    PaginationParams,
+    CursorPaginationParams,
+    TimeRangeParams,
+    BulkOperationResult,
+)
+
+# Local imports
+from app.utils.timezone import get_ist_now
 
 
 T = TypeVar("T")
 
 
 class ResponseModel(BaseModel, Generic[T]):
-    """Standard API response wrapper"""
+    """Standard API response wrapper - OCD specific"""
     success: bool = True
     message: Optional[str] = None
     data: Optional[T] = None
@@ -19,57 +38,57 @@ class ResponseModel(BaseModel, Generic[T]):
         from_attributes = True
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
-    """Paginated response for list endpoints"""
-    items: List[T]
-    total: int
-    page: int
-    page_size: int
-    pages: int
+# Extend core PaginatedResponse with backward-compatible properties
+class PaginatedResponse(CorePaginatedResponse[T], Generic[T]):
+    """
+    Paginated response with backward-compatible properties.
+    Extends core.schemas.common.PaginatedResponse.
+    """
+    pages: int = Field(default=0, description="Alias for total_pages")
     
     @property
     def has_next(self) -> bool:
-        return self.page < self.pages
+        return self.page < self.total_pages
     
     @property
     def has_prev(self) -> bool:
         return self.page > 1
-    
-    class Config:
-        from_attributes = True
 
 
-class ErrorResponse(BaseModel):
-    """Standard error response"""
-    success: bool = False
-    error_code: str
-    message: str
-    details: Optional[Any] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-    request_id: Optional[str] = None
-
-
+# OCD-specific health response with service checks
 class HealthResponse(BaseModel):
-    """Health check response"""
+    """Health check response with OCD-specific checks"""
     status: str = "healthy"
     version: str
     database: str = "connected"
     redis: str = "connected"
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=get_ist_now)
     uptime_seconds: Optional[float] = None
-
-
-class PaginationParams(BaseModel):
-    """Pagination query parameters"""
-    page: int = Field(default=1, ge=1, description="Page number")
-    page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
     
-    @property
-    def offset(self) -> int:
-        return (self.page - 1) * self.page_size
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
 class SortParams(BaseModel):
     """Sorting query parameters"""
     sort_by: Optional[str] = None
     sort_order: str = Field(default="asc", pattern="^(asc|desc)$")
+
+
+# Re-export everything for backward compatibility
+__all__ = [
+    # Core re-exports
+    "ErrorResponse",
+    "ResponseWrapper",
+    "PaginationParams",
+    "CursorPaginationParams",
+    "TimeRangeParams",
+    "BulkOperationResult",
+    # OCD-specific
+    "ResponseModel",
+    "PaginatedResponse",
+    "HealthResponse",
+    "SortParams",
+]

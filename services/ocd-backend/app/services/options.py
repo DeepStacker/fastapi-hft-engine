@@ -12,6 +12,12 @@ from app.cache.redis import RedisCache, CacheKeys
 from app.config.settings import settings
 from app.config.symbols import get_instrument_type
 from app.utils.data_processing import fetch_percentage
+from app.utils.timezone import get_ist_isoformat, get_ist_now
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from core.database.models import MarketSnapshotDB, OptionContractDB, InstrumentDB
+import asyncio
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +32,12 @@ class OptionsService:
     def __init__(
         self,
         dhan_client: DhanClient,
-        cache: Optional[RedisCache] = None
+        cache: Optional[RedisCache] = None,
+        db: Optional[AsyncSession] = None
     ):
         self.dhan = dhan_client
         self.cache = cache
+        self.db = db
         self.bsm = BSMService()
         self.greeks = GreeksService()
         self.reversal = ReversalService()
@@ -283,7 +291,7 @@ class OptionsService:
                 "std_dev": round(std_conf, 1)
             }
         
-        return {
+        result_data = {
             "symbol": symbol.upper(),
             "expiry": expiry,
             "spot": chain_data.get("spot", {}),
@@ -296,7 +304,7 @@ class OptionsService:
             "total_ce_oi": chain_data.get("total_call_oi", total_ce_oi),  # Use Dhan's OIC if available
             "total_pe_oi": chain_data.get("total_put_oi", total_pe_oi),  # Use Dhan's OIP if available
             "pcr": chain_data.get("pcr_ratio") or (round(total_pe_oi / total_ce_oi, 4) if total_ce_oi > 0 else 0),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": get_ist_isoformat(),
             "days_to_expiry": chain_data.get("dte") or T_days,  # Use Dhan's dte if available
             "dte": chain_data.get("dte", T_days),
             "instrument_type": instrument_type,
@@ -318,6 +326,119 @@ class OptionsService:
             # Data source indicator
             "_source": chain_data.get("_source", "dhan_api"),
         }
+        
+        # Persist snapshot (awaiting to avoid session race conditions)
+        if self.db:
+             try:
+                 await self.save_snapshot(result_data)
+             except Exception as e:
+                 logger.error(f"Snapshot persistence warning: {e}")
+             
+        return result_data
+        
+    async def save_snapshot(self, data: Dict[str, Any]):
+        """
+        Persist complete market snapshot to database.
+        Runs as background task to avoid blocking response.
+        """
+        if not self.db:
+            return
+
+        try:
+            symbol = data.get("symbol")
+            # DB expects naive timestamp (wall time)
+            timestamp = get_ist_now().replace(tzinfo=None)
+            
+            # 1. Get Instrument ID
+            query = select(InstrumentDB).where(InstrumentDB.symbol == symbol)
+            result = await self.db.execute(query)
+            instrument = result.scalars().first()
+            
+            if not instrument:
+                logger.warning(f"Instrument {symbol} not found in DB, skipping snapshot")
+                return
+                
+            symbol_id = instrument.symbol_id
+
+            # 2. Create Snapshot Header
+            snapshot = MarketSnapshotDB(
+                timestamp=timestamp,
+                symbol_id=symbol_id,
+                exchange="NSE", # Default
+                segment=data.get("instrument_type", "DERIVATIVE"),
+                ltp=data.get("spot", {}).get("ltp", 0),
+                volume=data.get("spot", {}).get("vol", 0),
+                oi=0, # Aggregate if needed
+                total_call_oi=data.get("total_ce_oi", 0),
+                total_put_oi=data.get("total_pe_oi", 0),
+                pcr_ratio=data.get("pcr", 0),
+                atm_iv=data.get("atmiv", 0),
+                atm_iv_change=data.get("atmiv_change", 0),
+                max_pain_strike=data.get("max_pain_strike", 0),
+                days_to_expiry=int(data.get("days_to_expiry", 0)),
+                spot_change=data.get("spot", {}).get("change", 0),
+                spot_change_pct=data.get("spot", {}).get("pchng", 0),
+                raw_data=json.dumps(data) # Store full JSON for backup
+            )
+            self.db.add(snapshot)
+            
+            # 3. Create Option Contracts
+            oc_data = data.get("oc", {})
+            expiry = str(data.get("expiry", ""))
+            
+            for strike_str, strike_data in oc_data.items():
+                strike_price = float(strike_data.get("strike", 0))
+                
+                # CE Leg
+                ce = strike_data.get("ce", {})
+                if ce:
+                    self.db.add(OptionContractDB(
+                        timestamp=timestamp,
+                        symbol_id=symbol_id,
+                        expiry=expiry,
+                        strike_price=strike_price,
+                        option_type="CE",
+                        ltp=ce.get("ltp", 0),
+                        volume=ce.get("volume", 0),
+                        oi=ce.get("oi", 0),
+                        oi_change=ce.get("oi_change", 0),
+                        iv=ce.get("iv", 0),
+                        delta=ce.get("optgeeks", {}).get("delta"),
+                        gamma=ce.get("optgeeks", {}).get("gamma"),
+                        theta=ce.get("optgeeks", {}).get("theta"),
+                        vega=ce.get("optgeeks", {}).get("vega"),
+                        buildup_name=ce.get("BuiltupName"),
+                        buildup_type=ce.get("btyp")
+                    ))
+                    
+                # PE Leg
+                pe = strike_data.get("pe", {})
+                if pe:
+                    self.db.add(OptionContractDB(
+                        timestamp=timestamp,
+                        symbol_id=symbol_id,
+                        expiry=expiry,
+                        strike_price=strike_price,
+                        option_type="PE",
+                        ltp=pe.get("ltp", 0),
+                        volume=pe.get("volume", 0),
+                        oi=pe.get("oi", 0),
+                        oi_change=pe.get("oi_change", 0),
+                        iv=pe.get("iv", 0),
+                        delta=pe.get("optgeeks", {}).get("delta"),
+                        gamma=pe.get("optgeeks", {}).get("gamma"),
+                        theta=pe.get("optgeeks", {}).get("theta"),
+                        vega=pe.get("optgeeks", {}).get("vega"),
+                        buildup_name=pe.get("BuiltupName"),
+                        buildup_type=pe.get("btyp")
+                    ))
+            
+            await self.db.commit()
+            logger.info(f"Persisted snapshot for {symbol} at {timestamp}")
+            
+        except Exception as e:
+            logger.error(f"Failed to persist snapshot: {e}")
+            await self.db.rollback()
     
     async def get_percentage_data(
         self,
@@ -667,7 +788,8 @@ class OptionsService:
 # Factory function for dependency injection
 async def get_options_service(
     dhan_client: DhanClient,
-    cache: Optional[RedisCache] = None
+    cache: Optional[RedisCache] = None,
+    db: Optional[AsyncSession] = None
 ) -> OptionsService:
     """Get options service instance"""
-    return OptionsService(dhan_client=dhan_client, cache=cache)
+    return OptionsService(dhan_client=dhan_client, cache=cache, db=db)

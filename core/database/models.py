@@ -259,7 +259,18 @@ class FutureContractDB(Base):
 
 class UserDB(Base):
     """
-    User accounts for API access
+    User accounts for API access.
+    
+    .. deprecated:: 2.0.0
+        This model is deprecated for new code. Use `AppUserDB` instead,
+        which supports Firebase authentication, user roles, and premium
+        subscriptions. `UserDB` is retained for backward compatibility
+        with existing admin services and API key management.
+        
+        Migration path:
+        - For new user-facing features, use AppUserDB
+        - For admin/internal API key access, continue using UserDB
+        - Both models can coexist until full migration is complete
     """
     __tablename__ = "users"
     
@@ -719,8 +730,53 @@ class AppUserDB(Base):
     def __repr__(self):
         return f"<AppUser {self.username} ({self.email})>"
 
-
-
+    @property
+    def is_admin(self) -> bool:
+        """Check if user is admin"""
+        return self.role == UserRole.ADMIN
+    
+    @property
+    def is_premium(self) -> bool:
+        """Check if user has active premium subscription"""
+        if self.role == UserRole.ADMIN:
+            return True
+        if self.role == UserRole.PREMIUM and self.subscription_expires:
+            # Handle timezone-aware vs naive comparison if needed
+            now = datetime.utcnow()
+            if self.subscription_expires.tzinfo:
+                 from datetime import timezone
+                 now = datetime.now(timezone.utc)
+            return self.subscription_expires > now
+        return False
+    
+    @property
+    def display_name(self) -> str:
+        """Get display name (full name or username)"""
+        return self.full_name or self.username
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary for API response"""
+        return {
+            "id": str(self.id),
+            "email": self.email,
+            "username": self.username,
+            "full_name": self.full_name,
+            "profile_image": self.profile_image,
+            "role": self.role.value,
+            "is_active": self.is_active,
+            "is_email_verified": self.is_email_verified,
+            "is_premium": self.is_premium,
+            "login_provider": self.login_provider,
+            "subscription_expires": (
+                self.subscription_expires.isoformat()
+                if self.subscription_expires else None
+            ),
+            "last_login": (
+                self.last_login.isoformat()
+                if self.last_login else None
+            ),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
 class AdminAuditLogDB(Base):
     """
     Admin Audit Log - Tracks administrative actions for security and compliance.

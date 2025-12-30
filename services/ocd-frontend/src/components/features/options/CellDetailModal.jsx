@@ -1,4 +1,5 @@
-import { memo, useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { XMarkIcon, ChartBarIcon, ArrowTrendingUpIcon, ArrowPathIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { analyticsService } from '../../../services/analyticsService';
@@ -258,6 +259,362 @@ const ComparisonLineChart = memo(({ ceData, peData, dataField = 'value', width =
 ComparisonLineChart.displayName = 'ComparisonLineChart';
 
 /**
+ * Interactive Multi-Series Line Chart - TradingView-like
+ * Features: Zoom, Pan, Crosshair, Tooltip, Smooth curves
+ */
+const MultiSeriesChart = memo(({ views, enabledViews, width = 900, height = 500, field = 'Value', strike = '' }) => {
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [panOffset, setPanOffset] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState(0);
+    const [mousePos, setMousePos] = useState(null);
+    const svgRef = useRef(null);
+
+    const viewConfig = {
+        ce: { label: 'Call', color: '#22c55e', shortLabel: 'CE' },
+        pe: { label: 'Put', color: '#ef4444', shortLabel: 'PE' },
+        ce_minus_pe: { label: 'CE−PE', color: '#3b82f6', shortLabel: 'CE-PE' },
+        pe_minus_ce: { label: 'PE−CE', color: '#06b6d4', shortLabel: 'PE-CE' },
+        ce_div_pe: { label: 'CE÷PE', color: '#f97316', shortLabel: 'CE÷PE' },
+        pe_div_ce: { label: 'PE÷CE', color: '#ec4899', shortLabel: 'PE÷CE' },
+    };
+
+    const activeSeries = Object.entries(enabledViews)
+        .filter(([_, enabled]) => enabled)
+        .map(([key]) => key)
+        .filter(key => views[key] && views[key].length > 0);
+
+    // Calculate visible data range based on zoom/pan
+    const allTimestamps = useMemo(() => {
+        const ts = new Set();
+        activeSeries.forEach(key => {
+            (views[key] || []).forEach(p => ts.add(p.timestamp));
+        });
+        return [...ts].sort();
+    }, [views, activeSeries]);
+
+    const totalPoints = allTimestamps.length;
+    const visiblePoints = Math.max(3, Math.floor(totalPoints / zoomLevel));
+    const maxPan = Math.max(0, totalPoints - visiblePoints);
+    const startIdx = Math.min(Math.max(0, Math.round(panOffset)), maxPan);
+    const endIdx = Math.min(totalPoints, startIdx + visiblePoints);
+    const visibleTimestamps = allTimestamps.slice(startIdx, endIdx);
+
+    // Filter views to only show visible data
+    const visibleViews = useMemo(() => {
+        const result = {};
+        activeSeries.forEach(key => {
+            result[key] = (views[key] || []).filter(p =>
+                visibleTimestamps.includes(p.timestamp)
+            );
+        });
+        return result;
+    }, [views, activeSeries, visibleTimestamps]);
+
+    // Mouse handlers
+    const handleWheel = useCallback((e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.2 : 0.2;
+        setZoomLevel(prev => Math.max(1, Math.min(10, prev + delta)));
+    }, []);
+
+    const handleMouseDown = useCallback((e) => {
+        setIsDragging(true);
+        setDragStart(e.clientX);
+    }, []);
+
+    const handleMouseMove = useCallback((e) => {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (rect) {
+            setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        }
+        if (isDragging) {
+            const dx = e.clientX - dragStart;
+            const sensitivity = totalPoints / (width * zoomLevel) * 2;
+            setPanOffset(prev => Math.max(0, Math.min(maxPan, prev - dx * sensitivity)));
+            setDragStart(e.clientX);
+        }
+    }, [isDragging, dragStart, totalPoints, width, zoomLevel, maxPan]);
+
+    const handleMouseUp = useCallback(() => {
+        setIsDragging(false);
+    }, []);
+
+    const handleMouseLeave = useCallback(() => {
+        setIsDragging(false);
+        setMousePos(null);
+    }, []);
+
+    const handleDoubleClick = useCallback(() => {
+        setZoomLevel(1);
+        setPanOffset(0);
+    }, []);
+
+    if (activeSeries.length === 0) {
+        return (
+            <div className="h-[500px] flex items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950 rounded-xl border border-slate-700/50">
+                <div className="text-center">
+                    <span className="text-5xl mb-3 block opacity-50">📊</span>
+                    <p className="text-slate-400 text-sm">Enable at least one view to see the chart</p>
+                </div>
+            </div>
+        );
+    }
+
+    const padding = { top: 50, right: 30, bottom: 50, left: 70 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    // Calculate Y scale from visible data
+    const allVisibleValues = [];
+    activeSeries.forEach(key => {
+        (visibleViews[key] || []).forEach(p => allVisibleValues.push(p.value));
+    });
+
+    if (allVisibleValues.length === 0) {
+        return (
+            <div className="h-[500px] flex items-center justify-center bg-slate-900 rounded-xl">
+                <p className="text-slate-400">No data available</p>
+            </div>
+        );
+    }
+
+    const minVal = Math.min(...allVisibleValues);
+    const maxVal = Math.max(...allVisibleValues);
+    const valueRange = maxVal - minVal || 1;
+    const paddedMin = minVal - valueRange * 0.08;
+    const paddedMax = maxVal + valueRange * 0.08;
+    const range = paddedMax - paddedMin;
+
+    const timestampToX = (ts) => {
+        const idx = visibleTimestamps.indexOf(ts);
+        if (idx === -1) return null;
+        return padding.left + (idx / Math.max(visibleTimestamps.length - 1, 1)) * chartWidth;
+    };
+
+    const valueToY = (val) => padding.top + ((paddedMax - val) / range) * chartHeight;
+
+    const generateSmoothPath = (data) => {
+        const filteredData = data.filter(p => visibleTimestamps.includes(p.timestamp));
+        if (!filteredData || filteredData.length < 2) {
+            if (filteredData && filteredData.length === 1) {
+                const x = timestampToX(filteredData[0].timestamp);
+                const y = valueToY(filteredData[0].value);
+                return x !== null ? `M${x},${y}` : '';
+            }
+            return '';
+        }
+        const points = filteredData.map(p => ({ x: timestampToX(p.timestamp), y: valueToY(p.value) })).filter(p => p.x !== null);
+        if (points.length < 2) return '';
+        let path = `M${points[0].x},${points[0].y}`;
+        for (let i = 0; i < points.length - 1; i++) {
+            const p0 = points[Math.max(0, i - 1)];
+            const p1 = points[i];
+            const p2 = points[i + 1];
+            const p3 = points[Math.min(points.length - 1, i + 2)];
+            const cp1x = p1.x + (p2.x - p0.x) / 6;
+            const cp1y = p1.y + (p2.y - p0.y) / 6;
+            const cp2x = p2.x - (p3.x - p1.x) / 6;
+            const cp2y = p2.y - (p3.y - p1.y) / 6;
+            path += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+        }
+        return path;
+    };
+
+    const yTicks = 6;
+    const yStep = range / (yTicks - 1);
+
+    const formatValue = (val) => {
+        if (Math.abs(val) >= 10000000) return `${(val / 10000000).toFixed(1)}Cr`;
+        if (Math.abs(val) >= 100000) return `${(val / 100000).toFixed(1)}L`;
+        if (Math.abs(val) >= 1000) return `${(val / 1000).toFixed(1)}K`;
+        return val.toFixed(val % 1 === 0 ? 0 : 2);
+    };
+
+    const getTimeLabel = (ts) => {
+        if (!ts) return '';
+        const date = new Date(ts);
+        return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+    };
+
+    // Find closest data point for crosshair
+    const getCrosshairData = () => {
+        if (!mousePos || mousePos.x < padding.left || mousePos.x > width - padding.right) return null;
+        const xRatio = (mousePos.x - padding.left) / chartWidth;
+        const idx = Math.round(xRatio * (visibleTimestamps.length - 1));
+        const ts = visibleTimestamps[idx];
+        if (!ts) return null;
+        const values = {};
+        activeSeries.forEach(key => {
+            const point = (visibleViews[key] || []).find(p => p.timestamp === ts);
+            if (point) values[key] = point.value;
+        });
+        return { timestamp: ts, x: timestampToX(ts), values };
+    };
+
+    const crosshair = getCrosshairData();
+
+    return (
+        <div className="relative bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 rounded-xl border border-slate-700/50 overflow-hidden select-none">
+            {/* Compact Legend */}
+            <div className="flex flex-wrap items-center justify-between px-4 py-2 border-b border-slate-700/50">
+                <div className="flex items-center gap-4">
+                    {activeSeries.map(key => {
+                        const cfg = viewConfig[key];
+                        const data = visibleViews[key] || [];
+                        const currentVal = data[data.length - 1]?.value;
+                        return (
+                            <div key={key} className="flex items-center gap-1.5">
+                                <div className="w-3 h-[2px] rounded-full" style={{ backgroundColor: cfg.color, boxShadow: `0 0 6px ${cfg.color}` }} />
+                                <span className="text-slate-400 text-xs">{cfg.label}</span>
+                                {currentVal !== undefined && (
+                                    <span className="text-xs font-semibold" style={{ color: cfg.color }}>
+                                        {formatValue(currentVal)}
+                                    </span>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                    <span>Zoom: {zoomLevel.toFixed(1)}x</span>
+                    <span className="text-slate-600">|</span>
+                    <span>Scroll to zoom • Drag to pan • Double-click to reset</span>
+                </div>
+            </div>
+
+            <svg
+                ref={svgRef}
+                width={width}
+                height={height}
+                className="block cursor-crosshair"
+                onWheel={handleWheel}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+                onDoubleClick={handleDoubleClick}
+            >
+                <defs>
+                    {activeSeries.map(key => (
+                        <filter key={`glow-${key}`} id={`glow-${key}`} x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur stdDeviation="2" result="blur" />
+                            <feFlood floodColor={viewConfig[key].color} floodOpacity="0.5" />
+                            <feComposite in2="blur" operator="in" />
+                            <feMerge>
+                                <feMergeNode />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+                    ))}
+                </defs>
+
+                {/* Grid */}
+                <g>
+                    {[...Array(yTicks)].map((_, i) => {
+                        const y = padding.top + (i / (yTicks - 1)) * chartHeight;
+                        return (
+                            <line key={i} x1={padding.left} y1={y} x2={width - padding.right} y2={y}
+                                stroke="#334155" strokeOpacity="0.3" strokeDasharray="2,4" />
+                        );
+                    })}
+                </g>
+
+                {/* Y-Axis Labels */}
+                {[...Array(yTicks)].map((_, i) => {
+                    const y = padding.top + (i / (yTicks - 1)) * chartHeight;
+                    const value = paddedMax - (i * yStep);
+                    return (
+                        <text key={i} x={padding.left - 10} y={y + 4} textAnchor="end" className="text-[10px] fill-slate-500">
+                            {formatValue(value)}
+                        </text>
+                    );
+                })}
+
+                {/* Zero line */}
+                {paddedMin < 0 && paddedMax > 0 && (
+                    <line x1={padding.left} y1={valueToY(0)} x2={width - padding.right} y2={valueToY(0)}
+                        stroke="#64748b" strokeWidth="1" strokeDasharray="4,4" strokeOpacity="0.6" />
+                )}
+
+                {/* Watermark */}
+                {strike && (
+                    <text x={width / 2} y={height / 2 + 10} textAnchor="middle"
+                        className="text-[50px] font-bold fill-slate-700/20 select-none pointer-events-none"
+                        style={{ fontFamily: 'system-ui' }}>
+                        NIFTY | {strike}
+                    </text>
+                )}
+
+                {/* Lines */}
+                {activeSeries.map(key => {
+                    const path = generateSmoothPath(views[key] || []);
+                    const data = visibleViews[key] || [];
+                    const lastPoint = data[data.length - 1];
+                    return (
+                        <g key={key}>
+                            <path d={path} fill="none" stroke={viewConfig[key].color} strokeWidth="2.5"
+                                strokeLinecap="round" strokeLinejoin="round" filter={`url(#glow-${key})`} />
+                            {lastPoint && timestampToX(lastPoint.timestamp) !== null && (
+                                <>
+                                    <circle cx={timestampToX(lastPoint.timestamp)} cy={valueToY(lastPoint.value)}
+                                        r="5" fill={viewConfig[key].color} filter={`url(#glow-${key})`} />
+                                    <circle cx={timestampToX(lastPoint.timestamp)} cy={valueToY(lastPoint.value)}
+                                        r="2" fill="#fff" />
+                                </>
+                            )}
+                        </g>
+                    );
+                })}
+
+                {/* Crosshair */}
+                {crosshair && (
+                    <g>
+                        <line x1={crosshair.x} y1={padding.top} x2={crosshair.x} y2={height - padding.bottom}
+                            stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" opacity="0.5" />
+                        {Object.entries(crosshair.values).map(([key, val]) => (
+                            <circle key={key} cx={crosshair.x} cy={valueToY(val)} r="4" fill={viewConfig[key].color} />
+                        ))}
+                    </g>
+                )}
+
+                {/* X-Axis */}
+                {visibleTimestamps.length > 0 && (
+                    <g className="text-[10px] fill-slate-500">
+                        <text x={padding.left} y={height - 15} textAnchor="start">{getTimeLabel(visibleTimestamps[0])}</text>
+                        {visibleTimestamps.length > 2 && (
+                            <text x={width / 2} y={height - 15} textAnchor="middle">
+                                {getTimeLabel(visibleTimestamps[Math.floor(visibleTimestamps.length / 2)])}
+                            </text>
+                        )}
+                        <text x={width - padding.right} y={height - 15} textAnchor="end">
+                            {getTimeLabel(visibleTimestamps[visibleTimestamps.length - 1])}
+                        </text>
+                    </g>
+                )}
+            </svg>
+
+            {/* Tooltip */}
+            {crosshair && (
+                <div className="absolute bg-slate-800/95 border border-slate-600 rounded-lg px-3 py-2 text-xs shadow-xl pointer-events-none"
+                    style={{ left: Math.min(crosshair.x + 10, width - 150), top: 60 }}>
+                    <div className="text-slate-300 font-medium mb-1">{getTimeLabel(crosshair.timestamp)}</div>
+                    {Object.entries(crosshair.values).map(([key, val]) => (
+                        <div key={key} className="flex items-center justify-between gap-4">
+                            <span style={{ color: viewConfig[key].color }}>{viewConfig[key].label}:</span>
+                            <span className="font-semibold text-white">{formatValue(val)}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+});
+
+MultiSeriesChart.displayName = 'MultiSeriesChart';
+
+
+/**
  * Horizontal Bar Chart for aggregate COI/OI visualization - LOC Calculator Style
  * CE bars extend LEFT, PE bars extend RIGHT, Strike labels in center
  */
@@ -474,18 +831,78 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
+    const DEFAULT_VIEWS = useMemo(() => ({
+        ce: true,
+        pe: true,
+        ce_minus_pe: false,
+        pe_minus_ce: false,
+        ce_div_pe: false,
+        pe_div_ce: false,
+    }), []);
+
+    const [enabledViews, setEnabledViews] = useState(DEFAULT_VIEWS);
+
+    // Reset views when modal opens (fresh start every time)
+    useEffect(() => {
+        if (isOpen) {
+            setEnabledViews(DEFAULT_VIEWS);
+        }
+    }, [isOpen, DEFAULT_VIEWS]);
+
+    // Lock body scroll when modal is open
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, []);
+
+    // Responsive chart sizing
+    const contentRef = useRef(null);
+    const [chartDimensions, setChartDimensions] = useState({ width: 900, height: 500 });
+
+    useEffect(() => {
+        if (!contentRef.current) return;
+
+        const updateDimensions = () => {
+            if (contentRef.current) {
+                const { clientWidth, clientHeight } = contentRef.current;
+                // Subtract padding
+                setChartDimensions({
+                    width: clientWidth - 16, // p-2 padding (8px * 2)
+                    height: clientHeight - 16
+                });
+            }
+        };
+
+        // Initial measurement
+        updateDimensions();
+
+        const observer = new ResizeObserver(updateDimensions);
+        observer.observe(contentRef.current);
+
+        return () => observer.disconnect();
+    }, [activeView, loading, error]);
+
+
+
+    // Toggle a view on/off
+    const toggleView = (viewName) => {
+        setEnabledViews(prev => ({ ...prev, [viewName]: !prev[viewName] }));
+    };
+
     // Use correct Redux selectors for symbol and expiry
     const symbol = useSelector(selectSelectedSymbol);
     const expiry = useSelector(selectSelectedExpiry);
 
     const { strike, side, field, value: _value, fullData } = cellData || {};
 
-    // Fetch time-series data for strike view
+    // Fetch multi-view time-series data for strike view
     const fetchStrikeData = useCallback(async () => {
-        console.log('[CellDetailModal] fetchStrikeData called with:', { symbol, strike, side, selectedField });
+        console.log('[CellDetailModal] fetchStrikeData (multi-view) called with:', { symbol, strike, side, selectedField });
 
-        if (!symbol || !strike || !side) {
-            console.warn('[CellDetailModal] Missing required params:', { symbol, strike, side });
+        if (!symbol || !strike) {
+            console.warn('[CellDetailModal] Missing required params:', { symbol, strike });
             return;
         }
 
@@ -493,23 +910,23 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
         setError(null);
 
         try {
-            console.log('[CellDetailModal] Calling analyticsService.getStrikeTimeSeries...');
-            const data = await analyticsService.getStrikeTimeSeries({
+            console.log('[CellDetailModal] Calling analyticsService.getMultiViewTimeSeries...');
+            const data = await analyticsService.getMultiViewTimeSeries({
                 symbol,
-                strike: parseFloat(strike), // Ensure strike is a number
-                optionType: side.toUpperCase(),
+                strike: parseFloat(strike),
+                expiry,
                 field: selectedField,
                 interval: '5m',
-                limit: 50,
             });
-            console.log('[CellDetailModal] API response:', data);
+            console.log('[CellDetailModal] Multi-view API response:', data);
             setTimeSeriesData(data);
+            setLoading(false);
         } catch (err) {
-            console.error('[CellDetailModal] Failed to fetch time-series:', err);
+            console.error('[CellDetailModal] Failed to fetch multi-view time-series:', err);
             setError(err.message || 'Failed to load data');
             setLoading(false);
         }
-    }, [symbol, strike, side, selectedField]);
+    }, [symbol, strike, selectedField, expiry]);
 
     // Fetch aggregate data for COi, Oi, Overall, PCR, Percentage views
     const fetchAggregateData = useCallback(async (viewType) => {
@@ -547,19 +964,51 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
         }
     }, [symbol, expiry]);
 
-    // Fetch on mount and view change
+    // Fetch on mount and view change, and set up polling
     useEffect(() => {
-        if (isOpen && cellData) {
+        let pollInterval;
+
+        const fetchData = () => {
             if (activeView === 'strike') {
-                if (field && ['OI', 'oi', 'oichng', 'ltp', 'iv', 'volume'].includes(field)) {
-                    setSelectedField(field === 'OI' ? 'oi' : field === 'oichng' ? 'oi' : field);
+                // Recognize all supported fields
+                const supportedFields = ['OI', 'oi', 'oichng', 'ltp', 'iv', 'volume', 'delta', 'theta', 'gamma', 'vega'];
+                if (field && supportedFields.includes(field)) {
+                    // Map field names: OI -> oi, oichng -> oi_change, rest pass through
+                    const fieldMap = { 'OI': 'oi', 'oichng': 'oi_change' };
+                    setSelectedField(fieldMap[field] || field);
                 }
                 fetchStrikeData();
             } else {
                 fetchAggregateData(activeView);
             }
+        };
+
+        if (isOpen && cellData) {
+            // Initial fetch
+            fetchData();
+
+            // Set up polling (every 60 seconds)
+            pollInterval = setInterval(() => {
+                // Don't poll if user is actively interacting (optional refinement)
+                // For now, just refresh to keep chart "growing"
+                if (activeView === 'strike') {
+                    fetchStrikeData();
+                } else {
+                    fetchAggregateData(activeView);
+                }
+            }, 60000);
         }
-    }, [isOpen, cellData, activeView, fetchStrikeData, fetchAggregateData, field]);
+
+        return () => {
+            if (pollInterval) clearInterval(pollInterval);
+        };
+    }, [isOpen, cellData, activeView, field, fetchStrikeData, fetchAggregateData]); // Dependencies for setup
+
+    // Keep fetch functions in ref or dependency array? 
+    // fetchStrikeData and fetchAggregateData are memoized via useCallback with dependencies.
+    // To safe, we include them in the effect dependencies if we were defining effect strictly.
+    // However, including them might cause re-triggers if they change. 
+    // Since they depend on state that might change (symbol, strike), it's correct to re-setup interval if those change.
 
     if (!isOpen || !cellData) return null;
 
@@ -569,11 +1018,14 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
 
     const fieldLabels = {
         oi: 'Open Interest',
+        oi_change: 'OI Change',
         ltp: 'Last Traded Price',
         iv: 'Implied Volatility',
         volume: 'Volume',
         delta: 'Delta',
         theta: 'Theta',
+        gamma: 'Gamma',
+        vega: 'Vega',
     };
 
     const ce = fullData?.ce || {};
@@ -609,74 +1061,50 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
         switch (activeView) {
             case 'strike':
                 return (
-                    <div className="space-y-4">
-                        {/* Field Selector */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                            {Object.entries(fieldLabels).map(([key, label]) => (
-                                <button
-                                    key={key}
-                                    onClick={() => {
-                                        setSelectedField(key);
-                                        fetchStrikeData();
-                                    }}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedField === key
-                                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'
-                                        }`}
-                                >
-                                    {label}
-                                </button>
-                            ))}
+                    <div className="h-full flex flex-col gap-4">
+                        {/* View Toggles - Clean, modern toggle row */}
+                        <div className="flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {[
+                                    { key: 'ce', label: 'CE', color: 'bg-green-500', hoverColor: 'hover:bg-green-600' },
+                                    { key: 'pe', label: 'PE', color: 'bg-red-500', hoverColor: 'hover:bg-red-600' },
+                                    { key: 'ce_minus_pe', label: 'CE−PE', color: 'bg-blue-500', hoverColor: 'hover:bg-blue-600' },
+                                    { key: 'pe_minus_ce', label: 'PE−CE', color: 'bg-purple-500', hoverColor: 'hover:bg-purple-600' },
+                                    { key: 'ce_div_pe', label: 'CE÷PE', color: 'bg-orange-500', hoverColor: 'hover:bg-orange-600' },
+                                    { key: 'pe_div_ce', label: 'PE÷CE', color: 'bg-pink-500', hoverColor: 'hover:bg-pink-600' },
+                                ].map(({ key, label, color, hoverColor }) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => toggleView(key)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${enabledViews[key]
+                                            ? `${color} text-white shadow-md transform scale-105`
+                                            : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                            }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
                             <button
                                 onClick={fetchStrikeData}
-                                className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
-                                title="Refresh"
+                                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                                title="Refresh Data"
                             >
-                                <ArrowPathIcon className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
+                                <ArrowPathIcon className={`w-5 h-5 text-gray-600 dark:text-gray-300 ${loading ? 'animate-spin' : ''}`} />
                             </button>
                         </div>
 
-                        {/* Chart Area */}
-                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-                            {/* Handle both array response and object with data property */}
-                            {(() => {
-                                // Extract data array from response - handle both formats
-                                const chartData = Array.isArray(timeSeriesData)
-                                    ? timeSeriesData
-                                    : (timeSeriesData?.data || []);
-
-                                console.log('[CellDetailModal] chartData for rendering:', chartData?.length, 'items');
-
-                                if (chartData && chartData.length > 0) {
-                                    return <MiniLineChart data={chartData} width={600} height={200} />;
-                                }
-                                return (
-                                    <div className="h-52 flex items-center justify-center text-gray-400">
-                                        No data available
-                                    </div>
-                                );
-                            })()}
+                        {/* Professional Multi-Series Chart - Responsive Wrapper */}
+                        <div className="flex-1 min-h-0 relative" ref={contentRef}>
+                            <MultiSeriesChart
+                                views={timeSeriesData?.views || {}}
+                                enabledViews={enabledViews}
+                                width={chartDimensions.width}
+                                height={chartDimensions.height}
+                                field={fieldLabels[selectedField] || selectedField}
+                                strike={strike}
+                            />
                         </div>
-
-                        {/* Summary Stats */}
-                        {timeSeriesData?.summary && (
-                            <div className="grid grid-cols-5 gap-2">
-                                {['min', 'max', 'avg', 'current', 'change_from_start'].map((key) => (
-                                    <div key={key} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 text-center">
-                                        <div className="text-[10px] text-gray-500 uppercase">
-                                            {key === 'change_from_start' ? 'Change' : key}
-                                        </div>
-                                        <div className={`text-sm font-semibold ${key === 'change_from_start'
-                                            ? (timeSeriesData.summary[key] >= 0 ? 'text-green-600' : 'text-red-600')
-                                            : ''
-                                            }`}>
-                                            {key === 'change_from_start' && timeSeriesData.summary[key] >= 0 ? '+' : ''}
-                                            {timeSeriesData.summary[key]?.toLocaleString()}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 );
 
@@ -832,121 +1260,62 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+
+
+    return createPortal(
+        <div className="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+                className="fixed inset-0 bg-black/70 backdrop-blur-md transition-opacity"
                 onClick={onClose}
             />
 
-            {/* Modal */}
-            <div className="flex min-h-full items-center justify-center p-4">
-                <div className="relative w-full max-w-3xl bg-white dark:bg-gray-900 rounded-2xl shadow-2xl transform transition-all overflow-hidden">
-                    {/* Professional Header - LOC Calculator Style */}
-                    <div className="relative overflow-hidden">
-                        {/* Gradient Background */}
-                        <div className={`absolute inset-0 ${side === 'ce'
-                            ? 'bg-gradient-to-r from-green-600/20 to-emerald-500/10'
-                            : 'bg-gradient-to-r from-red-600/20 to-rose-500/10'
-                            }`} />
-
-                        <div className="relative flex items-center justify-between p-4 border-b border-gray-200/50 dark:border-gray-700/50">
-                            <div className="flex items-center gap-4">
-                                {/* Pulse Icon with Glow */}
-                                <div className={`relative p-2.5 rounded-xl ${side === 'ce'
-                                    ? 'bg-green-500/20 text-green-500'
-                                    : 'bg-red-500/20 text-red-500'
-                                    }`}>
-                                    <ChartBarIcon className="w-5 h-5" />
-                                    <div className={`absolute inset-0 rounded-xl ${side === 'ce' ? 'bg-green-400' : 'bg-red-400'
-                                        } blur-md opacity-30`} />
-                                </div>
-
-                                {/* Title */}
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                        <span className={side === 'ce' ? 'text-green-600' : 'text-red-600'}>
-                                            {fieldLabels[selectedField] || 'Data'} Pulse
-                                        </span>
-                                        <span className="text-gray-400">—</span>
-                                        <span>{symbol} {strike} {sideLabel.toUpperCase()}</span>
-                                    </h3>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                        5-minute time-series • Real-time updates
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Quick Stats Badge */}
-                            {optData.ltp && (
-                                <div className="flex items-center gap-3 mr-8">
-                                    <div className="text-right">
-                                        <div className="text-xs text-gray-500">LTP</div>
-                                        <div className={`text-sm font-bold ${(optData.change || 0) >= 0 ? 'text-green-500' : 'text-red-500'
-                                            }`}>
-                                            ₹{optData.ltp?.toFixed(2)}
-                                        </div>
-                                    </div>
-                                    <div className={`px-2 py-1 rounded text-xs font-bold ${(optData.change || 0) >= 0
-                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                        }`}>
-                                        {(optData.change || 0) >= 0 ? '+' : ''}{optData.change?.toFixed(2) || '0.00'}
-                                    </div>
-                                </div>
-                            )}
-
+            {/* Modal - Fixed Center, Full Viewport Max */}
+            <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+                <div className="relative w-[90vw] h-[85vh] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl transform transition-all overflow-hidden flex flex-col pointer-events-auto border border-gray-200 dark:border-gray-700">
+                    {/* Header with Tabs and Close Button */}
+                    <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-2 bg-gray-50 dark:bg-gray-800">
+                        <div className="flex overflow-x-auto">
+                            {VIEW_TABS.map((tab) => {
+                                const Icon = tab.icon;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveView(tab.id)}
+                                        className={`px-3 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeView === tab.id
+                                            ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                            }`}
+                                        title={tab.description}
+                                    >
+                                        <Icon className="w-3.5 h-3.5" />
+                                        {tab.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="flex items-center gap-3 pl-4">
+                            <span className="text-[10px] text-gray-400 hidden sm:block">
+                                Updated At {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <div className="h-4 w-px bg-gray-300 dark:bg-gray-700 hidden sm:block"></div>
                             <button
                                 onClick={onClose}
-                                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                             >
-                                <XMarkIcon className="w-5 h-5 text-gray-500" />
+                                <XMarkIcon className="w-5 h-5 text-gray-500 hover:text-red-500 transition-colors" />
                             </button>
                         </div>
                     </div>
 
-                    {/* View Tabs - LOC Calculator style */}
-                    <div className="flex border-b border-gray-200 dark:border-gray-700 px-2 overflow-x-auto">
-                        {VIEW_TABS.map((tab) => {
-                            const Icon = tab.icon;
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveView(tab.id)}
-                                    className={`px-3 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${activeView === tab.id
-                                        ? 'border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-                                        }`}
-                                    title={tab.description}
-                                >
-                                    <Icon className="w-3.5 h-3.5" />
-                                    {tab.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    {/* Content */}
-                    <div className="p-4">
+                    {/* Content - Flex container for responsive chart */}
+                    <div className="flex-1 min-h-0 flex flex-col p-4 relative">
                         {renderContent()}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                        <span className="text-xs text-gray-400">
-                            {VIEW_TABS.find(t => t.id === activeView)?.description}
-                        </span>
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
-                        >
-                            Close
-                        </button>
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 });
 

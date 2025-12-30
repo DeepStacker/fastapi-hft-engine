@@ -4,14 +4,19 @@
  */
 
 // Supported trading symbols
+// NOTE: These are fallback values. The app should fetch symbols from /api/v1/symbols
+// Dynamic symbols are loaded via API at runtime, these are used as initial/offline fallback
 export const SYMBOLS = [
     { value: 'NIFTY', label: 'NIFTY 50' },
     { value: 'BANKNIFTY', label: 'Bank NIFTY' },
     { value: 'FINNIFTY', label: 'Fin NIFTY' },
     { value: 'MIDCPNIFTY', label: 'Midcap NIFTY' },
+    { value: 'SENSEX', label: 'SENSEX' },
+    { value: 'BANKEX', label: 'BANKEX' },
 ];
 
-export const SYMBOL_LIST = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY'];
+// Fallback symbol list - prefer API endpoint /api/v1/symbols/simple
+export const SYMBOL_LIST = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'BANKEX'];
 
 // Option table headers
 export const TABLE_HEADERS = {

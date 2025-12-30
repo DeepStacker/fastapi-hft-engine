@@ -1,52 +1,20 @@
 """
 Admin Database Models - Persistent Storage for Dashboard
 
-All admin features now have proper database backing.
+Contains ONLY admin-specific models that don't exist in core/database/models.py.
+For AlertRuleDB and SystemConfigDB, use core.database.models instead.
 """
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from core.database.db import Base
 
-
-class AlertRuleDB(Base):
-    """Alert rules for system monitoring"""
-    __tablename__ = "alert_rules"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False)
-    description = Column(Text, nullable=True)
-    
-    # Condition
-    metric = Column(String(50), nullable=False)  # cpu, memory, latency, error_rate
-    operator = Column(String(10), nullable=False)  # >, <, >=, <=, ==
-    threshold = Column(Float, nullable=False)
-    timeframe_minutes = Column(Integer, default=5)
-    
-    # Severity
-    severity = Column(String(20), nullable=False)  # critical, warning, info
-    
-    # Notifications
-    notification_channels = Column(JSON, nullable=False, default=list)  # ['email', 'sms', 'slack']
-    email_addresses = Column(JSON, nullable=True)
-    slack_webhook = Column(String(500), nullable=True)
-    
-    # Status
-    enabled = Column(Boolean, default=True, nullable=False)
-    last_triggered = Column(DateTime, nullable=True)
-    trigger_count = Column(Integer, default=0)
-    
-    # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = Column(Integer, ForeignKey('users.id'))
-    
-    def __repr__(self):
-        return f"<AlertRule(name={self.name}, metric={self.metric})>"
+# NOTE: AlertRuleDB is defined in core/database/models.py - import from there
+# NOTE: SystemConfigDB is defined in core/database/models.py - import from there
 
 
 class AlertHistoryDB(Base):
-    """Alert trigger history"""
+    """Alert trigger history - links to AlertRuleDB from models.py"""
     __tablename__ = "alert_history"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -67,41 +35,6 @@ class AlertHistoryDB(Base):
     
     def __repr__(self):
         return f"<AlertHistory(alert_id={self.alert_rule_id}, triggered={self.triggered_at})>"
-
-
-class SystemConfigDB(Base):
-    """System configuration storage"""
-    __tablename__ = "system_config"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    key = Column(String(100), unique=True, nullable=False, index=True)
-    value = Column(Text, nullable=False)
-    
-    # Metadata
-    description = Column(Text, nullable=True)
-    category = Column(String(50), nullable=False, index=True)  # performance, security, cache, etc.
-    data_type = Column(String(20), default='string')  # string, int, float, bool, json
-    
-    # Validation
-    min_value = Column(Float, nullable=True)
-    max_value = Column(Float, nullable=True)
-    allowed_values = Column(JSON, nullable=True)
-    
-    # Behavior
-    requires_restart = Column(Boolean, default=False)
-    is_secret = Column(Boolean, default=False)  # Don't show in UI
-    
-    # Version control
-    version = Column(Integer, default=1)
-    previous_value = Column(Text, nullable=True)
-    
-    # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    updated_by = Column(Integer, ForeignKey('users.id'))
-    
-    def __repr__(self):
-        return f"<SystemConfig(key={self.key}, value={self.value})>"
 
 
 class BackupLogDB(Base):
@@ -232,14 +165,11 @@ class DashboardWidgetDB(Base):
         return f"<DashboardWidget(title={self.title}, type={self.widget_type})>"
 
 
-# Migration to create these tables
 def create_admin_tables():
     """Create admin-specific tables"""
     from core.database.db import engine
     Base.metadata.create_all(bind=engine, tables=[
-        AlertRuleDB.__table__,
         AlertHistoryDB.__table__,
-        SystemConfigDB.__table__,
         BackupLogDB.__table__,
         PerformanceBenchmarkDB.__table__,
         ScheduledTaskDB.__table__,

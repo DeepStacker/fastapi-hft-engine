@@ -14,6 +14,7 @@ from sqlalchemy import select, update, delete, func, and_
 from app.config.database import get_db
 from app.core.dependencies import CurrentUser, OptionalUser
 from app.models.notification import Notification, NotificationType
+from app.utils.timezone import get_ist_isoformat
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -137,7 +138,7 @@ async def get_notifications(
                 type=n.type.value,
                 is_read=n.is_read,
                 link=n.link,
-                created_at=n.created_at.isoformat() if n.created_at else datetime.utcnow().isoformat(),
+                created_at=n.created_at.isoformat() if n.created_at else get_ist_isoformat(),
             )
             for n in notifications
         ]
@@ -272,6 +273,6 @@ async def create_notification(
             type=new_notif.type.value,
             is_read=new_notif.is_read,
             link=new_notif.link,
-            created_at=new_notif.created_at.isoformat() if new_notif.created_at else datetime.utcnow().isoformat(),
+            created_at=new_notif.created_at.isoformat() if new_notif.created_at else get_ist_isoformat(),
         )
     }

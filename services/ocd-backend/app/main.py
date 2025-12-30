@@ -272,6 +272,13 @@ async def charts_websocket(websocket: WebSocket):
     await charts_websocket_endpoint(websocket)
 
 
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
+
+
 # Root endpoint
 @app.get("/")
 async def root():

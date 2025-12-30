@@ -6,11 +6,12 @@ Handles automated backups of database, configurations, and logs.
 import os
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 import gzip
 import json
 import asyncio
 from pathlib import Path
+from core.utils.timezone import get_ist_now
 
 from core.database.db import async_session_factory
 from core.database.admin_models import BackupLogDB
@@ -28,12 +29,12 @@ class BackupManager:
     
     async def create_full_backup(self, user_id: int = None) -> dict:
         """Create full system backup"""
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_ist_now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"full_backup_{timestamp}"
         backup_path = self.backup_dir / backup_name
         backup_path.mkdir(exist_ok=True)
         
-        start_time = datetime.utcnow()
+        start_time = get_ist_now()
         
         try:
             # Backup database
@@ -52,7 +53,7 @@ class BackupManager:
             shutil.rmtree(backup_path)
             
             # Calculate duration
-            duration = (datetime.utcnow() - start_time).total_seconds()
+            duration = (get_ist_now() - start_time).total_seconds()
             
             # Log backup
             await self.log_backup(
@@ -196,7 +197,7 @@ class BackupManager:
                 status=status,
                 error_message=error_message,
                 started_at=started_at,
-                completed_at=datetime.utcnow() if status != "in_progress" else None,
+                completed_at=get_ist_now() if status != "in_progress" else None,
                 duration_seconds=duration_seconds,
                 created_by=created_by,
                 is_automated=is_automated
@@ -206,7 +207,7 @@ class BackupManager:
     
     async def cleanup_old_backups(self, keep_days: int = 30):
         """Delete backups older than specified days"""
-        cutoff_date = datetime.utcnow() - timedelta(days=keep_days)
+        cutoff_date = get_ist_now() - timedelta(days=keep_days)
         
         for backup_file in self.backup_dir.glob("*.tar.gz"):
             file_time = datetime.fromtimestamp(backup_file.stat().st_mtime)

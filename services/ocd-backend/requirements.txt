@@ -1,42 +1,9 @@
-# Stockify Trading Platform - FastAPI Backend
-# Unpinned requirements for dependency resolution
+# Stockify Trading Platform - OCD Backend
+# 
+# This service uses the root requirements.txt for dependencies.
+# Install with: pip install -r ../../requirements.txt
+#
+# Service-specific dependencies (if any) can be added below:
+# -r ../../requirements.txt
 
-# Core Framework
-fastapi
-uvicorn[standard]
-pydantic>=2.0.0
-pydantic-settings
-
-# Database
-sqlalchemy[asyncio]>=2.0.0
-asyncpg
-alembic
-psycopg2-binary
-
-# Cache
-redis
-
-# Authentication
-firebase-admin
-python-jose[cryptography]
-
-# HTTP Client
-httpx
-
-# Data Processing
-numpy
-scipy
-msgpack
-
-# Utilities
-python-multipart
-python-dotenv
-pytz
-email-validator
-
-# Testing
-pytest
-pytest-asyncio
-pytest-cov
-gunicorn==21.2.0
-uvicorn[standard]==0.24.0
+# No additional dependencies needed - all deps are in root requirements.txt

@@ -404,7 +404,6 @@ services:
   admin-frontend:
     build:
       context: ./services/admin-frontend
-      dockerfile: Dockerfile.dev
     container_name: stockify-admin-frontend
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost/api/admin
@@ -494,7 +493,7 @@ services:
 
   ocd-backend:
     build:
-      context: ./services/ocd-backend
+      context: .
       dockerfile: Dockerfile
     container_name: stockify-ocd-backend
     ports:
@@ -514,17 +513,17 @@ services:
       UVICORN_ACCESS_LOG: "false"
       CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000","http://localhost:80"]'
       SECRET_KEY: ${SECRET_KEY}
+      PYTHONPATH: /app:/app/services/ocd-backend
     env_file:
       - ./services/ocd-backend/.env
     volumes:
-      - ./services/ocd-backend/app:/app/app
-      - ./services/ocd-backend/credentials:/app/credentials
+      - .:/app
     depends_on:
       timescaledb:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "alembic upgrade head && gunicorn --config gunicorn.conf.py app.main:app"
+    command: sh -c "gunicorn --config services/ocd-backend/gunicorn.conf.py app.main:app"
     networks:
       - stockify-network
     healthcheck:

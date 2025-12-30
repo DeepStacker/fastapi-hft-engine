@@ -1,15 +1,12 @@
 """
-Black-Scholes Model Service
-Implements option pricing and related calculations
+Black-Scholes Model Service - Re-export from core
+
+This module re-exports the BSM implementation from core.analytics.
+For backward compatibility with existing imports.
 """
-import math
-from typing import Dict, Optional, Tuple
+from core.analytics.bsm import BlackScholesModel as BSMCore
 from dataclasses import dataclass
-
-import scipy.stats as stats
-import numpy as np
-
-from app.config.settings import settings
+from typing import Optional
 
 
 @dataclass
@@ -25,166 +22,47 @@ class BSMResult:
 
 class BSMService:
     """
-    Black-Scholes Model calculations for European options.
-    Provides theoretical pricing and Greeks calculations.
+    Wrapper around core BSM for backward compatibility.
+    Maintains same interface as original ocd-backend BSMService.
     """
     
     def __init__(self, risk_free_rate: Optional[float] = None):
-        self.r = risk_free_rate or settings.DEFAULT_RISK_FREE_RATE
+        from app.config.settings import settings
+        self._core = BSMCore(
+            risk_free_rate=risk_free_rate or settings.DEFAULT_RISK_FREE_RATE
+        )
+        self.r = self._core.risk_free_rate
     
-    @staticmethod
-    def _d1(S: float, K: float, T: float, r: float, sigma: float) -> float:
-        """Calculate d1 parameter"""
-        if T <= 0 or sigma <= 0:
-            return 0.0
-        return (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    def price(self, S: float, K: float, T: float, sigma: float, option_type: str = "call") -> float:
+        """Calculate theoretical option price"""
+        opt_type = "CE" if option_type.lower() == "call" else "PE"
+        result = self._core.calculate(S, K, T, sigma, opt_type)
+        return result['theoretical_price']
     
-    @staticmethod
-    def _d2(S: float, K: float, T: float, r: float, sigma: float) -> float:
-        """Calculate d2 parameter"""
-        if T <= 0 or sigma <= 0:
-            return 0.0
-        return BSMService._d1(S, K, T, r, sigma) - sigma * math.sqrt(T)
+    def delta(self, S: float, K: float, T: float, sigma: float, option_type: str = "call") -> float:
+        opt_type = "CE" if option_type.lower() == "call" else "PE"
+        greeks = self._core.calculate_greeks(S, K, T, sigma, opt_type)
+        return greeks.delta
     
-    def price(
-        self,
-        S: float,
-        K: float,
-        T: float,
-        sigma: float,
-        option_type: str = "call"
-    ) -> float:
-        """
-        Calculate theoretical option price using Black-Scholes model.
-        
-        Args:
-            S: Spot price
-            K: Strike price
-            T: Time to expiration in years
-            sigma: Implied volatility (as decimal, e.g., 0.20 for 20%)
-            option_type: 'call' or 'put'
-            
-        Returns:
-            Theoretical option price
-        """
-        if T <= 0:
-            # At expiration
-            if option_type.lower() == "call":
-                return max(0, S - K)
-            return max(0, K - S)
-        
-        if sigma <= 0:
-            return 0.0
-        
-        d1 = self._d1(S, K, T, self.r, sigma)
-        d2 = self._d2(S, K, T, self.r, sigma)
-        
-        if option_type.lower() == "call":
-            price = S * stats.norm.cdf(d1) - K * math.exp(-self.r * T) * stats.norm.cdf(d2)
-        else:
-            price = K * math.exp(-self.r * T) * stats.norm.cdf(-d2) - S * stats.norm.cdf(-d1)
-        
-        return max(0, price)
+    def gamma(self, S: float, K: float, T: float, sigma: float) -> float:
+        greeks = self._core.calculate_greeks(S, K, T, sigma, "CE")
+        return greeks.gamma
     
-    def delta(
-        self,
-        S: float,
-        K: float,
-        T: float,
-        sigma: float,
-        option_type: str = "call"
-    ) -> float:
-        """Calculate option delta"""
-        if T <= 0 or sigma <= 0:
-            if option_type.lower() == "call":
-                return 1.0 if S > K else 0.0
-            return -1.0 if S < K else 0.0
-        
-        d1 = self._d1(S, K, T, self.r, sigma)
-        
-        if option_type.lower() == "call":
-            return stats.norm.cdf(d1)
-        return stats.norm.cdf(d1) - 1
+    def theta(self, S: float, K: float, T: float, sigma: float, option_type: str = "call") -> float:
+        opt_type = "CE" if option_type.lower() == "call" else "PE"
+        greeks = self._core.calculate_greeks(S, K, T, sigma, opt_type)
+        return greeks.theta
     
-    def gamma(
-        self,
-        S: float,
-        K: float,
-        T: float,
-        sigma: float
-    ) -> float:
-        """Calculate option gamma (same for calls and puts)"""
-        if T <= 0 or sigma <= 0 or S <= 0:
-            return 0.0
-        
-        d1 = self._d1(S, K, T, self.r, sigma)
-        return stats.norm.pdf(d1) / (S * sigma * math.sqrt(T))
+    def vega(self, S: float, K: float, T: float, sigma: float) -> float:
+        greeks = self._core.calculate_greeks(S, K, T, sigma, "CE")
+        return greeks.vega
     
-    def theta(
-        self,
-        S: float,
-        K: float,
-        T: float,
-        sigma: float,
-        option_type: str = "call"
-    ) -> float:
-        """Calculate option theta (time decay per day)"""
-        if T <= 0 or sigma <= 0:
-            return 0.0
-        
-        d1 = self._d1(S, K, T, self.r, sigma)
-        d2 = self._d2(S, K, T, self.r, sigma)
-        
-        term1 = -(S * stats.norm.pdf(d1) * sigma) / (2 * math.sqrt(T))
-        
-        if option_type.lower() == "call":
-            term2 = -self.r * K * math.exp(-self.r * T) * stats.norm.cdf(d2)
-        else:
-            term2 = self.r * K * math.exp(-self.r * T) * stats.norm.cdf(-d2)
-        
-        # Return daily theta
-        return (term1 + term2) / 365
+    def rho(self, S: float, K: float, T: float, sigma: float, option_type: str = "call") -> float:
+        opt_type = "CE" if option_type.lower() == "call" else "PE"
+        greeks = self._core.calculate_greeks(S, K, T, sigma, opt_type)
+        return greeks.rho
     
-    def vega(
-        self,
-        S: float,
-        K: float,
-        T: float,
-        sigma: float
-    ) -> float:
-        """Calculate option vega (same for calls and puts)"""
-        if T <= 0 or sigma <= 0:
-            return 0.0
-        
-        d1 = self._d1(S, K, T, self.r, sigma)
-        return S * stats.norm.pdf(d1) * math.sqrt(T) / 100  # Per 1% change in IV
-    
-    def rho(
-        self,
-        S: float,
-        K: float,
-        T: float,
-        sigma: float,
-        option_type: str = "call"
-    ) -> float:
-        """Calculate option rho"""
-        if T <= 0 or sigma <= 0:
-            return 0.0
-        
-        d2 = self._d2(S, K, T, self.r, sigma)
-        
-        if option_type.lower() == "call":
-            return K * T * math.exp(-self.r * T) * stats.norm.cdf(d2) / 100
-        return -K * T * math.exp(-self.r * T) * stats.norm.cdf(-d2) / 100
-    
-    def calculate_all(
-        self,
-        S: float,
-        K: float,
-        T: float,
-        sigma: float,
-        option_type: str = "call"
-    ) -> BSMResult:
+    def calculate_all(self, S: float, K: float, T: float, sigma: float, option_type: str = "call") -> BSMResult:
         """Calculate price and all Greeks at once"""
         return BSMResult(
             price=self.price(S, K, T, sigma, option_type),
@@ -195,88 +73,56 @@ class BSMService:
             rho=self.rho(S, K, T, sigma, option_type),
         )
     
-    def implied_volatility(
-        self,
-        market_price: float,
-        S: float,
-        K: float,
-        T: float,
-        option_type: str = "call",
-        precision: float = 0.0001,
-        max_iterations: int = 100
-    ) -> Optional[float]:
+    def implied_volatility(self, market_price: float, S: float, K: float, T: float, 
+                           option_type: str = "call", **kwargs) -> Optional[float]:
+        opt_type = "CE" if option_type.lower() == "call" else "PE"
+        iv = self._core.calculate_iv(market_price, S, K, T, opt_type)
+        return iv / 100.0 if iv > 0 else None  # Convert from percentage to decimal
+
+    def expected_price_range(self, S: float, sigma: float, T_days: int, confidence: float = 0.68) -> tuple:
         """
-        Calculate implied volatility using Newton-Raphson method.
-        
-        Args:
-            market_price: Current market price of the option
-            S: Spot price
-            K: Strike price
-            T: Time to expiration in years
-            option_type: 'call' or 'put'
-            precision: Convergence threshold
-            max_iterations: Maximum iterations
-            
-        Returns:
-            Implied volatility or None if not found
+        Calculate expected price range based on volatility.
+        range = S +/- (S * sigma * sqrt(T) * z_score)
         """
-        if T <= 0 or market_price <= 0:
-            return None
+        import math
+        from scipy.stats import norm
         
-        sigma = 0.3  # Initial guess
+        T_years = max(T_days, 1) / 365.0
+        z_score = norm.ppf((1 + confidence) / 2)
         
-        for _ in range(max_iterations):
-            price = self.price(S, K, T, sigma, option_type)
-            vega = self.vega(S, K, T, sigma) * 100  # Undo the /100 scaling
-            
-            if vega < 1e-10:
-                return None
-            
-            diff = market_price - price
-            
-            if abs(diff) < precision:
-                return sigma
-            
-            sigma += diff / vega
-            
-            # Keep sigma in reasonable bounds
-            sigma = max(0.001, min(5.0, sigma))
+        implied_move = S * sigma * math.sqrt(T_years) * z_score
         
-        return sigma if abs(market_price - self.price(S, K, T, sigma, option_type)) < 1 else None
-    
-    def expected_price_range(
-        self,
-        S: float,
-        iv: float,
-        T_days: int,
-        confidence: float = 0.68
-    ) -> Tuple[float, float]:
-        """
-        Calculate expected price range based on IV.
-        
-        Args:
-            S: Spot price
-            iv: Implied volatility (as decimal)
-            T_days: Days to expiration
-            confidence: Confidence level (0.68 = 1 std dev)
-            
-        Returns:
-            Tuple of (lower_bound, upper_bound)
-        """
-        if T_days <= 0:
-            return (S, S)
-        
-        T = T_days / 365
-        z = stats.norm.ppf((1 + confidence) / 2)
-        move = S * iv * math.sqrt(T) * z
-        
-        return (S - move, S + move)
-    
+        return (round(S - implied_move, 2), round(S + implied_move, 2))
+
     def weekly_theta_decay(self, T_days: int) -> float:
-        """Calculate approximate weekly theta decay factor"""
-        if T_days <= 0:
-            return 1.0
-        return 1 / math.sqrt(T_days / 7)
+        """
+        Return a 'decay score' or multiplier based on days to expiry.
+        Higher score = accelerated decay (Theta Risk).
+        """
+        if T_days <= 7:
+            return 1.0  # Maximum decay risk
+        elif T_days <= 14:
+            return 0.7
+        elif T_days <= 30:
+            return 0.4
+        else:
+            return 0.1
+            
+    @staticmethod
+    def _d1(S: float, K: float, T: float, r: float, sigma: float) -> float:
+        """Calculate d1 term standard formula"""
+        import math
+        if sigma <= 0 or T <= 0:
+            return 0
+        return (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+
+    @staticmethod
+    def _d2(S: float, K: float, T: float, r: float, sigma: float) -> float:
+        """Calculate d2 term standard formula"""
+        import math
+        if sigma <= 0 or T <= 0:
+            return 0
+        return BSMService._d1(S, K, T, r, sigma) - sigma * math.sqrt(T)
 
 
 # Singleton instance

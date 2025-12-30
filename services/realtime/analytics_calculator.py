@@ -23,6 +23,7 @@ from services.analytics.pcr_calculator import PCRCalculator
 from services.analytics.support_resistance import SupportResistanceDetector
 import redis.asyncio as redis
 from core.config.settings import get_settings
+from core.utils.timezone import get_ist_isoformat
 import json
 
 logger = structlog.get_logger("realtime-analytics")
@@ -136,7 +137,7 @@ async def calculate_and_publish_analytics(db: AsyncSession):
                     json.dumps({
                         "symbol_id": symbol_id,
                         "expiry": expiry,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": get_ist_isoformat(),
                         "levels": levels[:10]  # Top 10 levels
                     })
                 )
@@ -165,7 +166,7 @@ async def calculate_and_publish_analytics(db: AsyncSession):
                         f"live:overall_metrics:{symbol_id}",
                         json.dumps({
                             "symbol_id": symbol_id,
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": get_ist_isoformat(),
                             "total_call_oi": int(metrics.call_oi or 0),
                             "total_put_oi": int(metrics.put_oi or 0),
                             "total_call_volume": int(metrics.call_vol or 0),

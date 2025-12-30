@@ -3,7 +3,7 @@ API v1 Router - Aggregates all API endpoints
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, users, options, admin, health, charts, monitoring, historical, screeners, calculators, notifications, profile, sse
+from app.api.v1 import auth, users, options, health, charts, monitoring, historical, screeners, calculators, notifications, profile, sse, symbols
 from app.api.v1.analytics import router as analytics_router  # Use split analytics package
 
 api_router = APIRouter()
@@ -45,11 +45,7 @@ api_router.include_router(
     tags=["Historical"]
 )
 
-api_router.include_router(
-    admin.router,
-    prefix="/admin",
-    tags=["Admin"]
-)
+
 
 api_router.include_router(
     monitoring.router,
@@ -94,3 +90,8 @@ api_router.include_router(
     tags=["SSE Fallback"]
 )
 
+# Dynamic symbols from database
+api_router.include_router(
+    symbols.router,
+    tags=["Symbols"]
+)

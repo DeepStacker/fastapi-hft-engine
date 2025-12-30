@@ -16,6 +16,7 @@ import math
 import redis.asyncio as redis
 
 from app.config.settings import settings
+from app.utils.timezone import get_ist_isoformat
 
 logger = logging.getLogger(__name__)
 
@@ -805,7 +806,7 @@ class HFTDataAdapter:
         return {
             "symbol": symbol.upper(),
             "expiry": expiry,
-            "timestamp": hft_data.get("timestamp", datetime.utcnow().isoformat()),
+            "timestamp": hft_data.get("timestamp", get_ist_isoformat()),
             
             # Spot data
             "spot": {

@@ -9,6 +9,7 @@ import traceback
 from typing import Optional, Dict, Any
 from datetime import datetime
 import structlog
+from core.utils.timezone import get_ist_now
 
 logger = structlog.get_logger("error-handler")
 
@@ -19,7 +20,7 @@ class ErrorContext:
     def __init__(self, operation: str, **kwargs):
         self.operation = operation
         self.context = kwargs
-        self.timestamp = datetime.utcnow()
+        self.timestamp = get_ist_now()
         self.traceback: Optional[str] = None
         self.error_type: Optional[str] = None
         self.error_message: Optional[str] = None

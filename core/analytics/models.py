@@ -2,47 +2,52 @@
 Pydantic models for analytics responses.
 
 Ensures type safety across all analytics outputs.
+Uses consolidated enums and schemas from core.schemas.
 """
 
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from enum import Enum
+
+# Import from single source of truth
+from core.schemas.enums import (
+    OptionType,
+    BuildupType,
+    MoneynessType,
+    MarketSentiment,
+)
+from core.schemas.common import (
+    ErrorResponse,
+    PaginatedResponse,
+)
+from core.utils.timezone import get_ist_now
 
 
-# ============================================================================
-# ENUMS
-# ============================================================================
-
-class OptionType(str, Enum):
-    """Option type"""
-    CE = "CE"
-    PE = "PE"
-
-
-class BuildupType(str, Enum):
-    """Buildup pattern types"""
-    LONG_BUILDUP = "LONG BUILDUP"
-    SHORT_BUILDUP = "SHORT BUILDUP"
-    LONG_UNWINDING = "LONG UNWINDING"
-    SHORT_UNWINDING = "SHORT UNWINDING"
-    UNKNOWN = "UNKNOWN"
-
-
-class MoneynessType(str, Enum):
-    """Moneyness classification"""
-    ITM = "ITM"
-    ATM = "ATM"
-    OTM = "OTM"
-
-
-class MarketSentiment(str, Enum):
-    """Market sentiment classification"""
-    BULLISH_EXTREME = "BULLISH_EXTREME"
-    BULLISH = "BULLISH"
-    NEUTRAL = "NEUTRAL"
-    BEARISH = "BEARISH"
-    BEARISH_EXTREME = "BEARISH_EXTREME"
+# Re-export enums for backward compatibility
+__all__ = [
+    # Enums (from core.schemas.enums)
+    "OptionType",
+    "BuildupType",
+    "MoneynessType",
+    "MarketSentiment",
+    # Analytics models
+    "PCRAnalysis",
+    "MaxPainResult",
+    "RankingResult",
+    "VelocityMetrics",
+    "BuildupPattern",
+    "CumulativeOIMetrics",
+    "OIDistributionPoint",
+    "TimeSeriesPoint",
+    "PCRTrendPoint",
+    "MarginCalculationRequest",
+    "MarginCalculationResult",
+    "StrategyPnL",
+    "AnalyticsResponse",
+    # Core schemas (re-exported)
+    "ErrorResponse",
+    "PaginatedResponse",
+]
 
 
 # ============================================================================
@@ -155,7 +160,7 @@ class MarginCalculationRequest(BaseModel):
     expiry_date: str = Field(..., description="Date in YYYY-MM-DD format")
     premium: float = Field(..., gt=0)
     lot_size: int = Field(..., gt=0)
-    position_type: str = Field(..., regex="^(long|short)$")
+    position_type: str = Field(..., pattern="^(long|short)$")
 
 
 class MarginCalculationResult(BaseModel):
@@ -183,32 +188,19 @@ class StrategyPnL(BaseModel):
 # ============================================================================
 
 class AnalyticsResponse(BaseModel):
-    """Generic analytics response wrapper"""
+    """
+    Generic analytics response wrapper.
+    
+    For error responses, use core.schemas.common.ErrorResponse instead.
+    For paginated responses, use core.schemas.common.PaginatedResponse.
+    """
     success: bool = True
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=get_ist_now)
     data: Any
     cache_hit: bool = Field(default=False)
     execution_time_ms: Optional[float] = None
-
-
-class ErrorResponse(BaseModel):
-    """Error response"""
-    success: bool = False
-    error: str
-    error_code: Optional[str] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-
-# ============================================================================
-# PAGINATION
-# ============================================================================
-
-class PaginatedResponse(BaseModel):
-    """Paginated response wrapper"""
-    total_count: int = Field(..., ge=0)
-    page: int = Field(..., ge=1)
-    page_size: int = Field(..., ge=1, le=1000)
-    total_pages: int = Field(..., ge=0)
-    data: List[Any]
-    has_next: bool
-    has_previous: bool
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }

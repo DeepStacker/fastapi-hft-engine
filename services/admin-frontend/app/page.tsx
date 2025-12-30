@@ -7,11 +7,12 @@ import LiveChart from '@/components/dashboard/LiveChart';
 import { Activity, Cpu, HardDrive, Network, Server, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
+import { Service, SystemStats, MetricSnapshot } from '@/lib/types';
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<any>(null);
-  const [services, setServices] = useState<any[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
+  const [stats, setStats] = useState<SystemStats | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [history, setHistory] = useState<MetricSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

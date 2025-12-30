@@ -6,6 +6,7 @@ import os
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List
+from app.utils.timezone import get_ist_isoformat
 
 try:
     import psutil
@@ -73,7 +74,7 @@ async def get_system_metrics(
         process_memory = process.memory_info()
         
         metrics = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": get_ist_isoformat(),
             "cpu": {
                 "percent": cpu_percent,
                 "count": cpu_count,
@@ -196,7 +197,7 @@ async def get_database_stats(
         active_connections = conn_result.scalar()
         
         stats = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": get_ist_isoformat(),
             "tables": tables,
             "database_size_bytes": db_size,
             "active_connections": active_connections,
@@ -301,7 +302,7 @@ async def get_redis_stats(
         info = await cache.info()
         
         stats = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": get_ist_isoformat(),
             "connected": True,
             "used_memory": info.get("used_memory_human", "N/A"),
             "connected_clients": info.get("connected_clients", 0),

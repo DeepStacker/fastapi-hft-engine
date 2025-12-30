@@ -26,11 +26,12 @@ router = APIRouter()
 
 
 async def get_options_service(
+    db: AsyncSession = Depends(get_db),
     cache: RedisCache = Depends(get_redis)
 ) -> OptionsService:
     """Dependency to get options service"""
     dhan = await get_dhan_client(cache=cache)
-    return OptionsService(dhan_client=dhan, cache=cache)
+    return OptionsService(dhan_client=dhan, cache=cache, db=db)
 
 
 @router.get("/expiry/{symbol}", response_model=ResponseModel)

@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any
 import json
 from enum import Enum
 import os
+from core.utils.timezone import get_ist_isoformat
 
 # Ensure logs directory exists
 os.makedirs("logs", exist_ok=True)
@@ -91,7 +92,7 @@ class AuditLogger:
             success: Whether the event was successful
         """
         audit_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": get_ist_isoformat(),
             "event_type": event_type.value,
             "user_id": user_id,
             "username": username,

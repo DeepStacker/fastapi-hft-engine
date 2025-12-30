@@ -19,6 +19,7 @@ from app.cache.redis import RedisCache, CacheKeys
 from app.utils.data_processing import (
     modify_oc_keys, filter_oc_strikes, fetch_percentage, filter_expiry_data
 )
+from app.utils.timezone import get_ist_isoformat
 
 logger = logging.getLogger(__name__)
 
@@ -314,35 +315,17 @@ class DhanClient:
             # opsum keys are the expiry timestamps as strings
             exp_list = list(opsum.keys())
             
-            # Convert to integers with Year Normalization (Dhan uses old years)
+            # Convert to integers - accept all valid numeric values
             int_exp_list = []
-            
-            now = datetime.now()
-            current_year = now.year
-            
             for exp in exp_list:
                 try:
-                    # Logic matches ingestion service
-                    old_ts = int(exp)
-                    old_dt = datetime.fromtimestamp(old_ts)
-                    
-                    # 1. Replace with current year
-                    try:
-                        new_dt = old_dt.replace(year=current_year)
-                    except ValueError:
-                        new_dt = old_dt.replace(year=current_year, day=28) # Leap year fix
-                        
-                    # 2. If result is in past, move to next year
-                    if new_dt < now:
-                        try:
-                            new_dt = old_dt.replace(year=current_year + 1)
-                        except ValueError:
-                            new_dt = old_dt.replace(year=current_year + 1, day=28)
-                            
-                    new_ts = int(new_dt.timestamp())
-                    int_exp_list.append(new_ts)
+                    exp_int = int(exp)
+                    int_exp_list.append(exp_int)
                 except (ValueError, TypeError):
                     continue
+            
+            # Sort expiry dates (ascending - nearest first)
+            int_exp_list.sort()
             
             # Sort expiry dates (ascending - nearest first)
             int_exp_list.sort()
@@ -485,7 +468,7 @@ class DhanClient:
         """Transform raw API response to standardized format"""
         result = {
             "symbol": symbol,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": get_ist_isoformat(),
             "spot": {},
             "strikes": [],
             "oc": {},

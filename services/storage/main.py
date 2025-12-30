@@ -32,6 +32,7 @@ from core.observability.tracing import (
     extract_trace_from_kafka_headers,
     traced
 )
+from core.utils.timezone import get_ist_now
 
 # Configure logging
 configure_logger()
@@ -233,11 +234,11 @@ async def process_message(msg: dict, span=None):
         
         # Parse timestamp
         try:
-            timestamp = datetime.fromisoformat(timestamp_str) if timestamp_str else datetime.utcnow()
+            timestamp = datetime.fromisoformat(timestamp_str) if timestamp_str else get_ist_now()
             if timestamp.tzinfo is not None:
                 timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
         except (ValueError, TypeError):
-            timestamp = datetime.utcnow()
+            timestamp = get_ist_now()
         
         analyses = msg.get("analyses", {})
         

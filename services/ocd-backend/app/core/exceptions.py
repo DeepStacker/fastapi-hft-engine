@@ -1,13 +1,34 @@
 """
-Custom Exception Classes
-Standardized exception handling across the application
+Custom Exception Classes - Re-export Layer
+
+This module re-exports both:
+1. Core exceptions (non-HTTP, for internal use)
+2. HTTP-specific exceptions (for FastAPI endpoints)
+
+MIGRATION NOTE: Both exception types are available.
+- Use HTTP exceptions for API endpoints
+- Use core exceptions for internal services
 """
 from typing import Any, Optional, Dict
 from fastapi import HTTPException, status
 
+# Re-export core exceptions for internal use
+from core.exceptions import (
+    StockifyException,
+    DatabaseException as CoreDatabaseException,
+    ExternalAPIException as CoreExternalAPIException,
+    ValidationException as CoreValidationException,
+    AuthenticationException,
+    CacheException,
+    MarketClosedException,
+    DataNotFoundException,
+    ConfigurationException as CoreConfigurationException,
+)
 
+
+# HTTP-aware exceptions for FastAPI endpoints
 class AppException(HTTPException):
-    """Base application exception"""
+    """Base HTTP exception for API responses"""
     
     def __init__(
         self,

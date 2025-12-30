@@ -11,6 +11,7 @@ from app.config.settings import settings
 from app.config.database import check_db_connection
 from app.cache.redis import RedisCache, get_redis
 from app.schemas.common import HealthResponse
+from app.utils.timezone import get_ist_now
 
 router = APIRouter()
 
@@ -57,7 +58,7 @@ async def health_check(
         version=settings.APP_VERSION,
         database=db_status,
         redis=redis_status,
-        timestamp=datetime.utcnow(),
+        timestamp=get_ist_now(),
         uptime_seconds=round(time.time() - _start_time, 2)
     )
 

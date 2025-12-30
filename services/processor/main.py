@@ -14,6 +14,7 @@ import signal
 import time
 import os
 from datetime import datetime, timezone
+import pytz
 from typing import Dict
 
 from core.config.settings import get_settings
@@ -448,7 +449,7 @@ class ProcessorService:
             'symbol_id': context_dict['symbol_id'],
             'expiry': expiry,  # Include expiry date
             'timestamp': original_timestamp.isoformat(),
-            'processing_timestamp': datetime.now(timezone.utc).isoformat(),
+            'processing_timestamp': datetime.now(pytz.timezone('Asia/Kolkata')).isoformat(),
             
             'context': context_dict,
             'futures': futures_dict,

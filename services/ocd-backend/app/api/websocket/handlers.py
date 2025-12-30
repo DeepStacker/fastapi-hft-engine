@@ -5,6 +5,7 @@ No expiry required - uses latest data for any symbol.
 """
 import logging
 import asyncio
+from datetime import datetime
 from uuid import uuid4
 from typing import Dict, Optional
 
@@ -181,6 +182,8 @@ async def stream_hft_data(symbol: str):
     consecutive_errors = 0
     MAX_CONSECUTIVE_ERRORS = 10
     last_data_hash = None
+    # Initialize to past to trigger immediate save on first tick
+    last_save_time = datetime.fromtimestamp(0)
     
     try:
         while True:
@@ -208,13 +211,11 @@ async def stream_hft_data(symbol: str):
                 # Success - reset error counter
                 consecutive_errors = 0
                 
-                # Optional: Skip if data unchanged (delta detection)
-                # This reduces network usage but adds CPU for hashing
-                # current_hash = hash(str(data.get('timestamp')))
-                # if current_hash == last_data_hash:
-                #     await asyncio.sleep(interval)
-                #     continue
-                # last_data_hash = current_hash
+                # PERSISTENCE: Save snapshot every minute
+                current_time = datetime.now()
+                if (current_time - last_save_time).total_seconds() >= 60:
+                    asyncio.create_task(persist_snapshot(data))
+                    last_save_time = current_time
                 
                 # Broadcast to all clients subscribed to this symbol
                 await broadcast_to_symbol(symbol, data)
@@ -232,6 +233,22 @@ async def stream_hft_data(symbol: str):
         logger.info(f"HFT streaming cancelled for {symbol}")
     finally:
         logger.info(f"HFT streaming stopped for {symbol}")
+
+
+async def persist_snapshot(data: dict):
+    """
+    Persist market snapshot to TimescaleDB.
+    Creates a dedicated session for the operation.
+    """
+    from app.config.database import AsyncSessionLocal
+    
+    try:
+        async with AsyncSessionLocal() as session:
+            # Create minimal service instance just for saving
+            service = OptionsService(dhan_client=None, cache=None, db=session)
+            await service.save_snapshot(data)
+    except Exception as e:
+        logger.error(f"Failed to persist snapshot in background: {e}")
 
 
 async def broadcast_to_symbol(symbol: str, data: dict):

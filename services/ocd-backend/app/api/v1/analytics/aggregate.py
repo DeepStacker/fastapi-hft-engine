@@ -18,6 +18,7 @@ from app.core.dependencies import OptionalUser
 from app.services.dhan_client import get_dhan_client
 from app.services.options import OptionsService
 from app.cache.redis import get_redis, RedisCache
+from app.repositories.historical import get_historical_repository
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -51,72 +52,16 @@ async def get_analytics_service(cache: RedisCache = Depends(get_redis)) -> Optio
     return OptionsService(dhan_client=dhan, cache=cache)
 
 
-def generate_mock_aggregate_data(symbol: str, view_type: str = "coi", num_strikes: int = 21) -> dict:
-    """Generate mock aggregate data when live data unavailable."""
-    base_strikes = {"NIFTY": 24500, "BANKNIFTY": 52000, "FINNIFTY": 24000}
-    base = base_strikes.get(symbol.upper(), 24000)
-    step = 50 if symbol.upper() == "NIFTY" else 100
-    
-    atm_index = num_strikes // 2
-    strikes = [base + (i - atm_index) * step for i in range(num_strikes)]
-    
-    data = []
-    total_ce = 0
-    total_pe = 0
-    
-    for i, strike in enumerate(strikes):
-        distance_from_atm = abs(i - atm_index)
-        multiplier = max(0.3, 1 - (distance_from_atm * 0.1))
-        
-        if view_type in ["coi", "overall"]:
-            ce_val = int(random.uniform(5000, 50000) * multiplier) * (1 if random.random() > 0.5 else -1)
-            pe_val = int(random.uniform(5000, 50000) * multiplier) * (1 if random.random() > 0.5 else -1)
-        else:
-            ce_val = int(random.uniform(100000, 500000) * multiplier)
-            pe_val = int(random.uniform(100000, 500000) * multiplier)
-        
-        total_ce += abs(ce_val)
-        total_pe += abs(pe_val)
-        
-        data.append({
-            "strike": strike,
-            "ce_coi": ce_val if view_type in ["coi", "overall"] else 0,
-            "pe_coi": pe_val if view_type in ["coi", "overall"] else 0,
-            "ce_oi": ce_val if view_type == "oi" else abs(ce_val) * 10,
-            "pe_oi": pe_val if view_type == "oi" else abs(pe_val) * 10,
-            "net_coi": pe_val - ce_val,
-            "is_atm": i == atm_index,
-        })
-    
-    cumulative_ce = 0
-    cumulative_pe = 0
-    for item in data:
-        cumulative_ce += item.get("ce_coi", 0)
-        cumulative_pe += item.get("pe_coi", 0)
-        item["cumulative_ce_coi"] = cumulative_ce
-        item["cumulative_pe_coi"] = cumulative_pe
-        item["cumulative_net"] = cumulative_pe - cumulative_ce
-    
-    pcr = total_pe / total_ce if total_ce > 0 else 1.0
-    
-    return {
-        "success": True,
-        "symbol": symbol.upper(),
-        "expiry": "2024-12-26",
-        "view_type": view_type,
-        "data": data,
-        "summary": {
-            "total_ce_coi": total_ce if view_type in ["coi", "overall"] else 0,
-            "total_pe_coi": total_pe if view_type in ["coi", "overall"] else 0,
-            "net_coi": total_pe - total_ce,
-            "atm_strike": strikes[atm_index],
-            "pcr": round(pcr, 2),
-            "signal": "BULLISH" if pcr > 1 else "BEARISH",
-        }
-    }
+# Removed generate_mock_aggregate_data - using DB fallback instead
 
 
 # ============== COI Endpoint ==============
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.config.database import get_db
+
+
+# ... (keep existing imports)
 
 @router.get("/aggregate/coi/{symbol}/{expiry}")
 async def get_aggregate_coi(
@@ -124,6 +69,7 @@ async def get_aggregate_coi(
     expiry: str,
     top_n: int = Query(30, ge=10, le=50),
     current_user: OptionalUser = None,
+    db: AsyncSession = Depends(get_db),
     service: OptionsService = Depends(get_analytics_service),
 ):
     """
@@ -140,8 +86,25 @@ async def get_aggregate_coi(
         oc_data = live_data.get("oc", {})
         atm_strike = live_data.get("atm_strike", 0)
         
+        # Fallback to DB if live data missing
         if not oc_data:
-            return generate_mock_aggregate_data(symbol, "coi", top_n)
+            repo = get_historical_repository(db)
+            symbol_id = await repo.get_symbol_id(symbol)
+            if symbol_id:
+                snapshot = await repo.get_latest_snapshot(symbol_id)
+                if snapshot and snapshot.option_chain:
+                    oc_data = snapshot.option_chain
+                    atm_strike = snapshot.atm_strike or 0
+
+        if not oc_data:
+            # Final fallback to empty response instead of mock data
+            return {
+                "success": False,
+                "error": "No data available",
+                "symbol": symbol,
+                "expiry": expiry,
+                "data": []
+            }
         
         data = []
         total_ce_coi = 0
@@ -214,6 +177,7 @@ async def get_aggregate_oi(
     expiry: str,
     top_n: int = Query(30, ge=10, le=50),
     current_user: OptionalUser = None,
+    db: AsyncSession = Depends(get_db),
     service: OptionsService = Depends(get_analytics_service),
 ):
     """Get total OI aggregated across all strikes."""
@@ -227,8 +191,24 @@ async def get_aggregate_oi(
         oc_data = live_data.get("oc", {})
         atm_strike = live_data.get("atm_strike", 0)
         
+        # Fallback to DB if live data missing
         if not oc_data:
-            return generate_mock_aggregate_data(symbol, "oi", top_n)
+            repo = get_historical_repository(db)
+            symbol_id = await repo.get_symbol_id(symbol)
+            if symbol_id:
+                snapshot = await repo.get_latest_snapshot(symbol_id)
+                if snapshot and snapshot.option_chain:
+                    oc_data = snapshot.option_chain
+                    atm_strike = snapshot.atm_strike or 0
+
+        if not oc_data:
+            return {
+                "success": False,
+                "error": "No data available",
+                "symbol": symbol,
+                "expiry": expiry,
+                "data": []
+            }
         
         data = []
         total_ce_oi = 0
@@ -280,7 +260,8 @@ async def get_aggregate_oi(
         }
     except Exception as e:
         logger.error(f"Error getting aggregate OI: {e}")
-        return generate_mock_aggregate_data(symbol, "oi", top_n)
+
+        return {"success": False, "error": str(e)}
 
 
 # ============== PCR Endpoint ==============
@@ -290,6 +271,7 @@ async def get_aggregate_pcr(
     symbol: str,
     expiry: str,
     current_user: OptionalUser = None,
+    db: AsyncSession = Depends(get_db),
     service: OptionsService = Depends(get_analytics_service),
 ):
     """Get PCR (Put-Call Ratio) data across all strikes."""
@@ -302,6 +284,19 @@ async def get_aggregate_pcr(
         
         oc_data = live_data.get("oc", {})
         atm_strike = live_data.get("atm_strike", 0)
+        
+        # Fallback to DB if live data missing
+        if not oc_data:
+            repo = get_historical_repository(db)
+            symbol_id = await repo.get_symbol_id(symbol)
+            if symbol_id:
+                snapshot = await repo.get_latest_snapshot(symbol_id)
+                if snapshot and snapshot.option_chain:
+                    oc_data = snapshot.option_chain
+                    atm_strike = snapshot.atm_strike or 0
+        
+        if not oc_data:
+            return {"success": False, "error": "No data available"}
         
         data = []
         total_ce_oi = 0
@@ -365,6 +360,7 @@ async def get_aggregate_percentage(
     symbol: str,
     expiry: str,
     current_user: OptionalUser = None,
+    db: AsyncSession = Depends(get_db),
     service: OptionsService = Depends(get_analytics_service),
 ):
     """Get percentage change view for OI and Volume."""
@@ -377,6 +373,19 @@ async def get_aggregate_percentage(
         
         oc_data = live_data.get("oc", {})
         atm_strike = live_data.get("atm_strike", 0)
+        
+        # Fallback to DB if live data missing
+        if not oc_data:
+            repo = get_historical_repository(db)
+            symbol_id = await repo.get_symbol_id(symbol)
+            if symbol_id:
+                snapshot = await repo.get_latest_snapshot(symbol_id)
+                if snapshot and snapshot.option_chain:
+                    oc_data = snapshot.option_chain
+                    atm_strike = snapshot.atm_strike or 0
+        
+        if not oc_data:
+            return {"success": False, "error": "No data available"}
         
         data = []
         

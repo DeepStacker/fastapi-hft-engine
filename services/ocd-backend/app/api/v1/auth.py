@@ -21,6 +21,7 @@ from app.schemas.user import (
     UserProfileUpdate,
 )
 from app.schemas.common import ResponseModel
+from app.utils.timezone import get_ist_now
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -213,7 +214,7 @@ async def upgrade_subscription(
     # For now, directly upgrade
     update_data = {
         "role": UserRole.PREMIUM,
-        "subscription_expires": datetime.utcnow() + timedelta(days=30)
+        "subscription_expires": get_ist_now() + timedelta(days=30)
     }
     
     updated_user = await user_repo.update(current_user.id, update_data)

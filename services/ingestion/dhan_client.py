@@ -3,11 +3,19 @@ import asyncio
 import json
 from core.config.settings import get_settings
 from core.logging.logger import get_logger
-from core.utils.circuit_breaker import dhan_api_breaker, CircuitBreakerOpenError
+from core.resilience.circuit_breaker import CircuitBreaker
 from typing import Optional, Dict, Any, List
 
 settings = get_settings()
 logger = get_logger("dhan_client")
+
+# Circuit breaker for Dhan API protection
+dhan_api_breaker = CircuitBreaker(failure_threshold=15, timeout=30)
+
+
+class CircuitBreakerOpenError(Exception):
+    """Raised when circuit breaker is open"""
+    pass
 
 
 class DhanApiClient:
@@ -100,7 +108,7 @@ class DhanApiClient:
     def _create_fut_payload(self, symbol_id: int, seg: int) -> Dict:
         return {"Data": {"Seg": seg, "Sid": symbol_id}}
 
-    @dhan_api_breaker.call
+    # Protected by circuit breaker
     async def fetch_expiry_dates(self, symbol_id: int, segment_id: int) -> List[int]:
         """
         Fetch expiry dates for a symbol
@@ -172,7 +180,7 @@ class DhanApiClient:
             logger.error(f"Exception fetching expiry for {symbol_id}: {e}")
             return []
 
-    @dhan_api_breaker.call
+    # Protected by circuit breaker
     async def fetch_option_chain(self, symbol_id: int, exp: int, seg: int) -> Dict:
         """
         Fetch option chain data from Dhan API.
@@ -206,7 +214,7 @@ class DhanApiClient:
             logger.error(f"Error fetching option chain for {symbol_id}: {e}")
             return None
 
-    @dhan_api_breaker.call
+    # Protected by circuit breaker
     async def fetch_spot_data(self, symbol_id: int, segment_id: int) -> Optional[Dict[str, Any]]:
         """
         Fetch spot price data

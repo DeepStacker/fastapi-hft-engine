@@ -12,6 +12,7 @@ from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from core.config.settings import get_settings
+from core.utils.timezone import get_ist_now
 import os
 
 settings = get_settings()
@@ -27,13 +28,23 @@ class AdminUser(BaseModel):
     is_active: bool = True
 
 
-# Hardcoded admin credentials for development
-# In production, use database-backed users
+# Admin credentials - ADMIN_PASSWORD MUST be set in environment
+# No default password for security
+_admin_password = os.getenv("ADMIN_PASSWORD", "")
+
+# Validate ADMIN_PASSWORD is set (log warning but allow startup for dev)
+if not _admin_password:
+    import logging
+    logging.warning(
+        "⚠️  ADMIN_PASSWORD not set! Admin login will fail. "
+        "Set ADMIN_PASSWORD environment variable."
+    )
+
 ADMIN_USERS = {
     "admin": {
         "username": "admin",
         "email": "admin@stockify.local",
-        "hashed_password": pwd_context.hash(os.getenv("ADMIN_PASSWORD", "admin123")),
+        "hashed_password": pwd_context.hash(_admin_password) if _admin_password else "",
         "is_admin": True,
         "is_active": True
     }
@@ -59,9 +70,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     """Create a JWT access token"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = get_ist_now() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = get_ist_now() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
@@ -69,7 +80,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 def create_refresh_token(username: str) -> str:
     """Create a JWT refresh token"""
-    expire = datetime.utcnow() + timedelta(days=7)
+    expire = get_ist_now() + timedelta(days=7)
     to_encode = {"sub": username, "exp": expire, "type": "refresh"}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt

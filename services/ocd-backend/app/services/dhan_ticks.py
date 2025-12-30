@@ -15,70 +15,88 @@ logger = logging.getLogger(__name__)
 DHAN_TICKS_URL = "https://ticks.dhan.co/getData"      # For minute/hour charts
 DHAN_TICKS_URL_S = "https://ticks.dhan.co/getDataS"   # For second charts
 
-# Instrument mappings - includes indices and equities
-# Type: "IDX" for indices, "EQ" for equities
-INSTRUMENT_MAP = {
-    # INDICES (use EXCH=IDX, SEG=I, INST=IDX)
+# ═══════════════════════════════════════════════════════════════════
+# Dynamic Instrument Loading with In-Memory Cache
+# Loads from Redis (populated from DB) with fallback to static map
+# ═══════════════════════════════════════════════════════════════════
+
+# Static fallback map (used when Redis unavailable)
+_STATIC_INSTRUMENT_MAP = {
     "NIFTY": {"SEC_ID": 13, "TYPE": "IDX"},
     "BANKNIFTY": {"SEC_ID": 25, "TYPE": "IDX"},
     "FINNIFTY": {"SEC_ID": 27, "TYPE": "IDX"},
-    "MIDCPNIFTY": {"SEC_ID": 442, "TYPE": "IDX"},
-    "NIFTYNXT50": {"SEC_ID": 38, "TYPE": "IDX"},
     "SENSEX": {"SEC_ID": 51, "TYPE": "IDX"},
     "BANKEX": {"SEC_ID": 69, "TYPE": "IDX"},
-    
-    # EQUITIES (use EXCH=NSE, SEG=E, INST=EQUITY)
-    "RELIANCE": {"SEC_ID": 2885, "TYPE": "EQ"},
-    "TCS": {"SEC_ID": 11536, "TYPE": "EQ"},
-    "HDFCBANK": {"SEC_ID": 1333, "TYPE": "EQ"},
-    "INFY": {"SEC_ID": 1594, "TYPE": "EQ"},
-    "ICICIBANK": {"SEC_ID": 4963, "TYPE": "EQ"},
-    "HINDUNILVR": {"SEC_ID": 1394, "TYPE": "EQ"},
-    "ITC": {"SEC_ID": 1660, "TYPE": "EQ"},
-    "SBIN": {"SEC_ID": 3045, "TYPE": "EQ"},
-    "BHARTIARTL": {"SEC_ID": 10604, "TYPE": "EQ"},
-    "KOTAKBANK": {"SEC_ID": 1922, "TYPE": "EQ"},
-    "LT": {"SEC_ID": 11483, "TYPE": "EQ"},
-    "AXISBANK": {"SEC_ID": 5900, "TYPE": "EQ"},
-    "ASIANPAINT": {"SEC_ID": 236, "TYPE": "EQ"},
-    "MARUTI": {"SEC_ID": 10999, "TYPE": "EQ"},
-    "SUNPHARMA": {"SEC_ID": 3351, "TYPE": "EQ"},
-    "TITAN": {"SEC_ID": 3506, "TYPE": "EQ"},
-    "BAJFINANCE": {"SEC_ID": 317, "TYPE": "EQ"},
-    "WIPRO": {"SEC_ID": 3787, "TYPE": "EQ"},
-    "HCLTECH": {"SEC_ID": 7229, "TYPE": "EQ"},
-    "ULTRACEMCO": {"SEC_ID": 11532, "TYPE": "EQ"},
-    "TATAMOTORS": {"SEC_ID": 3456, "TYPE": "EQ"},
-    "TATASTEEL": {"SEC_ID": 3499, "TYPE": "EQ"},
-    "NTPC": {"SEC_ID": 11630, "TYPE": "EQ"},
-    "POWERGRID": {"SEC_ID": 14977, "TYPE": "EQ"},
-    "ONGC": {"SEC_ID": 2475, "TYPE": "EQ"},
-    "COALINDIA": {"SEC_ID": 20374, "TYPE": "EQ"},
-    "JSWSTEEL": {"SEC_ID": 11723, "TYPE": "EQ"},
-    "MM": {"SEC_ID": 2031, "TYPE": "EQ"},
-    "TECHM": {"SEC_ID": 13538, "TYPE": "EQ"},
-    "INDUSINDBK": {"SEC_ID": 5258, "TYPE": "EQ"},
-    "HINDALCO": {"SEC_ID": 1363, "TYPE": "EQ"},
-    "ADANIPORTS": {"SEC_ID": 15083, "TYPE": "EQ"},
-    "ADANIENT": {"SEC_ID": 25, "TYPE": "EQ"},
-    "DRREDDY": {"SEC_ID": 881, "TYPE": "EQ"},
-    "CIPLA": {"SEC_ID": 694, "TYPE": "EQ"},
-    "GRASIM": {"SEC_ID": 1232, "TYPE": "EQ"},
-    "BRITANNIA": {"SEC_ID": 547, "TYPE": "EQ"},
-    "APOLLOHOSP": {"SEC_ID": 157, "TYPE": "EQ"},
-    "EICHERMOT": {"SEC_ID": 910, "TYPE": "EQ"},
-    "HEROMOTOCO": {"SEC_ID": 1348, "TYPE": "EQ"},
-    "NESTLEIND": {"SEC_ID": 17963, "TYPE": "EQ"},
-    "BAJAJ-AUTO": {"SEC_ID": 16669, "TYPE": "EQ"},
-    "BAJAJFINSV": {"SEC_ID": 16675, "TYPE": "EQ"},
-    "BPCL": {"SEC_ID": 526, "TYPE": "EQ"},
-    "BEL": {"SEC_ID": 383, "TYPE": "EQ"},
-    "HDFCLIFE": {"SEC_ID": 467, "TYPE": "EQ"},
-    "SBILIFE": {"SEC_ID": 21808, "TYPE": "EQ"},
-    "SHRIRAMFIN": {"SEC_ID": 4306, "TYPE": "EQ"},
-    "TATACONSUM": {"SEC_ID": 3432, "TYPE": "EQ"},
-    "TRENT": {"SEC_ID": 1964, "TYPE": "EQ"},
 }
+
+# Dynamic cache (loaded from Redis)
+_instrument_cache: dict = {}
+_cache_loaded: bool = False
+
+
+async def _load_instruments_from_redis() -> dict:
+    """Load instrument mappings from Redis cache (populated from DB)"""
+    global _instrument_cache, _cache_loaded
+    
+    try:
+        from app.cache.redis import get_redis
+        import json
+        
+        cache = await get_redis()
+        if not cache:
+            return _STATIC_INSTRUMENT_MAP
+        
+        # Try to get instruments from Redis
+        instruments_data = await cache.get("instruments:ticks_map")
+        if instruments_data:
+            _instrument_cache = json.loads(instruments_data) if isinstance(instruments_data, str) else instruments_data
+            _cache_loaded = True
+            logger.info(f"Loaded {len(_instrument_cache)} instruments from Redis cache")
+            return _instrument_cache
+        
+        # If not in Redis, load from DB and cache
+        from app.config.database import AsyncSessionLocal
+        from sqlalchemy import select
+        from core.database.models import InstrumentDB
+        
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(InstrumentDB).where(InstrumentDB.is_active == True)
+            )
+            instruments = result.scalars().all()
+            
+            for inst in instruments:
+                # Determine TYPE based on segment_id
+                if inst.segment_id == 0:
+                    inst_type = "IDX"
+                elif inst.segment_id == 5:
+                    inst_type = "COM"  # Commodity
+                else:
+                    inst_type = "EQ"
+                
+                _instrument_cache[inst.symbol] = {
+                    "SEC_ID": inst.symbol_id,
+                    "TYPE": inst_type
+                }
+            
+            # Cache in Redis for 1 hour
+            if _instrument_cache:
+                await cache.set("instruments:ticks_map", json.dumps(_instrument_cache), ttl=3600)
+                _cache_loaded = True
+                logger.info(f"Loaded {len(_instrument_cache)} instruments from DB and cached")
+        
+        return _instrument_cache if _instrument_cache else _STATIC_INSTRUMENT_MAP
+        
+    except Exception as e:
+        logger.warning(f"Failed to load instruments dynamically: {e}, using static fallback")
+        return _STATIC_INSTRUMENT_MAP
+
+
+def get_instrument_map() -> dict:
+    """Get current instrument map (cached or static fallback)"""
+    if _cache_loaded and _instrument_cache:
+        return _instrument_cache
+    return _STATIC_INSTRUMENT_MAP
 
 # Interval mapping from frontend to Dhan format
 # Format: (base_interval, aggregation_factor, use_seconds_endpoint)
@@ -106,8 +124,8 @@ class DhanTicksService:
         self.client = httpx.AsyncClient(timeout=30.0)
         # Get auth token from settings (will be dynamically loaded via ConfigService)
         self._static_auth_token = getattr(settings, 'DHAN_AUTH_TOKEN', '')
-        # Authorization token (from env or hardcoded for now)
-        self.authorization = getattr(settings, 'DHAN_AUTHORIZATION', 'RFC8mfDnhwK86NPfnQ1T94inmIIDATYT+OhOSKa7j0/Mi22GZoIYM67t8Zk0zPUCnfXk4tpC3pHrrRaw+uok/w==')
+        # Authorization token - MUST be set in settings/env
+        self.authorization = getattr(settings, 'DHAN_AUTHORIZATION', '')
         self._current_token = None
         logger.info(f"DhanTicksService initialized (token will be loaded dynamically)")
     
@@ -146,8 +164,8 @@ class DhanTicksService:
             "Access-Control-Allow-Origin": "true",
             "Auth": token,  # JWT token (dynamically loaded)
             "Authorization": self.authorization,  # API key
-            "Bid": "DHN1804",
-            "Cid": "7209683699",
+            "Bid": getattr(settings, 'DHAN_BID', 'DHN1804'),  # Client broker ID
+            "Cid": getattr(settings, 'DHAN_CID', ''),  # Client ID from env
             "Src": "T",
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
         }
@@ -169,11 +187,16 @@ class DhanTicksService:
         Returns:
             Dict with candles data
         """
-        if symbol not in INSTRUMENT_MAP:
+        # Load instruments dynamically on first call
+        if not _cache_loaded:
+            await _load_instruments_from_redis()
+        
+        instrument_map = get_instrument_map()
+        if symbol not in instrument_map:
             logger.warning(f"Unknown symbol: {symbol}, defaulting to NIFTY")
             symbol = "NIFTY"
         
-        instrument = INSTRUMENT_MAP[symbol]
+        instrument = instrument_map[symbol]
         
         # Get interval info (base_interval, aggregation_factor, use_seconds_endpoint)
         interval_info = INTERVAL_MAP.get(interval, ("15", 1, False))

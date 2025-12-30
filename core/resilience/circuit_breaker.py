@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Optional
 import structlog
+from core.utils.timezone import get_ist_now
 
 logger = structlog.get_logger("circuit-breaker")
 
@@ -96,7 +97,7 @@ class CircuitBreaker:
     def _on_failure(self):
         """Handle failed call"""
         self.failure_count += 1
-        self.last_failure_time = datetime.utcnow()
+        self.last_failure_time = get_ist_now()
         
         if self.state == CircuitState.HALF_OPEN:
             # Failed during recovery, reopen
@@ -118,7 +119,7 @@ class CircuitBreaker:
         if not self.last_failure_time:
             return True
         
-        elapsed = (datetime.utcnow() - self.last_failure_time).total_seconds()
+        elapsed = (get_ist_now() - self.last_failure_time).total_seconds()
         return elapsed >= self.timeout
     
     def _time_until_reset(self) -> float:
@@ -126,7 +127,7 @@ class CircuitBreaker:
         if not self.last_failure_time:
             return 0.0
         
-        elapsed = (datetime.utcnow() - self.last_failure_time).total_seconds()
+        elapsed = (get_ist_now() - self.last_failure_time).total_seconds()
         return max(0.0, self.timeout - elapsed)
     
     def allow_request(self) -> bool:

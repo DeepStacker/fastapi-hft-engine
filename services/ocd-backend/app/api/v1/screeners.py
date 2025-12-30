@@ -47,13 +47,17 @@ class ScreenerResponse(BaseModel):
 
 # ============== Helper Functions ==============
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.config.database import get_db
+
 async def get_screener_service_dep(
-    cache: RedisCache = Depends(get_redis)
+    cache: RedisCache = Depends(get_redis),
+    db: AsyncSession = Depends(get_db)
 ) -> ScreenerService:
     """Dependency to get screener service"""
     dhan = await get_dhan_client(cache=cache)
     options_service = OptionsService(dhan_client=dhan, cache=cache)
-    return ScreenerService(options_service=options_service, cache=cache)
+    return ScreenerService(options_service=options_service, cache=cache, db=db)
 
 
 # ============== Scalp Screener Endpoint ==============

@@ -24,6 +24,7 @@ export const analyticsService = {
     getStrikeTimeSeries: async ({
         symbol,
         strike,
+        expiry,
         optionType = 'CE',
         field = 'oi',
         interval = '5m',
@@ -33,10 +34,40 @@ export const analyticsService = {
             `${ANALYTICS_BASE}/timeseries/${symbol}/${strike}`,
             {
                 params: {
+                    expiry,
                     option_type: optionType,
                     field,
                     interval,
                     limit,
+                },
+            }
+        );
+        return response.data;
+    },
+
+    /**
+     * Get multi-view time-series data for a strike (CE, PE, differences, ratios)
+     * @param {Object} params - Query parameters
+     * @param {string} params.symbol - Trading symbol
+     * @param {number} params.strike - Strike price
+     * @param {string} params.expiry - Expiry date
+     * @param {string} [params.field='oi'] - Field to query
+     * @param {string} [params.interval='5m'] - Time interval
+     */
+    getMultiViewTimeSeries: async ({
+        symbol,
+        strike,
+        expiry,
+        field = 'oi',
+        interval = '5m',
+    }) => {
+        const response = await apiClient.get(
+            `${ANALYTICS_BASE}/timeseries/${symbol}/${strike}/multi`,
+            {
+                params: {
+                    expiry,
+                    field,
+                    interval,
                 },
             }
         );
@@ -202,8 +233,24 @@ export const analyticsService = {
      * @returns {Promise<{success: boolean, data: Array}>}
      */
     getSymbols: async () => {
-        const response = await apiClient.get('/charts/symbols');
-        return response.data;
+        const response = await apiClient.get('/symbols');
+        // Adapt response from DB-backed endpoint to match frontend expectations
+        const raw = response.data;
+
+        // Flatten segments to get all symbol objects
+        const allSymbols = [
+            ...(raw.by_segment?.indices || []),
+            ...(raw.by_segment?.equities || []),
+            ...(raw.by_segment?.commodities || [])
+        ].map(s => ({
+            ...s,
+            name: s.display_name || s.symbol // Map display_name to name for UI
+        }));
+
+        return {
+            success: true,
+            data: allSymbols
+        };
     },
 
     /**

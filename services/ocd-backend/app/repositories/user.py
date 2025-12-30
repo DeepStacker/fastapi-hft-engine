@@ -3,6 +3,7 @@ User Repository - User data access operations
 """
 from typing import Optional, List
 from datetime import datetime
+from app.utils.timezone import get_ist_now
 from uuid import UUID
 
 from sqlalchemy import select, or_
@@ -68,14 +69,14 @@ class UserRepository(BaseRepository[User]):
         """Update user's last login timestamp"""
         user = await self.get_by_id(user_id)
         if user:
-            user.last_login = datetime.utcnow()
+            user.last_login = get_ist_now()
             await self.db.flush()
     
     async def update_last_logout(self, user_id: UUID) -> None:
         """Update user's last logout timestamp"""
         user = await self.get_by_id(user_id)
         if user:
-            user.last_logout = datetime.utcnow()
+            user.last_logout = get_ist_now()
             await self.db.flush()
     
     async def update_role(self, user_id: UUID, role: UserRole) -> Optional[User]:

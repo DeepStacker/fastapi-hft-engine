@@ -4,9 +4,10 @@ Charts API Endpoints - OHLCV Data for TradingView Charts
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from app.config.database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Query, Depends
 from pydantic import BaseModel
-
 from app.services.dhan_ticks import get_ticks_service
 from app.schemas.common import ResponseModel
 
@@ -45,6 +46,7 @@ async def get_chart_data(
     symbol: str = Query(default="NIFTY", description="Symbol (NIFTY, BANKNIFTY, FINNIFTY)"),
     interval: str = Query(default="15", description="Timeframe (1, 5, 15, 30, 60, D)"),
     days: int = Query(default=30, description="Days of historical data"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get OHLCV chart data for a symbol.
@@ -68,10 +70,12 @@ async def get_chart_symbols():
     """
     Get available symbols for charting.
     """
-    from app.services.dhan_ticks import INSTRUMENT_MAP
+    from app.services.dhan_ticks import get_instrument_map
+    
+    instrument_map = get_instrument_map()
     
     symbols = []
-    for symbol, info in INSTRUMENT_MAP.items():
+    for symbol, info in instrument_map.items():
         symbols.append({
             "symbol": symbol,
             "name": symbol,
@@ -79,7 +83,7 @@ async def get_chart_symbols():
         })
         
     # Sort: Indices first (TYPE=IDX), then others alphabetically
-    symbols.sort(key=lambda x: (INSTRUMENT_MAP[x["symbol"]]["TYPE"] != "IDX", x["symbol"]))
+    symbols.sort(key=lambda x: (instrument_map[x["symbol"]]["TYPE"] != "IDX", x["symbol"]))
     
     return ResponseModel(success=True, data=symbols)
 

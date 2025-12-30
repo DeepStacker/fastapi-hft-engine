@@ -157,22 +157,22 @@ const OptionControls = memo(({ showChart, onToggleChart }) => {
 
     const displaySymbol = sid || 'NIFTY';
 
-    // Fetch symbols if not already loaded
+    // Fetch symbols on mount (always fetch fresh from DB)
     useEffect(() => {
-        if (symbols.length === 0) {
-            const fetchSymbols = async () => {
-                try {
-                    const data = await analyticsService.getSymbols();
-                    if (data.success && data.data) {
-                        dispatch(setSymbols(data.data));
-                    }
-                } catch (error) {
-                    console.error('Failed to fetch symbols:', error);
+        const fetchSymbols = async () => {
+            try {
+                console.log('[OptionControls] Fetching symbols from backend...');
+                const data = await analyticsService.getSymbols();
+                console.log('[OptionControls] Symbols response:', data);
+                if (data.success && data.data) {
+                    dispatch(setSymbols(data.data));
                 }
-            };
-            fetchSymbols();
-        }
-    }, [symbols.length, dispatch]);
+            } catch (error) {
+                console.error('[OptionControls] Failed to fetch symbols:', error);
+            }
+        };
+        fetchSymbols();
+    }, [dispatch]);
 
     const handleSymbolChange = (symbolValue) => {
         dispatch(setSidAndFetchData({ newSid: symbolValue }));
@@ -189,7 +189,26 @@ const OptionControls = memo(({ showChart, onToggleChart }) => {
 
     const formatExpiryDate = (timestamp) => {
         const date = new Date(Number(timestamp) * 1000);
-        return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+
+        // VIEW ONLY FIX: Dhan returns old years (e.g. 2018).
+        // we mask this to show Current/Next year for UI consistency.
+        const now = new Date();
+        const currentYear = now.getFullYear();
+
+        const displayDate = new Date(date);
+        displayDate.setFullYear(currentYear);
+
+        // If date has passed in current year, show next year
+        // We use setHours(0,0,0,0) to compare dates only
+        const today = new Date(now);
+        today.setHours(0, 0, 0, 0);
+
+        // Check if displayDate is strictly before today (allow today's expiry)
+        if (displayDate < today) {
+            displayDate.setFullYear(currentYear + 1);
+        }
+
+        return displayDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
     };
 
     return (

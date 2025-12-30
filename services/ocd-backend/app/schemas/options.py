@@ -4,6 +4,7 @@ Options Schemas - Request/Response models for options data endpoints
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
+from app.utils.timezone import get_ist_now
 
 
 class ExpiryDateItem(BaseModel):
@@ -110,6 +111,11 @@ class OptionChainRequest(BaseModel):
     symbol: str = Field(..., min_length=2, max_length=20)
     expiry: str = Field(..., pattern=r"^\d{10}$", description="Unix timestamp")
 
+    @field_validator('symbol')
+    @classmethod
+    def validate_symbol(cls, v: str) -> str:
+        return v.upper()
+
 
 class OptionChainResponse(BaseModel):
     """Complete option chain response"""
@@ -133,7 +139,7 @@ class OptionDataResponse(BaseModel):
     """Generic option data response"""
     success: bool = True
     data: Dict[str, Any]
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=get_ist_now)
 
 
 class PercentageDataRequest(BaseModel):

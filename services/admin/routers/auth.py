@@ -112,3 +112,83 @@ async def get_current_user_info(user = Depends(get_current_admin_user)):
         "is_admin": user.is_admin,
         "is_active": user.is_active
     }
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_access_token(request: Request, body: RefreshRequest):
+    """
+    Refresh access token using refresh token.
+    
+    Use this to get a new access token without re-authenticating.
+    Refresh tokens are valid for 7 days.
+    """
+    from jose import jwt, JWTError
+    
+    client_ip = request.client.host if request.client else "unknown"
+    
+    try:
+        # Decode refresh token
+        payload = jwt.decode(
+            body.refresh_token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        
+        # Verify token type
+        token_type = payload.get("type")
+        if token_type != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type - expected refresh token"
+            )
+        
+        username = payload.get("sub")
+        if not username:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload"
+            )
+        
+        # Verify user still exists in admin users
+        from services.admin.auth import ADMIN_USERS
+        if username not in ADMIN_USERS:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User no longer authorized"
+            )
+        
+        logger.info(
+            "Token refresh successful",
+            username=username,
+            ip_address=client_ip
+        )
+        
+        # Create new tokens
+        access_token = create_access_token(
+            data={"sub": username, "is_admin": True},
+            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        
+        # Create new refresh token (rotating refresh tokens for security)
+        new_refresh_token = create_refresh_token(username)
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer"
+        }
+        
+    except JWTError as e:
+        logger.warning(
+            "Token refresh failed",
+            error=str(e),
+            ip_address=client_ip
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token"
+        )

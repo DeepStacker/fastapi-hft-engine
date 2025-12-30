@@ -11,6 +11,8 @@ from enum import Enum
 from app.services.dhan_client import DhanClient
 from app.services.options import OptionsService
 from app.cache.redis import RedisCache
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.repositories.historical import get_historical_repository
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +52,39 @@ class ScreenerService:
     def __init__(
         self,
         options_service: Optional[OptionsService] = None,
-        cache: Optional[RedisCache] = None
+        cache: Optional[RedisCache] = None,
+        db: Optional[AsyncSession] = None
     ):
         self.options_service = options_service
         self.cache = cache
+        self.db = db
+        
+    async def _get_data(self, symbol: str, expiry: str) -> dict:
+        """Get data with fallback to DB"""
+        if self.options_service:
+            live_data = await self.options_service.get_live_data(
+                symbol=symbol,
+                expiry=expiry,
+                include_greeks=True,
+                include_reversal=False
+            )
+            if live_data:
+                return live_data
+        
+        # Fallback to DB
+        if self.db:
+            repo = get_historical_repository(self.db)
+            symbol_id = await repo.get_symbol_id(symbol)
+            if symbol_id:
+                snapshot = await repo.get_latest_snapshot(symbol_id)
+                if snapshot and snapshot.option_chain:
+                    return {
+                        "oc": snapshot.option_chain,
+                        "atm_strike": snapshot.atm_strike or 0,
+                        "spot": {"ltp": snapshot.ltp or 0},
+                        "max_pain_strike": snapshot.max_pain or 0
+                    }
+        return {}
         
     async def run_scalp_screener(
         self,
@@ -73,16 +104,10 @@ class ScreenerService:
         """
         results = []
         
-        if not self.options_service:
-            return self._generate_mock_scalp_results(symbol)
+        results = []
         
         try:
-            live_data = await self.options_service.get_live_data(
-                symbol=symbol,
-                expiry=expiry,
-                include_greeks=True,
-                include_reversal=False
-            )
+            live_data = await self._get_data(symbol, expiry)
             
             if not live_data:
                 return results
@@ -172,16 +197,10 @@ class ScreenerService:
         """
         results = []
         
-        if not self.options_service:
-            return self._generate_mock_positional_results(symbol)
+        results = []
         
         try:
-            live_data = await self.options_service.get_live_data(
-                symbol=symbol,
-                expiry=expiry,
-                include_greeks=True,
-                include_reversal=False
-            )
+            live_data = await self._get_data(symbol, expiry)
             
             if not live_data:
                 return results
@@ -251,16 +270,10 @@ class ScreenerService:
         """
         results = []
         
-        if not self.options_service:
-            return self._generate_mock_sr_results(symbol)
+        results = []
         
         try:
-            live_data = await self.options_service.get_live_data(
-                symbol=symbol,
-                expiry=expiry,
-                include_greeks=True,
-                include_reversal=False
-            )
+            live_data = await self._get_data(symbol, expiry)
             
             if not live_data:
                 return results
@@ -339,94 +352,11 @@ class ScreenerService:
             logger.error(f"Error running S/R screener: {e}")
             return []
     
-    def _generate_mock_scalp_results(self, symbol: str) -> List[ScreenerResult]:
-        """Generate mock scalp results for demo"""
-        import random
-        atm = 24500 if symbol == "NIFTY" else 52000
-        results = []
-        
-        for i in range(5):
-            strike = atm + (i - 2) * 100
-            side = random.choice(["CE", "PE"])
-            signal = random.choice(["BUY", "SELL"])
-            ltp = random.uniform(50, 200)
-            
-            results.append(ScreenerResult(
-                symbol=symbol,
-                strike=strike,
-                option_type=side,
-                signal=signal,
-                strength=random.uniform(50, 95),
-                reason=f"OI Change: +{random.randint(5, 20)}%, Vol: {random.randint(5000, 50000)}",
-                entry_price=round(ltp, 2),
-                target_price=round(ltp * 1.05, 2),
-                stop_loss=round(ltp * 0.97, 2),
-                timestamp=datetime.now(),
-                metrics={"demo": True}
-            ))
-        
-        return results
-    
-    def _generate_mock_positional_results(self, symbol: str) -> List[ScreenerResult]:
-        """Generate mock positional results for demo"""
-        import random
-        atm = 24500 if symbol == "NIFTY" else 52000
-        results = []
-        
-        for i in range(3):
-            strike = atm + (i - 1) * 200
-            side = random.choice(["CE", "PE"])
-            ltp = random.uniform(100, 400)
-            
-            results.append(ScreenerResult(
-                symbol=symbol,
-                strike=strike,
-                option_type=side,
-                signal="BUY",
-                strength=random.uniform(60, 90),
-                reason=f"OI Buildup: {random.randint(1, 5)}L, Delta: {random.uniform(0.3, 0.6):.2f}",
-                entry_price=round(ltp, 2),
-                target_price=round(ltp * 1.15, 2),
-                stop_loss=round(ltp * 0.90, 2),
-                timestamp=datetime.now(),
-                metrics={"demo": True}
-            ))
-        
-        return results
-    
-    def _generate_mock_sr_results(self, symbol: str) -> List[ScreenerResult]:
-        """Generate mock S/R results for demo"""
-        import random
-        atm = 24500 if symbol == "NIFTY" else 52000
-        results = []
-        
-        # Mock support levels
-        for i, sr_type in enumerate(["SUPPORT", "RESISTANCE", "SUPPORT"]):
-            offset = -200 if sr_type == "SUPPORT" else 200
-            strike = atm + offset * (i + 1)
-            side = "PE" if sr_type == "SUPPORT" else "CE"
-            ltp = random.uniform(80, 250)
-            
-            results.append(ScreenerResult(
-                symbol=symbol,
-                strike=strike,
-                option_type=side,
-                signal="BUY",
-                strength=random.uniform(55, 85),
-                reason=f"{sr_type} at {strike:,.0f}, OI: {random.randint(1, 8)}L",
-                entry_price=round(ltp, 2),
-                target_price=round(ltp * 1.10, 2),
-                stop_loss=round(ltp * 0.92, 2),
-                timestamp=datetime.now(),
-                metrics={"demo": True, "sr_type": sr_type}
-            ))
-        
-        return results
-
-
 async def get_screener_service(
     options_service: Optional[OptionsService] = None,
-    cache: Optional[RedisCache] = None
+    cache: Optional[RedisCache] = None,
+    db: Optional[AsyncSession] = None
 ) -> ScreenerService:
     """Get screener service instance"""
-    return ScreenerService(options_service=options_service, cache=cache)
+    return ScreenerService(options_service=options_service, cache=cache, db=db)
+
