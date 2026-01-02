@@ -51,7 +51,7 @@ async def _load_instruments_from_redis() -> dict:
         if instruments_data:
             _instrument_cache = json.loads(instruments_data) if isinstance(instruments_data, str) else instruments_data
             _cache_loaded = True
-            logger.info(f"Loaded {len(_instrument_cache)} instruments from Redis cache")
+            logger.debug(f"Loaded {len(_instrument_cache)} instruments from Redis cache")
             return _instrument_cache
         
         # If not in Redis, load from DB and cache
@@ -83,7 +83,7 @@ async def _load_instruments_from_redis() -> dict:
             if _instrument_cache:
                 await cache.set("instruments:ticks_map", json.dumps(_instrument_cache), ttl=3600)
                 _cache_loaded = True
-                logger.info(f"Loaded {len(_instrument_cache)} instruments from DB and cached")
+                logger.debug(f"Loaded {len(_instrument_cache)} instruments from DB and cached")
         
         return _instrument_cache if _instrument_cache else _STATIC_INSTRUMENT_MAP
         
@@ -127,7 +127,6 @@ class DhanTicksService:
         # Authorization token - MUST be set in settings/env
         self.authorization = getattr(settings, 'DHAN_AUTHORIZATION', '')
         self._current_token = None
-        logger.info(f"DhanTicksService initialized (token will be loaded dynamically)")
     
     async def _get_auth_token(self) -> str:
         """Get auth token from Redis dhan:tokens -> config service -> settings fallback"""
@@ -243,7 +242,7 @@ class DhanTicksService:
             "INTERVAL": dhan_interval
         }
         
-        logger.info(f"Fetching chart data for {symbol}, interval={interval} ({dhan_interval}), days={days_back}, url={api_url}")
+        logger.debug(f"Fetching chart data for {symbol}, interval={interval}")
         
         try:
             headers = await self._get_headers()
@@ -255,22 +254,11 @@ class DhanTicksService:
             
             if response.status_code == 200:
                 data = response.json()
-                # Debug: Log the raw response structure
-                logger.info(f"Dhan API raw response type: {type(data)}")
-                if isinstance(data, dict):
-                    logger.info(f"Dhan API response keys: {data.keys()}")
-                elif isinstance(data, list):
-                    logger.info(f"Dhan API response is list with {len(data)} items")
-                    if len(data) > 0:
-                        logger.info(f"First item type: {type(data[0])}, sample: {str(data[0])[:200]}")
-                else:
-                    logger.info(f"Dhan API response preview: {str(data)[:500]}")
                 result = self._format_response(data, symbol)
                 # Apply aggregation for custom intervals (factor > 1)
                 if aggregation_factor > 1 and result.get("success") and result.get("candles"):
                     result["candles"] = self._aggregate_candles(result["candles"], aggregation_factor)
                     result["count"] = len(result["candles"])
-                    logger.info(f"Aggregated to {len(result['candles'])} candles (factor={aggregation_factor})")
                 return result
             else:
                 logger.error(f"Dhan ticks API error: {response.status_code} - {response.text}")
@@ -366,7 +354,7 @@ class DhanTicksService:
                             "volume": float(volumes[i]) if i < len(volumes) else 0,
                         })
                     
-                    logger.info(f"Parsed {len(candles)} candles for {symbol}")
+                    logger.debug(f"Parsed {len(candles)} candles for {symbol}")
                 else:
                     logger.warning(f"Dhan API returned: success={data.get('success')}, has data={('data' in data)}")
             else:

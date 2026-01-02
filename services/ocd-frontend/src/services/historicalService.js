@@ -12,25 +12,39 @@ const HISTORICAL_BASE = '/historical';
  */
 export const historicalService = {
     /**
-     * Get available historical dates for a symbol
+     * Get available expiries for historical data
      * @param {string} symbol - Trading symbol (e.g., 'NIFTY')
+     * @returns {Promise<{success: boolean, symbol: string, expiries: string[]}>}
+     */
+    getAvailableExpiries: async (symbol) => {
+        const response = await apiClient.get(
+            `${HISTORICAL_BASE}/expiries/${symbol}`
+        );
+        return response.data;
+    },
+
+    /**
+     * Get available historical dates for a symbol/expiry
+     * @param {string} symbol - Trading symbol (e.g., 'NIFTY')
+     * @param {string} expiry - Optional expiry to filter dates
      * @returns {Promise<{success: boolean, symbol: string, dates: string[]}>}
      */
-    getAvailableDates: async (symbol) => {
+    getAvailableDates: async (symbol, expiry = null) => {
+        const params = expiry ? { expiry } : {};
         const response = await apiClient.get(
-            `${HISTORICAL_BASE}/dates/${symbol}`
+            `${HISTORICAL_BASE}/dates/${symbol}`,
+            { params }
         );
         return response.data;
     },
 
     /**
      * Get available snapshot times for a specific date
-     * @param {Object} params - Query parameters
-     * @param {string} params.symbol - Trading symbol
-     * @param {string} params.date - Date in YYYY-MM-DD format
+     * @param {string} symbol - Trading symbol
+     * @param {string} date - Date in YYYY-MM-DD format
      * @returns {Promise<{success: boolean, symbol: string, date: string, times: string[]}>}
      */
-    getAvailableTimes: async ({ symbol, date }) => {
+    getAvailableTimes: async (symbol, date) => {
         const response = await apiClient.get(
             `${HISTORICAL_BASE}/times/${symbol}/${date}`
         );

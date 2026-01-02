@@ -358,10 +358,10 @@ const StrikeRow = memo(({ data, strike, atmStrike, spotPrice, onCellClick, onStr
   // Calculate strike PCR (OI, OI Change, and Volume)
   const ce_oi = ce.OI || ce.oi || 0;
   const pe_oi = pe.OI || pe.oi || 0;
-  const ce_oi_chng = ce.oichng || 0;
-  const pe_oi_chng = pe.oichng || 0;
-  const ce_vol = ce.volume || 0;
-  const pe_vol = pe.volume || 0;
+  const ce_oi_chng = ce.oichng || ce.oi_change || 0;
+  const pe_oi_chng = pe.oichng || pe.oi_change || 0;
+  const ce_vol = ce.volume || ce.vol || 0;
+  const pe_vol = pe.volume || pe.vol || 0;
 
   const oiPcr = ce_oi > 0 ? pe_oi / ce_oi : 0;
   const oiChngPcr = ce_oi_chng !== 0 ? pe_oi_chng / ce_oi_chng : 0;
@@ -485,7 +485,7 @@ const StrikeRow = memo(({ data, strike, atmStrike, spotPrice, onCellClick, onStr
             <ClickableCell onClick={() => handleCellClick('ce', 'OI', ce.OI)}>
               <div className="flex flex-col items-center">
                 <span className="font-semibold text-gray-700 dark:text-gray-300">
-                  {formatNumber(ce.OI)}
+                  {formatNumber(ce.OI || ce.oi)}
                 </span>
                 {getPct('ce_oi') > 0 && (
                   <span className="text-xs text-gray-500">{getPct('ce_oi').toFixed(0)}%</span>
@@ -629,7 +629,7 @@ const StrikeRow = memo(({ data, strike, atmStrike, spotPrice, onCellClick, onStr
             <ClickableCell onClick={() => handleCellClick('pe', 'OI', pe.OI)}>
               <div className="flex flex-col items-center">
                 <span className="font-semibold text-gray-700 dark:text-gray-300">
-                  {formatNumber(pe.OI)}
+                  {formatNumber(pe.OI || pe.oi || 0)}
                 </span>
                 {getPct('pe_oi') > 0 && (
                   <span className="text-xs text-gray-500">{getPct('pe_oi').toFixed(0)}%</span>

@@ -80,7 +80,7 @@ const normalizeExpiryForComparison = (expiry) => {
  * Normalize backend data (from REST or WS) to unified Frontend Redux state shape
  * Ensures consistent keys for Spot, Futures, and Option Chain
  */
-const normalizeBackendData = (raw) => {
+export const normalizeBackendData = (raw) => {
   if (!raw) return null;
 
   // Transform oc data to match frontend expected field names
@@ -443,12 +443,15 @@ export const dataSlice = createSlice({
 
         if (!actualMatch) {
           // User has selected a different expiry - ignore WebSocket data
-          console.debug('updateLiveData: Ignoring WebSocket data (expiry mismatch)', {
+          // User has selected a different expiry - ignore WebSocket data
+          console.warn('updateLiveData: Ignoring WebSocket data (expiry mismatch)', {
             userSelected: state.exp_sid,
             incoming: incomingExpiry,
             normalizedSelected,
             normalizedIncoming,
-            isExpiryMatch: state.isExpiryMatch
+            isExpiryMatch: state.isExpiryMatch,
+            userType: typeof state.exp_sid,
+            incomingType: typeof incomingExpiry
           });
           return;
         }

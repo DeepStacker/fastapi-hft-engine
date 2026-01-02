@@ -230,6 +230,8 @@ class DhanClient(BaseDhanClient):
             }
         }
         
+        logger.debug(f"Fetching expiry dates from Dhan for {symbol} (Seg: {seg}, Sid: {sid})")
+        
         try:
             # Use futures endpoint which has opsum with real-time expiry dates
             data = await self._request(
@@ -239,12 +241,15 @@ class DhanClient(BaseDhanClient):
                 cache_ttl=settings.REDIS_EXPIRY_CACHE_TTL
             )
             
+            if not data or "data" not in data:
+                logger.error(f"Dhan Expiry Response invalid or empty: {data}")
+                return []
+                
             # Get expiry from opsum keys (expiry timestamps are the keys in opsum dict)
             raw_data = data.get("data", {}) or {}
             opsum = raw_data.get("opsum", {}) or {}
             
-            logger.info(f"Dhan Futures API opsum keys count: {len(opsum.keys())}")
-            logger.info(f"Dhan Futures API opsum sample keys: {list(opsum.keys())[:5]}")
+            logger.debug(f"Dhan Futures API opsum keys count: {len(opsum.keys())}")
             
             # opsum keys are the expiry timestamps as strings
             exp_list = list(opsum.keys())
@@ -268,9 +273,7 @@ class DhanClient(BaseDhanClient):
             int_exp_list = self._convert_expiry_timestamps(int_exp_list)
             int_exp_list.sort() # Sort again after conversion just in case
             
-            logger.info(f"Found {len(int_exp_list)} valid expiry dates for {symbol}")
-            if int_exp_list:
-                logger.info(f"First expiry: {int_exp_list[0]}, Last: {int_exp_list[-1]}")
+            logger.debug(f"Found {len(int_exp_list)} valid expiry dates for {symbol}")
             
             # Cache result
             if self.cache and int_exp_list:
@@ -326,7 +329,7 @@ class DhanClient(BaseDhanClient):
                 logger.warning(f"Failed to convert expiry {old_ts}: {e}")
                 continue
                 
-        logger.info(f"Converted {len(timestamps)} timestamps to {len(converted)} valid dates (Current Year: {current_year})")
+        logger.debug(f"Converted {len(timestamps)} timestamps to {len(converted)} valid dates")
         return converted
         
     def revert_expiry_timestamp(self, timestamp: int) -> int:
@@ -375,7 +378,7 @@ class DhanClient(BaseDhanClient):
         Otherwise, fetches directly from Dhan API.
         """
         # ====== HFT ENGINE MODE (with fallback) ======
-        logger.info(f"get_option_chain called for {symbol} with expiry={expiry} (type: {type(expiry)})")
+        logger.debug(f"get_option_chain called for {symbol} with expiry={expiry}")
         if self.use_hft_source:
             adapter = await self._get_hft_adapter()
             
@@ -414,14 +417,12 @@ class DhanClient(BaseDhanClient):
                                 
                                 if delta_days <= 1:
                                     use_hft_for_this_request = True
-                                    logger.debug(f"Expiry ts {expiry} -> {exp_date_str} matches HFT ({hft_current_expiry}) within 1 day")
-                                else:
-                                    logger.info(f"Expiry {expiry} -> {exp_date_str} != HFT ({hft_current_expiry}) diff={delta_days} days")
+                                    logger.debug(f"Expiry ts {expiry} matches HFT within 1 day")
                             except (ValueError, TypeError) as e:
                                 logger.debug(f"Could not convert expiry {expiry} to date: {e}")
                         
                         if not use_hft_for_this_request:
-                            logger.info(f"Expiry {expiry} != HFT current ({hft_current_expiry}), falling back to Dhan API")
+                            logger.debug(f"Expiry {expiry} != HFT current, falling back to Dhan API")
                     else:
                         logger.warning(f"HFT data has no expiry field, using HFT anyway")
                         use_hft_for_this_request = True
@@ -440,7 +441,6 @@ class DhanClient(BaseDhanClient):
             exp_ts = int(float(expiry))
             # REVERT expiry to original format for API call
             original_exp_ts = self.revert_expiry_timestamp(exp_ts)
-            logger.info(f"Reverted expiry for API call: {exp_ts} -> {original_exp_ts}")
         except (ValueError, TypeError):
              logger.warning(f"Invalid expiry format received: {expiry}")
              # Pass through if we can't parse it (might be empty or invalid)

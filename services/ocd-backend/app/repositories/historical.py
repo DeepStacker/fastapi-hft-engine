@@ -112,7 +112,8 @@ class HistoricalDataRepository:
                     OptionContractDB.symbol_id == symbol_id,
                     OptionContractDB.strike_price == strike,
                     OptionContractDB.option_type == option_type,
-                    OptionContractDB.expiry == expiry,
+                    # Cast expiry to integer since DB has bigint column
+                    OptionContractDB.expiry == int(expiry) if expiry and expiry.isdigit() else OptionContractDB.expiry == expiry,
                     OptionContractDB.timestamp >= start_time,
                     OptionContractDB.timestamp <= end_time,
                 )

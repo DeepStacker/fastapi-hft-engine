@@ -6,14 +6,15 @@ Provides time-series data for option chain metrics:
 - Spot price history
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy import and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.utils.timezone import get_ist_now
+from app.utils.timezone import get_ist_now, IST
 
 from app.core.dependencies import OptionalUser
 from app.config.database import get_db
@@ -21,6 +22,7 @@ from app.services.dhan_client import get_dhan_client
 from app.services.options import OptionsService
 from app.cache.redis import get_redis, RedisCache
 from app.repositories.historical import get_historical_repository
+from core.database.models import OptionContractDB
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -79,6 +81,7 @@ async def get_spot_timeseries(
     symbol: str,
     interval: str = Query("5m", regex="^(1m|5m|15m|1h|1d)$"),
     limit: int = Query(100, ge=10, le=500),
+    date: Optional[str] = Query(None, description="Trade date YYYY-MM-DD"),
     current_user: OptionalUser = None,
     db: AsyncSession = Depends(get_db),
     service: OptionsService = Depends(get_analytics_service),
@@ -88,12 +91,25 @@ async def get_spot_timeseries(
     repo = get_historical_repository(db)
     
     # Calculate time range
-    # Use naive IST to match DB
     now = get_ist_now().replace(tzinfo=None)
+    if date:
+        try:
+            target_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except:
+            target_date = now.date()
+    else:
+        target_date = now.date()
+        
     # Approximation for interval parsing
     minutes_map = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "1d": 1440}
     interval_minutes = minutes_map.get(interval, 5)
-    start_time = now - timedelta(minutes=limit * interval_minutes)
+    
+    if date and target_date < now.date():
+        start_time = datetime.combine(target_date, dt_time.min)
+        end_time = datetime.combine(target_date, dt_time.max)
+    else:
+        start_time = now - timedelta(minutes=limit * interval_minutes)
+        end_time = now
     
     # Get symbol ID
     symbol_id = await repo.get_symbol_id(symbol)
@@ -109,7 +125,7 @@ async def get_spot_timeseries(
     timeseries = await repo.get_spot_timeseries(
         symbol_id=symbol_id,
         start_time=start_time,
-        end_time=now,
+        end_time=end_time,
         interval_minutes=interval_minutes
     )
     
@@ -165,6 +181,7 @@ async def get_strike_timeseries(
     interval: str = Query("5m", regex="^(1m|5m|15m|1h|1d)$"),
     limit: int = Query(50, ge=10, le=500),
     expiry: str = Query(..., description="Expiry date YYYY-MM-DD"),
+    date: Optional[str] = Query(None, description="Trade date YYYY-MM-DD"),
     current_user: OptionalUser = None,
     db: AsyncSession = Depends(get_db),
     service: OptionsService = Depends(get_analytics_service),
@@ -181,30 +198,34 @@ async def get_strike_timeseries(
     
     # DB timestamps are stored as naive IST (wall clock)
     now = get_ist_now().replace(tzinfo=None)
-    today = now.date()
+    if date:
+        try:
+            target_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except:
+            target_date = now.date()
+    else:
+        target_date = now.date()
     
     # Commodity symbols have extended trading hours (no 3:30 PM cap)
     COMMODITY_SYMBOLS = {"CRUDEOIL", "NATURALGAS", "GOLD", "SILVER", "COPPER", "ALUMINIUM", "ZINC", "LEAD", "NICKEL"}
     is_commodity = symbol.upper() in COMMODITY_SYMBOLS
     
     # Market hours: 9:15 AM to 3:30 PM for equity indices
-    market_open = datetime.combine(today, datetime.strptime("09:15", "%H:%M").time())
-    market_close = datetime.combine(today, datetime.strptime("15:30", "%H:%M").time())
+    market_open = datetime.combine(target_date, datetime.strptime("09:15", "%H:%M").time())
+    market_close = datetime.combine(target_date, datetime.strptime("15:30", "%H:%M").time())
     
     # Start time: Use Midnight to capture pre-market/simulation data
-    # (Previously hardcoded to 9:15 AM which blocked data if now < 9:15)
-    start_time = datetime.combine(today, datetime.min.time())
+    start_time = datetime.combine(target_date, dt_time.min)
     
     # End time: current time, but capped at 3:30 PM for non-commodity symbols
-    # If currently pre-market (e.g. 5:30 AM), end_time will be 5:30 AM.
-    if is_commodity:
-        end_time = now
+    if target_date < now.date():
+        # Historical date: use full day
+        end_time = datetime.combine(target_date, dt_time.max)
     else:
-        # If now is before market close, use now. If after, cap at close.
-        # But if now < market_open (e.g. 5 AM), we still want to show data up to 5 AM.
-        # Logic: min(now, market_close) works if now > close (returns close).
-        # If now < close (e.g. 5 AM), returns 5 AM.
-        end_time = min(now, market_close)
+        if is_commodity:
+            end_time = now
+        else:
+            end_time = min(now, market_close)
 
     # Get symbol ID
     symbol_id = await repo.get_symbol_id(symbol)
@@ -238,12 +259,8 @@ async def get_strike_timeseries(
             dt = datetime.strptime(expiry, "%Y-%m-%d")
             
             # Use 12:00 IST (Noon) to match keys in storage
-            from datetime import time
-            from app.utils.timezone import IST
-            dt_ist = datetime.combine(dt.date(), time(12, 0)).replace(tzinfo=IST)
+            dt_ist = datetime.combine(dt.date(), dt_time(12, 0)).replace(tzinfo=IST)
             unix_expiry = str(int(dt_ist.timestamp()))
-            
-            logger.info(f"Timeseries Query: Converted {expiry} -> {unix_expiry} (Noon IST)")
             
             timeseries = await repo.get_option_timeseries(
                 symbol_id=symbol_id,
@@ -255,8 +272,8 @@ async def get_strike_timeseries(
                 end_time=end_time,
                 interval_minutes=interval_minutes
             )
-        except Exception as e:
-            logger.warning(f"Expiry conversion retry failed: {e}")
+        except Exception:
+            pass  # Use original expiry
 
     # Fallback to live data point if history still empty
     if not timeseries:
@@ -343,6 +360,7 @@ async def get_strike_multiview_timeseries(
     field: str = Query("oi", regex="^(oi|oi_change|ltp|iv|volume|delta|theta|gamma|vega)$"),
     interval: str = Query("5m", regex="^(1m|5m|15m|1h|1d)$"),
     expiry: str = Query(..., description="Expiry date YYYY-MM-DD"),
+    date: Optional[str] = Query(None, description="Trade date YYYY-MM-DD"),
     current_user: OptionalUser = None,
     db: AsyncSession = Depends(get_db),
     service: OptionsService = Depends(get_analytics_service),
@@ -354,35 +372,52 @@ async def get_strike_multiview_timeseries(
     symbol = symbol.upper()
     repo = get_historical_repository(db)
     
-    # Calculate time range (Use naive IST to match DB)
+    # Calculate time range
     minutes_map = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "1d": 1440}
     interval_minutes = minutes_map.get(interval, 5)
     
-    now = get_ist_now().replace(tzinfo=None)
-    today = now.date()
+    # Get current time in IST (timezone-aware)
+    now_ist = get_ist_now()
+    if date:
+        try:
+            target_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except:
+            target_date = now_ist.date()
+    else:
+        target_date = now_ist.date()
     
-    # Market hours: 9:15 AM to 3:30 PM for equity indices
+    # Market hours: 9:15 AM to 3:30 PM IST for equity indices
     COMMODITY_SYMBOLS = {"CRUDEOIL", "NATURALGAS", "GOLD", "SILVER", "COPPER", "ALUMINIUM", "ZINC", "LEAD", "NICKEL"}
     is_commodity = symbol.upper() in COMMODITY_SYMBOLS
     
-    market_open = datetime.combine(today, datetime.strptime("09:15", "%H:%M").time())
-    market_close = datetime.combine(today, datetime.strptime("15:30", "%H:%M").time())
+    # Create timezone-aware market open/close times in IST
+    market_open_ist = datetime.combine(target_date, datetime.strptime("09:15", "%H:%M").time()).replace(tzinfo=IST)
+    market_close_ist = datetime.combine(target_date, datetime.strptime("15:30", "%H:%M").time()).replace(tzinfo=IST)
     
-    # Start time: Use Midnight to capture pre-market/simulation data
-    start_time = datetime.combine(today, datetime.min.time())
+    # Start time: Market open (9:15 AM IST) for intraday data
+    start_time_ist = market_open_ist
     
-    # End time: current time, but capped at 3:30 PM for non-commodity symbols
-    if is_commodity:
-        end_time = now
+    # End time: Min(current time, market close) for today; Full day for historical
+    if target_date < now_ist.date():
+        # Historical date - use full market hours
+        end_time_ist = market_close_ist
+    elif target_date == now_ist.date():
+        # Today - use current time capped at market close (or beyond for commodities)
+        if is_commodity:
+            end_time_ist = now_ist
+        else:
+            end_time_ist = min(now_ist, market_close_ist)
     else:
-        # Allow viewing data beyond market hours (useful for mock/testing)
-        # identifying if it is mock data or not is complex, so we just uncap it.
-        end_time = now + timedelta(hours=1) # Allow slight future drift for HFT/Mock data
-        
+        # Future date - no data expected
+        end_time_ist = market_close_ist
+    
+    # Convert to UTC for database query (DB stores timestamps in UTC)
+    from datetime import timezone
+    start_time = start_time_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    end_time = end_time_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    
     # Get symbol ID
     symbol_id = await repo.get_symbol_id(symbol)
-    
-    logger.info(f"MultiView Request: Symbol={symbol} ID={symbol_id} Expiry={expiry} Start={start_time} End={end_time}")
     
     if not symbol_id:
         return MultiViewResponse(
@@ -393,21 +428,45 @@ async def get_strike_multiview_timeseries(
             summary={"error": "Symbol not found"}
         )
     
-    # Convert expiry if needed
+    # Get available expiries for smart fallback (lightweight query)
+    sample_expiries = []
+    try:
+        from sqlalchemy import select, distinct
+        expiry_query = select(
+            distinct(OptionContractDB.expiry),
+        ).where(
+            OptionContractDB.symbol_id == symbol_id
+        ).limit(5)
+        expiry_result = await db.execute(expiry_query)
+        sample_expiries = [r[0] for r in expiry_result.fetchall()]
+    except Exception:
+        pass  # Silently continue without expiry fallback
+    
     # Convert expiry if needed
     query_expiry = expiry
     # Normalize YYYY-MM-DD to Noon IST Timestamp if needed
     if "-" in expiry:
         try:
-            from datetime import time
-            from app.utils.timezone import IST
             dt = datetime.strptime(expiry, "%Y-%m-%d")
             # Align to Noon IST
-            dt_ist = datetime.combine(dt.date(), time(12, 0)).replace(tzinfo=IST)
+            dt_ist = datetime.combine(dt.date(), dt_time(12, 0)).replace(tzinfo=IST)
             query_expiry = str(int(dt_ist.timestamp()))
-            logger.info(f"MultiView Query: Converted {expiry} -> {query_expiry} (Noon IST)")
-        except Exception as e:
-            logger.warning(f"MultiView expiry conversion failed: {e}")
+        except Exception:
+            pass  # Use original expiry
+    
+    # Smart expiry fallback: if requested expiry doesn't match DB, use first available
+    if sample_expiries and str(query_expiry) not in [str(e) for e in sample_expiries]:
+        try:
+            requested_ts = int(query_expiry) if query_expiry.isdigit() else 0
+            for db_expiry in sample_expiries:
+                if abs(db_expiry - requested_ts) < 86400:  # Within 24 hours
+                    query_expiry = str(db_expiry)
+                    break
+            else:
+                # No close match, use first available
+                query_expiry = str(sample_expiries[0])
+        except Exception:
+            pass  # Continue with original expiry
     
     # Fetch CE and PE data
     ce_data = await repo.get_option_timeseries(
@@ -421,6 +480,61 @@ async def get_strike_multiview_timeseries(
         expiry=query_expiry, field=field, start_time=start_time,
         end_time=end_time, interval_minutes=interval_minutes
     )
+    
+    # If no data and query_expiry was converted, try with original expiry string
+    if not ce_data and not pe_data and query_expiry != expiry:
+        ce_data = await repo.get_option_timeseries(
+            symbol_id=symbol_id, strike=strike, option_type="CE",
+            expiry=expiry, field=field, start_time=start_time,
+            end_time=end_time, interval_minutes=interval_minutes
+        )
+        pe_data = await repo.get_option_timeseries(
+            symbol_id=symbol_id, strike=strike, option_type="PE",
+            expiry=expiry, field=field, start_time=start_time,
+            end_time=end_time, interval_minutes=interval_minutes
+        )
+
+    
+    # Fallback to live data if no historical data found
+    if not ce_data and not pe_data:
+        try:
+            live_data = await service.get_live_data(
+                symbol=symbol,
+                expiry=expiry,
+                include_greeks=True
+            )
+            if live_data and "oc" in live_data:
+                strike_key = str(int(strike))
+                if strike_key not in live_data["oc"]:
+                    strike_key = f"{strike:.6f}"
+                
+                if strike_key in live_data["oc"]:
+                    strike_data = live_data["oc"][strike_key]
+                    now_ts = get_ist_now().replace(tzinfo=None)
+                    
+                    # Extract field value for CE/PE
+                    for opt_type, data_list, opt_key in [("CE", ce_data, "ce"), ("PE", pe_data, "pe")]:
+                        opt = strike_data.get(opt_key, {})
+                        optgeeks = opt.get("optgeeks", {}) or {}
+                        field_mapping = {
+                            "oi": opt.get("OI") or opt.get("oi", 0),
+                            "oi_change": opt.get("oichng") or opt.get("oi_change", 0),
+                            "ltp": opt.get("ltp", 0),
+                            "iv": opt.get("iv", 0),
+                            "volume": opt.get("vol") or opt.get("volume", 0),
+                            "delta": opt.get("delta") or optgeeks.get("delta", 0),
+                            "theta": opt.get("theta") or optgeeks.get("theta", 0),
+                            "gamma": opt.get("gamma") or optgeeks.get("gamma", 0),
+                            "vega": opt.get("vega") or optgeeks.get("vega", 0),
+                        }
+                        current_value = field_mapping.get(field, 0)
+                        from app.repositories.historical import TimeSeriesPoint
+                        if opt_type == "CE":
+                            ce_data = [TimeSeriesPoint(timestamp=now_ts, value=float(current_value) if current_value else 0.0)]
+                        else:
+                            pe_data = [TimeSeriesPoint(timestamp=now_ts, value=float(current_value) if current_value else 0.0)]
+        except Exception:
+            pass  # Continue with empty data
     
     # Build views dict
     views = {}

@@ -53,6 +53,7 @@ class MarketSnapshotDB(Base):
     
     id = Column(BigInteger, primary_key=True, index=True)
     timestamp = Column(DateTime, nullable=False, index=True)
+    trade_date = Column(DateTime, nullable=True, index=True)  # Trading day (date only, derived from timestamp)
     symbol_id = Column(Integer, ForeignKey('instruments.symbol_id', ondelete='CASCADE'), nullable=False, index=True)
     exchange = Column(String(10), nullable=False)
     segment = Column(String(10), nullable=False)
@@ -128,10 +129,11 @@ class OptionContractDB(Base):
     
     id = Column(BigInteger, primary_key=True, index=True)
     timestamp = Column(DateTime, nullable=False, index=True)
+    trade_date = Column(DateTime, nullable=True, index=True)  # Trading day (date only, derived from timestamp)
     symbol_id = Column(Integer, ForeignKey('instruments.symbol_id', ondelete='CASCADE'), nullable=False, index=True)
     
     # Contract details
-    expiry = Column(String(20), nullable=False, index=True)
+    expiry = Column(BigInteger, nullable=False, index=True)  # Unix timestamp
     strike_price = Column(Float, nullable=False, index=True)
     option_type = Column(String(2), nullable=False, index=True)  # CE or PE
     
@@ -209,6 +211,7 @@ class OptionContractDB(Base):
         Index('idx_options_expiry_strike_type', 'expiry', 'strike_price', 'option_type'),
         Index('idx_options_symbol_expiry', 'symbol_id', 'expiry'),
         Index('idx_options_time_symbol', 'timestamp', 'symbol_id'),
+        Index('idx_options_symbol_expiry_date', 'symbol_id', 'expiry', 'trade_date'),  # For historical queries
         CheckConstraint('option_type IN (\'CE\', \'PE\')', name='chk_option_type'),
         CheckConstraint('strike_price > 0', name='chk_strike_positive'),
         CheckConstraint('ltp >= 0', name='chk_option_ltp_nonneg'),

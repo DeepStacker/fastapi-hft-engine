@@ -18,7 +18,12 @@ const SymbolSelector = ({ symbols, currentSymbol, onSelect, theme }) => {
   const groupedSymbols = useMemo(() => {
     const indices = [];
     const equities = [];
-    
+
+    // Guard against undefined symbols 
+    if (!symbols || !Array.isArray(symbols)) {
+      return { indices, equities };
+    }
+
     symbols.forEach(s => {
       // Check if symbol name contains index-like patterns or is known index
       const isIndex = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'BANKEX', 'NIFTYNXT50'].includes(s.symbol);
@@ -28,7 +33,7 @@ const SymbolSelector = ({ symbols, currentSymbol, onSelect, theme }) => {
         equities.push(s);
       }
     });
-    
+
     return { indices, equities };
   }, [symbols]);
 
@@ -36,12 +41,12 @@ const SymbolSelector = ({ symbols, currentSymbol, onSelect, theme }) => {
   const filteredGroups = useMemo(() => {
     const query = search.toLowerCase();
     return {
-      indices: groupedSymbols.indices.filter(s => 
-        s.symbol.toLowerCase().includes(query) || 
+      indices: groupedSymbols.indices.filter(s =>
+        s.symbol.toLowerCase().includes(query) ||
         (s.name || '').toLowerCase().includes(query)
       ),
-      equities: groupedSymbols.equities.filter(s => 
-        s.symbol.toLowerCase().includes(query) || 
+      equities: groupedSymbols.equities.filter(s =>
+        s.symbol.toLowerCase().includes(query) ||
         (s.name || '').toLowerCase().includes(query)
       ),
     };
@@ -65,16 +70,9 @@ const SymbolSelector = ({ symbols, currentSymbol, onSelect, theme }) => {
     setIsOpen(true);
   };
 
-  // Close on outside click
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  // Close on outside click - Handled by Backdrop in Portal
+  // useEffect removed to prevent closing when clicking inside Portal
+
 
   // Focus input when opened
   useEffect(() => {
@@ -136,17 +134,17 @@ const SymbolSelector = ({ symbols, currentSymbol, onSelect, theme }) => {
         className={`
           flex items-center gap-2 px-3 py-1.5 rounded-lg border
           font-semibold text-xs transition-all duration-200 min-w-[120px]
-          ${isDark 
-            ? 'bg-gray-800 border-gray-700 text-white hover:bg-gray-700' 
+          ${isDark
+            ? 'bg-gray-800 border-gray-700 text-white hover:bg-gray-700'
             : 'bg-white border-gray-200 text-gray-900 hover:bg-gray-50'}
           ${isOpen ? (isDark ? 'ring-1 ring-blue-500' : 'ring-1 ring-blue-400') : ''}
         `}
       >
         <span className="font-bold">{currentSymbol?.symbol || 'Select'}</span>
-        <svg 
-          className={`w-3 h-3 ml-auto transition-transform ${isOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`} 
-          fill="none" 
-          stroke="currentColor" 
+        <svg
+          className={`w-3 h-3 ml-auto transition-transform ${isOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+          fill="none"
+          stroke="currentColor"
           viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -157,16 +155,16 @@ const SymbolSelector = ({ symbols, currentSymbol, onSelect, theme }) => {
       {isOpen && createPortal(
         <>
           {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-[2147483646]" 
+          <div
+            className="fixed inset-0 z-[2147483646]"
             onClick={() => setIsOpen(false)}
           />
-          <div 
+          <div
             className={`
               fixed w-72 max-h-80 rounded-xl border shadow-2xl z-[2147483647]
               overflow-hidden
-              ${isDark 
-                ? 'bg-gray-900 border-gray-700' 
+              ${isDark
+                ? 'bg-gray-900 border-gray-700'
                 : 'bg-white border-gray-200'}
             `}
             style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
@@ -174,10 +172,10 @@ const SymbolSelector = ({ symbols, currentSymbol, onSelect, theme }) => {
             {/* Search Input */}
             <div className={`p-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
               <div className="relative">
-                <svg 
-                  className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} 
-                  fill="none" 
-                  stroke="currentColor" 
+                <svg
+                  className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                  fill="none"
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -191,8 +189,8 @@ const SymbolSelector = ({ symbols, currentSymbol, onSelect, theme }) => {
                   className={`
                     w-full pl-8 pr-3 py-1.5 rounded-lg text-xs
                     focus:outline-none focus:ring-1 transition-all
-                    ${isDark 
-                      ? 'bg-gray-800 text-white placeholder-gray-500 focus:ring-blue-500' 
+                    ${isDark
+                      ? 'bg-gray-800 text-white placeholder-gray-500 focus:ring-blue-500'
                       : 'bg-gray-100 text-gray-900 placeholder-gray-400 focus:ring-blue-400'}
                   `}
                 />
@@ -208,9 +206,9 @@ const SymbolSelector = ({ symbols, currentSymbol, onSelect, theme }) => {
                     Indices
                   </div>
                   {filteredGroups.indices.map((s, idx) => (
-                    <SymbolItem 
-                      key={s.symbol} 
-                      symbol={s} 
+                    <SymbolItem
+                      key={s.symbol}
+                      symbol={s}
                       isSelected={currentSymbol?.symbol === s.symbol}
                       isHighlighted={highlightedIndex === idx}
                       onClick={() => handleSelect(s)}
@@ -227,9 +225,9 @@ const SymbolSelector = ({ symbols, currentSymbol, onSelect, theme }) => {
                     Equities
                   </div>
                   {filteredGroups.equities.map((s, idx) => (
-                    <SymbolItem 
-                      key={s.symbol} 
-                      symbol={s} 
+                    <SymbolItem
+                      key={s.symbol}
+                      symbol={s}
                       isSelected={currentSymbol?.symbol === s.symbol}
                       isHighlighted={highlightedIndex === (filteredGroups.indices.length + idx)}
                       onClick={() => handleSelect(s)}
@@ -264,9 +262,9 @@ const SymbolItem = ({ symbol, isSelected, isHighlighted, onClick, isDark }) => {
       className={`
         w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-xs
         transition-all duration-100
-        ${isSelected 
+        ${isSelected
           ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white')
-          : isHighlighted 
+          : isHighlighted
             ? (isDark ? 'bg-gray-800' : 'bg-gray-100')
             : (isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50')
         }

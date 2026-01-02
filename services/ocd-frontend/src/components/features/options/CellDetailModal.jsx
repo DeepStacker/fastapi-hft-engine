@@ -823,7 +823,7 @@ const VIEW_TABS = [
  * Enhanced Modal for displaying time-series and aggregate data
  * Inspired by LOC Calculator's chart modal with multiple view options
  */
-const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
+const CellDetailModal = memo(({ isOpen, onClose, cellData, symbol: propSymbol, expiry: propExpiry, date }) => {
     const { strike, side, field: propField, fullData } = cellData || {};
 
     // Normalize field name
@@ -904,12 +904,15 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
     };
 
     // Use correct Redux selectors for symbol and expiry
-    const symbol = useSelector(selectSelectedSymbol);
-    const expiry = useSelector(selectSelectedExpiry);
+    const reduxSymbol = useSelector(selectSelectedSymbol);
+    const reduxExpiry = useSelector(selectSelectedExpiry);
+
+    const symbol = propSymbol || reduxSymbol;
+    const expiry = propExpiry || reduxExpiry;
 
     // Sync selectedField when propField changes (e.g. clicking different cell)
     useEffect(() => {
-        if (open && propField) {
+        if (isOpen && propField) {
             const norm = getNormalizedField(propField);
             if (norm !== selectedField) setSelectedField(norm);
         }
@@ -940,24 +943,28 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
 
     // Fetch multi-view time-series data for strike view
     const fetchStrikeData = useCallback(async () => {
-        console.log('[CellDetailModal] fetchStrikeData (multi-view) called with:', { symbol, strike, side, selectedField });
+        console.log('[CellDetailModal] fetchStrikeData (multi-view) called with:', { symbol, strike, side, selectedField, expiry, date });
 
-        if (!symbol || !strike) {
-            console.warn('[CellDetailModal] Missing required params:', { symbol, strike });
+        if (!symbol || !strike || !expiry) {
+            console.warn('[CellDetailModal] Missing required params:', { symbol, strike, expiry });
             return;
         }
 
         setLoading(true);
         setError(null);
 
+        // Use provided date or current date for live mode
+        const queryDate = date || new Date().toISOString().split('T')[0];
+
         try {
-            console.log('[CellDetailModal] Calling analyticsService.getMultiViewTimeSeries...');
+            console.log('[CellDetailModal] Calling analyticsService.getMultiViewTimeSeries with date:', queryDate);
             const data = await analyticsService.getMultiViewTimeSeries({
                 symbol,
                 strike: parseFloat(strike),
-                expiry,
+                expiry, // This is the crucial expiry parameter
                 field: selectedField,
                 interval: '5m',
+                date: queryDate, // Always pass a date (today for live, selected for historical)
             });
             console.log('[CellDetailModal] Multi-view API response:', data);
             setTimeSeriesData(data);
@@ -967,7 +974,7 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
             setError(err.message || 'Failed to load data');
             setLoading(false);
         }
-    }, [symbol, strike, selectedField, expiry]);
+    }, [symbol, strike, selectedField, expiry, date]);
 
     // Fetch aggregate data for COi, Oi, Overall, PCR, Percentage views
     const fetchAggregateData = useCallback(async (viewType) => {
@@ -1307,7 +1314,9 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
                             <div className="flex items-center gap-6 text-sm">
                                 <div className="flex items-center gap-2">
                                     <span className="font-bold text-gray-700 dark:text-gray-200">{symbol}</span>
-                                    <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">{new Date(expiry * 1000).toLocaleDateString()}</span>
+                                    <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                                        {expiry ? (isNaN(expiry) ? expiry : new Date(expiry * 1000).toLocaleDateString()) : 'N/A'}
+                                    </span>
                                 </div>
                                 <div className="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
                                 <div className="flex items-center gap-2">

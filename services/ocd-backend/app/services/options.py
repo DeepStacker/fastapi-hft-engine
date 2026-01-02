@@ -2,9 +2,11 @@
 High-level options data service.
 Orchestrates data fetching, Greeks, reversal calculations, and transformations.
 Refactored to use modular components (Repository, Transformer).
+Unified API for both live and historical data access.
 """
 import logging
 from typing import Dict, Any, List, Optional
+from datetime import datetime
 import numpy as np
 
 from app.services.dhan_client import DhanClient
@@ -13,6 +15,7 @@ from app.services.greeks import GreeksService
 from app.services.reversal import ReversalService
 from app.services.profile_service import profile_service
 from app.services.options_transformer import OptionsTransformer
+from app.services.historical import HistoricalService, HistoricalSnapshot
 from app.repositories.options import OptionsRepository
 from app.cache.redis import RedisCache
 from app.config.settings import settings
@@ -44,6 +47,9 @@ class OptionsService:
         self.bsm = BSMService()
         self.greeks = GreeksService()
         self.reversal = ReversalService()
+        
+        # Historical Service for unified live/historical access
+        self.historical = HistoricalService(db=db, cache=cache) if db else None
         
         # Transformer
         self.transformer = OptionsTransformer()
@@ -204,7 +210,7 @@ class OptionsService:
         
         result_data = {
             "symbol": symbol.upper(),
-            "expiry": expiry,
+            "expiry": actual_expiry,  # Use resolved expiry, not the input parameter
             "spot": chain_data.get("spot", {}),
             "future": chain_data.get("future"),
             "atm_strike": atm_strike,

@@ -61,11 +61,47 @@ async def get_historical_service_dep(
     return HistoricalService(db=db, cache=cache)
 
 
+# ============== Available Expiries Endpoint ==============
+
+class AvailableExpiriesResponse(BaseModel):
+    """Response for available expiries"""
+    success: bool = True
+    symbol: str
+    expiries: List[str]
+
+
+@router.get("/expiries/{symbol}")
+async def get_available_expiries(
+    symbol: str,
+    current_user: OptionalUser = None,
+    service: HistoricalService = Depends(get_historical_service_dep),
+) -> AvailableExpiriesResponse:
+    """
+    Get list of available expiries for a symbol (for historical data).
+    
+    - **symbol**: Trading symbol (e.g., NIFTY, BANKNIFTY)
+    
+    Returns expiries in YYYY-MM-DD format, most recent first.
+    """
+    symbol = symbol.upper()
+    
+    try:
+        expiries = await service.get_available_expiries(symbol)
+        return AvailableExpiriesResponse(
+            symbol=symbol,
+            expiries=expiries
+        )
+    except Exception as e:
+        logger.error(f"Error getting available expiries: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============== Available Dates Endpoint ==============
 
 @router.get("/dates/{symbol}")
 async def get_available_dates(
     symbol: str,
+    expiry: Optional[str] = Query(None, description="Filter by expiry date (YYYY-MM-DD)"),
     current_user: OptionalUser = None,
     service: HistoricalService = Depends(get_historical_service_dep),
 ) -> AvailableDatesResponse:
@@ -73,13 +109,14 @@ async def get_available_dates(
     Get list of available historical dates for a symbol.
     
     - **symbol**: Trading symbol (e.g., NIFTY, BANKNIFTY)
+    - **expiry**: Optional expiry date to filter by
     
     Returns dates in YYYY-MM-DD format, most recent first.
     """
     symbol = symbol.upper()
     
     try:
-        dates = await service.get_available_dates(symbol)
+        dates = await service.get_available_dates(symbol, expiry)
         return AvailableDatesResponse(
             symbol=symbol,
             dates=dates
@@ -161,7 +198,7 @@ async def get_historical_snapshot(
             symbol=symbol,
             expiry=expiry,
             date=date,
-            time=time,
+            time=snapshot.timestamp.strftime('%H:%M'),
             spot=snapshot.spot,
             atm_strike=snapshot.atm_strike,
             pcr=snapshot.pcr,

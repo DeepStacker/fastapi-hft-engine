@@ -15,13 +15,12 @@ import { useNavigate } from 'react-router-dom';
 import useOptionsChain from '../hooks/useOptionsChain';
 
 /**
- * Option Chain Page - Table view with integrated chart toggle
+ * Option Chain Page - Live data view with integrated chart toggle
  */
 const OptionChain = () => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const navigate = useNavigate();
   const [showChart, setShowChart] = useState(false);
-  const _theme = useSelector((state) => state.theme.theme);
 
   // Get spot/futures data for SpotBar when in chart mode
   const { spotData, futuresData, data: fullData } = useOptionsChain();
@@ -78,7 +77,7 @@ const OptionChain = () => {
               </Card>
             ) : (
               <div className="glass-strong rounded-2xl overflow-hidden animate-fade-in">
-                <OptionChainTable showControls={false} />
+                <OptionChainTable showControls={false} isLiveMode={true} />
               </div>
             )}
           </div>

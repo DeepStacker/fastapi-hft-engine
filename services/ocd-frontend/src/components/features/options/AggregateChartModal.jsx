@@ -9,7 +9,17 @@ import { selectStrikesAroundATM, selectOptionsData, selectATMStrike, selectSelec
  * Features tabbed views: COI | OI | Volume | PCR | %
  * Shows aggregate totals and distribution charts
  */
-const AggregateChartModal = memo(({ isOpen, onClose, columnType, initialTab }) => {
+const AggregateChartModal = memo(({
+    isOpen,
+    onClose,
+    columnType,
+    initialTab,
+    strikes: propStrikes,
+    data: propData,
+    atmStrike: propAtmStrike,
+    symbol: propSymbol,
+    expiry: propExpiry
+}) => {
     // Tabs matching LOC Calculator
     const TABS = [
         { id: 'coi', label: 'Total COi', icon: '📈' },
@@ -33,11 +43,17 @@ const AggregateChartModal = memo(({ isOpen, onClose, columnType, initialTab }) =
 
     // Get data from Redux
     const strikesSelector = useMemo(() => selectStrikesAroundATM(30), []);
-    const strikes = useSelector(strikesSelector);
-    const rawData = useSelector(selectOptionsData);
-    const atmStrike = useSelector(selectATMStrike);
-    const symbol = useSelector(selectSelectedSymbol);
-    const expiry = useSelector(selectSelectedExpiry);
+    const reduxStrikes = useSelector(strikesSelector);
+    const reduxData = useSelector(selectOptionsData);
+    const reduxAtmStrike = useSelector(selectATMStrike);
+    const reduxSymbol = useSelector(selectSelectedSymbol);
+    const reduxExpiry = useSelector(selectSelectedExpiry);
+
+    const strikes = propStrikes || reduxStrikes;
+    const rawData = propData || reduxData;
+    const atmStrike = propAtmStrike || reduxAtmStrike;
+    const symbol = propSymbol || reduxSymbol;
+    const expiry = propExpiry || reduxExpiry;
 
     // Update timestamp when data changes
     useEffect(() => {
@@ -220,8 +236,8 @@ const AggregateChartModal = memo(({ isOpen, onClose, columnType, initialTab }) =
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`flex-1 px-4 py-3 text-sm font-medium transition-all relative ${activeTab === tab.id
-                                        ? 'text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-900'
-                                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    ? 'text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-900'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
                             >
                                 <span className="mr-1.5">{tab.icon}</span>

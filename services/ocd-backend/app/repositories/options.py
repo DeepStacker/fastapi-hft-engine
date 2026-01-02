@@ -44,6 +44,7 @@ class OptionsRepository:
             symbol = data.get("symbol")
             # DB expects naive timestamp (wall time)
             timestamp = get_ist_now().replace(tzinfo=None)
+            trade_date = timestamp.date()  # Derive trade_date for hypertable
             
             # 1. Get Instrument ID
             symbol_id = await self.get_instrument_id(symbol)
@@ -55,6 +56,7 @@ class OptionsRepository:
             # 2. Create Snapshot Header (Single Insert)
             snapshot = MarketSnapshotDB(
                 timestamp=timestamp,
+                trade_date=trade_date,  # Add trade_date for hypertable
                 symbol_id=symbol_id,
                 exchange="NSE", # Default
                 segment=data.get("instrument_type", "DERIVATIVE"),
@@ -76,7 +78,13 @@ class OptionsRepository:
             
             # 3. Create Option Contracts (Bulk Insert)
             oc_data = data.get("oc", {})
-            expiry = str(data.get("expiry", ""))
+            # Convert expiry to integer since DB column is bigint
+            expiry_raw = data.get("expiry", "")
+            try:
+                expiry = int(expiry_raw) if expiry_raw else 0
+            except (ValueError, TypeError):
+                expiry = 0
+                logger.warning(f"Could not convert expiry '{expiry_raw}' to integer")
             
             bulk_contracts = []
             
@@ -88,6 +96,7 @@ class OptionsRepository:
                 if ce:
                     bulk_contracts.append({
                         "timestamp": timestamp,
+                        "trade_date": trade_date,  # Required for hypertable
                         "symbol_id": symbol_id,
                         "expiry": expiry,
                         "strike_price": strike_price,
@@ -110,6 +119,7 @@ class OptionsRepository:
                 if pe:
                     bulk_contracts.append({
                         "timestamp": timestamp,
+                        "trade_date": trade_date,  # Required for hypertable
                         "symbol_id": symbol_id,
                         "expiry": expiry,
                         "strike_price": strike_price,

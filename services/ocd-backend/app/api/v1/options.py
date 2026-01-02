@@ -114,19 +114,40 @@ async def get_option_chain(
                 detail=f"No historical data found for {symbol} on {date} at {time}"
             )
         
+        # Calculate DTE relative to snapshot
+        dte = 0
+        try:
+            expiry_dt = datetime.fromtimestamp(int(expiry))
+            dte = (expiry_dt - snapshot.timestamp).days
+        except Exception:
+            pass
+
         # Return in same format as live data for frontend compatibility
         return {
             "symbol": symbol,
             "expiry": expiry,
             "timestamp": snapshot.timestamp.isoformat(),
-            "spot": {"ltp": snapshot.spot},
+            "spot": {
+                "ltp": snapshot.spot,
+                "change": snapshot.spot_change,
+                "change_percent": round((snapshot.spot_change / (snapshot.spot - snapshot.spot_change)) * 100, 2) if (snapshot.spot - snapshot.spot_change) != 0 else 0
+            },
             "atm_strike": snapshot.atm_strike,
             "pcr": snapshot.pcr,
             "max_pain_strike": snapshot.max_pain,
             "oc": snapshot.option_chain,
+            "strikes": sorted(list(snapshot.option_chain.keys()), key=float),
+            "total_ce_oi": snapshot.total_call_oi,
+            "total_pe_oi": snapshot.total_put_oi,
+            "atmiv": snapshot.atm_iv,
+            "atmiv_change": 0,
+            "days_to_expiry": dte,
+            "dte": dte,
             "mode": "historical",
             "date": date,
             "time": time,
+            "meta": {"noise_floor": 0, "volatility_regime": "historical"},
+            "hft_analyses": {}
         }
     
     # Live mode (default)

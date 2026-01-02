@@ -9,10 +9,10 @@ import { ChevronDownIcon, ChevronUpIcon, TableCellsIcon, GlobeAltIcon } from '@h
 const formatNumber = (num) => {
   if (num === null || num === undefined) return '—';
   if (num === 0) return '0';
-  
+
   const absNum = Math.abs(num);
   const sign = num < 0 ? '-' : '';
-  
+
   if (absNum >= 1e12) return sign + (absNum / 1e12).toFixed(2) + 'T';
   if (absNum >= 1e9) return sign + (absNum / 1e9).toFixed(2) + 'B';
   if (absNum >= 1e6) return sign + (absNum / 1e6).toFixed(2) + 'M';
@@ -50,7 +50,7 @@ const calculateAggregates = (optionData, strikes) => {
   strikes.forEach(strike => {
     const strikeKey = strike.toString();
     const data = optionData.oc[strikeKey] || optionData.oc[`${strike}.000000`] || {};
-    
+
     // CE aggregates
     if (data.ce) {
       const ce = data.ce;
@@ -59,7 +59,7 @@ const calculateAggregates = (optionData, strikes) => {
       agg.ce.volume += ce.volume || 0;
       agg.ce.ltpSum += ce.ltp || 0;
       agg.ce.premiumSum += (ce.ltp || 0) * (ce.OI || ce.oi || 0);
-      
+
       if (ce.optgeeks) {
         agg.ce.delta += ce.optgeeks.delta || 0;
         agg.ce.gamma += ce.optgeeks.gamma || 0;
@@ -71,7 +71,7 @@ const calculateAggregates = (optionData, strikes) => {
         agg.ce.ivCount++;
       }
     }
-    
+
     // PE aggregates
     if (data.pe) {
       const pe = data.pe;
@@ -80,7 +80,7 @@ const calculateAggregates = (optionData, strikes) => {
       agg.pe.volume += pe.volume || 0;
       agg.pe.ltpSum += pe.ltp || 0;
       agg.pe.premiumSum += (pe.ltp || 0) * (pe.OI || pe.oi || 0);
-      
+
       if (pe.optgeeks) {
         agg.pe.delta += pe.optgeeks.delta || 0;
         agg.pe.gamma += pe.optgeeks.gamma || 0;
@@ -173,12 +173,15 @@ PCRBadge.displayName = 'PCRBadge';
  * Aggregate Panel Component
  * Shows totals for OI, Greeks, Volume, LTP for visible range and all data
  */
-const AggregatePanel = memo(({ visibleStrikes }) => {
+const AggregatePanel = memo(({ visibleStrikes, data: propData, atmStrike: propAtmStrike }) => {
   const [isExpanded, setIsExpanded] = useState(false); // Collapsed by default for space
   const [viewMode, setViewMode] = useState('visible'); // 'visible' or 'all'
-  
-  const optionData = useSelector(selectOptionsData);
-  const atmStrike = useSelector(selectATMStrike);
+
+  const reduxData = useSelector(selectOptionsData);
+  const reduxAtmStrike = useSelector(selectATMStrike);
+
+  const optionData = propData || reduxData;
+  const atmStrike = propAtmStrike || reduxAtmStrike;
 
   // Get all strikes from data
   const allStrikes = useMemo(() => {
@@ -190,13 +193,13 @@ const AggregatePanel = memo(({ visibleStrikes }) => {
   }, [optionData]);
 
   // Calculate aggregates for visible range
-  const visibleAgg = useMemo(() => 
+  const visibleAgg = useMemo(() =>
     calculateAggregates(optionData, visibleStrikes),
     [optionData, visibleStrikes]
   );
 
   // Calculate aggregates for all data
-  const allAgg = useMemo(() => 
+  const allAgg = useMemo(() =>
     calculateAggregates(optionData, allStrikes),
     [optionData, allStrikes]
   );
@@ -211,7 +214,7 @@ const AggregatePanel = memo(({ visibleStrikes }) => {
   return (
     <div className="mt-2 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
       {/* Header */}
-      <div 
+      <div
         className="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50"
         onClick={() => setIsExpanded(!isExpanded)}
       >
@@ -223,34 +226,32 @@ const AggregatePanel = memo(({ visibleStrikes }) => {
             ({strikeCount} strikes)
           </span>
         </div>
-        
+
         <div className="flex items-center gap-2">
           {/* View Toggle */}
           <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
             <button
               onClick={(e) => { e.stopPropagation(); setViewMode('visible'); }}
-              className={`px-2 py-1 text-xs rounded-md flex items-center gap-1 transition-colors ${
-                viewMode === 'visible' 
-                  ? 'bg-white dark:bg-gray-700 text-blue-600 shadow-sm' 
+              className={`px-2 py-1 text-xs rounded-md flex items-center gap-1 transition-colors ${viewMode === 'visible'
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               <TableCellsIcon className="w-3 h-3" />
               Visible
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setViewMode('all'); }}
-              className={`px-2 py-1 text-xs rounded-md flex items-center gap-1 transition-colors ${
-                viewMode === 'all' 
-                  ? 'bg-white dark:bg-gray-700 text-blue-600 shadow-sm' 
+              className={`px-2 py-1 text-xs rounded-md flex items-center gap-1 transition-colors ${viewMode === 'all'
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               <GlobeAltIcon className="w-3 h-3" />
               All
             </button>
           </div>
-          
+
           {isExpanded ? (
             <ChevronUpIcon className="w-4 h-4 text-gray-400" />
           ) : (
@@ -268,7 +269,7 @@ const AggregatePanel = memo(({ visibleStrikes }) => {
             <PCRBadge value={agg.pcrChg} label="OI Chg PCR" />
             <PCRBadge value={agg.volPcr} label="Vol PCR" />
           </div>
-          
+
           {/* Main Metrics Grid */}
           <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 mt-2">
             <MetricCard label="Total OI" ceValue={agg.ce.oi} peValue={agg.pe.oi} highlight />
@@ -280,7 +281,7 @@ const AggregatePanel = memo(({ visibleStrikes }) => {
             <MetricCard label="Net Theta" ceValue={agg.ce.theta} peValue={agg.pe.theta} netValue={agg.netTheta} format="greek" />
             <MetricCard label="Net Gamma" ceValue={agg.ce.gamma} peValue={agg.pe.gamma} netValue={agg.netGamma} format="greek" />
           </div>
-          
+
           {/* Extended Row */}
           <div className="grid grid-cols-4 gap-2 mt-2">
             <MetricCard label="Premium (CE)" ceValue={agg.ce.premiumSum} peValue={null} format="currency" />

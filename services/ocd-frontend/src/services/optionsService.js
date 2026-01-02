@@ -118,6 +118,42 @@ export const optionsService = {
         return response.data;
     },
 
+    /**
+     * Get available dates for historical data
+     * @param {string} symbol - Trading symbol
+     * @returns {Promise<string[]>} Array of dates in YYYY-MM-DD format
+     */
+    getAvailableDates: async (symbol) => {
+        const response = await apiClient.get(`/historical/dates/${symbol}`);
+        return response.data?.dates || [];
+    },
+
+    /**
+     * Get available times for a specific date
+     * @param {string} symbol - Trading symbol
+     * @param {string} date - Date in YYYY-MM-DD format
+     * @returns {Promise<string[]>} Array of times in HH:MM format
+     */
+    getAvailableTimes: async (symbol, date) => {
+        const response = await apiClient.get(`/historical/times/${symbol}/${date}`);
+        return response.data?.times || [];
+    },
+
+    /**
+     * Get historical snapshot
+     * @param {string} symbol - Trading symbol
+     * @param {string} expiry - Expiry timestamp
+     * @param {string} date - Date in YYYY-MM-DD format
+     * @param {string} time - Time in HH:MM format
+     * @returns {Promise<Object>} Historical option chain snapshot
+     */
+    getHistoricalSnapshot: async (symbol, expiry, date, time) => {
+        const response = await apiClient.get(`/historical/snapshot/${symbol}/${expiry}`, {
+            params: { date, time }
+        });
+        return response.data;
+    },
+
 
     /**
      * Get percentage/volume data for a specific option

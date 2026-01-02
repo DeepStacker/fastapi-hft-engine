@@ -72,13 +72,13 @@ async def flush_buffers():
                 market_count = len(market_buffer)
                 stmt = text("""
                     INSERT INTO market_snapshots (
-                        timestamp, symbol_id, exchange, segment, ltp, volume, oi,
+                        timestamp, trade_date, symbol_id, exchange, segment, ltp, volume, oi,
                         spot_change, spot_change_pct, total_call_oi, total_put_oi,
                         pcr_ratio, atm_iv, atm_iv_change, max_pain_strike,
                         days_to_expiry, lot_size, tick_size,
                         raw_data, gex_analysis, iv_skew_analysis, pcr_analysis, market_wide_analysis
                     ) VALUES (
-                        :timestamp, :symbol_id, :exchange, :segment, :ltp, :volume, :oi,
+                        :timestamp, :trade_date, :symbol_id, :exchange, :segment, :ltp, :volume, :oi,
                         :spot_change, :spot_change_pct, :total_call_oi, :total_put_oi,
                         :pcr_ratio, :atm_iv, :atm_iv_change, :max_pain_strike,
                         :days_to_expiry, :lot_size, :tick_size,
@@ -109,7 +109,7 @@ async def flush_buffers():
                 option_count = len(option_buffer)
                 stmt = text("""
                     INSERT INTO option_contracts (
-                        timestamp, symbol_id, expiry, strike_price, option_type,
+                        timestamp, trade_date, symbol_id, expiry, strike_price, option_type,
                         ltp, bid, ask, mid_price, prev_close, price_change, price_change_pct, avg_traded_price,
                         volume, prev_volume, volume_change, volume_change_pct,
                         oi, prev_oi, oi_change, oi_change_pct,
@@ -122,7 +122,7 @@ async def flush_buffers():
                         is_liquid, is_valid,
                         order_flow_analysis, smart_money_analysis, liquidity_analysis
                     ) VALUES (
-                        :timestamp, :symbol_id, :expiry, :strike_price, :option_type,
+                        :timestamp, :trade_date, :symbol_id, :expiry, :strike_price, :option_type,
                         :ltp, :bid, :ask, :mid_price, :prev_close, :price_change, :price_change_pct, :avg_traded_price,
                         :volume, :prev_volume, :volume_change, :volume_change_pct,
                         :oi, :prev_oi, :oi_change, :oi_change_pct,
@@ -244,9 +244,11 @@ async def process_message(msg: dict, span=None):
         
         # Process market snapshot
         if context and symbol_id:
+            trade_date = timestamp.date()  # Derive trade_date from timestamp
             market_analyses = _extract_market_analyses(analyses)
             market_record = {
                 "timestamp": timestamp,
+                "trade_date": trade_date,  # Required for hypertable
                 "symbol_id": symbol_id,
                 "exchange": context.get("exchange", "NSE"),
                 "segment": context.get("segment", "D"),
@@ -272,14 +274,39 @@ async def process_message(msg: dict, span=None):
             }
             market_buffer.append(market_record)
         
+        # Extract expiry from top-level first, then option
+        expiry_val = msg.get("expiry") or context.get("expiry")
+        
+        # Convert date string to timestamp if needed
+        if isinstance(expiry_val, str) and "-" in expiry_val:
+            try:
+                dt = datetime.strptime(expiry_val, "%Y-%m-%d")
+                # Normalize to 18:30 UTC / 00:00 IST for current expiry definition
+                dt_utc = dt.replace(hour=18, minute=30, tzinfo=timezone.utc)
+                expiry_val = int(dt_utc.timestamp())
+            except ValueError:
+                pass
+        
         # Process option contracts
         for option in options:
             strike_key = f"{option.get('strike', 0)}_{option.get('option_type', 'CE')}"
+            trade_date = timestamp.date()  # Derive trade_date from timestamp
             
+            # Use top-level expiry if option record lacks one
+            record_expiry = option.get("expiry") or expiry_val
+            if isinstance(record_expiry, str) and "-" in record_expiry:
+                try:
+                    dt = datetime.strptime(record_expiry, "%Y-%m-%d")
+                    dt_utc = dt.replace(hour=18, minute=30, tzinfo=timezone.utc)
+                    record_expiry = int(dt_utc.timestamp())
+                except ValueError:
+                    pass
+
             option_record = {
                 "timestamp": timestamp,
+                "trade_date": trade_date,  # Required for hypertable
                 "symbol_id": symbol_id,
-                "expiry": option.get("expiry", "2025-12-31"),
+                "expiry": record_expiry,
                 "strike_price": float(option.get("strike", 0)),
                 "option_type": option.get("option_type", "CE"),
                 "ltp": float(option.get("ltp", 0)),

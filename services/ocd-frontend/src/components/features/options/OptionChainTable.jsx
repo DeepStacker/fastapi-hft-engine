@@ -21,20 +21,61 @@ import CellDetailModal from './CellDetailModal';
 import AggregateChartModal from './AggregateChartModal';
 import AggregatePanel from './AggregatePanel';
 import { Spinner, Button, Card } from '../../common';
-import { selectSelectedSymbol } from '../../../context/selectors';
+import { selectSelectedSymbol, selectSelectedExpiry } from '../../../context/selectors';
+import { normalizeBackendData } from '../../../context/dataSlice';
 
 /**
  * Main Option Chain Table Component
+ * 
+ * @param {boolean} showControls - Show/hide controls (default: true)
+ * @param {Object} externalData - External data override (for historical mode)
+ * @param {boolean} isExternalLoading - Loading state for external data
  */
-const OptionChainTable = ({ showControls = true }) => {
+const OptionChainTable = ({
+    showControls = true,
+    externalData = null,
+    isExternalLoading = false,
+    isLiveMode = undefined,
+    symbol: propSymbol = null,
+    expiry: propExpiry = null,
+    date: propDate = null
+}) => {
+    // Live data from hook
+    const liveHookData = useOptionsChain();
+
+    // Use external data if provided, otherwise use live hook data
     const {
         spotData,
         futuresData,
         data: fullData,
-        isLoading,
+        isLoading: hookIsLoading,
         isInitialLoad,
         hasData,
-    } = useOptionsChain();
+    } = externalData ? {
+        spotData: externalData.spot || null,
+        futuresData: externalData.futures || null,
+        data: externalData,
+        isLoading: isExternalLoading,
+        isInitialLoad: isExternalLoading && !externalData,
+        hasData: !!externalData?.oc,
+    } : liveHookData;
+
+    // Normalize external data if it's processed here directly
+    const processedData = useMemo(() => {
+        if (externalData && externalData.oc) {
+            const normalized = normalizeBackendData(externalData);
+            return normalized.options.data;
+        }
+        return fullData;
+    }, [externalData, fullData]);
+
+    const reduxSymbol = useSelector(selectSelectedSymbol);
+    const reduxExpiry = useSelector(selectSelectedExpiry);
+    const symbol = propSymbol || reduxSymbol;
+    const expiry = propExpiry || reduxExpiry;
+    const date = propDate; // Date is usually only for historical mode
+
+    const isLoading = externalData ? isExternalLoading : hookIsLoading;
 
     const { settings, selectStrike } = useTableSettings();
 
@@ -44,14 +85,76 @@ const OptionChainTable = ({ showControls = true }) => {
     const [strikeModalData, setStrikeModalData] = useState(null); // For Strike Analysis Modal
     const [aggregateColumn, setAggregateColumn] = useState(null); // For Aggregate Chart Modal
 
-    // Get symbol for Strike Analysis Modal
-    const symbol = useSelector(selectSelectedSymbol);
+
 
     // Select filtered strikes from Redux using memoized selector factory
+    // Select filtered strikes from Redux using memoized selector factory
     const strikesSelector = useMemo(() => selectStrikesAroundATM(strikeCount), [strikeCount]);
-    const strikes = useSelector(strikesSelector);
-    const atmStrike = useSelector(selectATMStrike);
-    const rawData = useSelector(selectOptionsData);
+    const reduxStrikes = useSelector(strikesSelector);
+    const reduxAtmStrike = useSelector(selectATMStrike);
+    const reduxRawData = useSelector(selectOptionsData);
+
+    // Determine Source of Data
+    // If showControls is false (Historical), we strictly use externalData (which might be null)
+    // If showControls is true (Live), we use Redux data
+
+    // IMPORTANT: In Historical mode (`!showControls`), if externalData is null, we show NOTHING.
+    // We do NOT fall back to Redux data.
+
+    let rawData = null;
+    let atmStrike = 0;
+    let strikes = [];
+
+    const shouldUseRedux = isLiveMode !== undefined ? isLiveMode : showControls;
+
+    if (shouldUseRedux) {
+        // LIVE MODE
+        rawData = reduxRawData;
+        atmStrike = reduxAtmStrike;
+        strikes = reduxStrikes;
+    } else if (externalData) {
+        // HISTORICAL MODE (Data loaded)
+        rawData = processedData;
+        atmStrike = processedData.atm_strike;
+
+        // Calculate strikes dynamically from external data
+        // Calculate strikes dynamically from external data
+        const ocSource = externalData.option_chain || externalData.oc;
+        if (ocSource) {
+            const allStrikes = Object.keys(ocSource).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+            // Find ATM index
+            if (atmStrike && allStrikes.length > 0) {
+                // Simple logic: find closest
+                const closest = allStrikes.reduce((prev, curr) =>
+                    Math.abs(curr - atmStrike) < Math.abs(prev - atmStrike) ? curr : prev
+                );
+                const atmIndex = allStrikes.indexOf(closest);
+                const half = Math.floor(strikeCount / 2);
+                const start = Math.max(0, atmIndex - half);
+                const end = Math.min(allStrikes.length, start + strikeCount);
+                strikes = allStrikes.slice(start, end);
+            } else {
+                strikes = allStrikes.slice(0, strikeCount);
+            }
+
+            // DEBUG LOGGING
+            if (showControls && !isLoading) {
+                console.debug("OptionChainTable Debug:", {
+                    mode: "LIVE",
+                    strikesLength: strikes.length,
+                    atmStrike,
+                    hasRawData: !!rawData,
+                    ocKeysCount: rawData?.oc ? Object.keys(rawData.oc).length : 0,
+                    reduxStrikesLength: reduxStrikes.length
+                });
+            }
+        }
+    } else {
+        // HISTORICAL MODE (No data yet)
+        rawData = null;
+        atmStrike = 0;
+        strikes = [];
+    }
 
     // Sort strikes based on settings
     const sortedStrikes = useMemo(() => {
@@ -107,8 +210,8 @@ const OptionChainTable = ({ showControls = true }) => {
     }, []);
 
     // Derived values from fullData - computed before any early returns
-    const pcr = fullData?.pcr;
-    const maxPain = fullData?.max_pain_strike;
+    const pcr = processedData?.pcr;
+    const maxPain = processedData?.max_pain_strike;
     const spotPrice = spotData?.ltp;
 
     // Only show spinner on INITIAL load, not refreshes
@@ -175,7 +278,17 @@ const OptionChainTable = ({ showControls = true }) => {
                             {sortedStrikes.length === 0 && !isLoading && (
                                 <tr>
                                     <td colSpan="20" className="p-8 text-center text-gray-500">
-                                        No data available for selected expiration
+                                        <div className="flex flex-col items-center justify-center space-y-2">
+                                            <span>No data available for selected expiration</span>
+                                            <span className="text-xs text-gray-400 font-mono">
+                                                (Strikes: {strikes.length}, Keys: {rawData?.oc ? Object.keys(rawData.oc).length : 0})
+                                            </span>
+                                            {rawData?.oc && Object.keys(rawData.oc).length > 0 && strikes.length === 0 && (
+                                                <span className="text-xs text-red-400">
+                                                    Possible Redux Selector Issue or Expiry Mismatch.
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -195,9 +308,11 @@ const OptionChainTable = ({ showControls = true }) => {
             </Card>
 
             {/* Aggregate Summary Panel */}
-            <AggregatePanel visibleStrikes={sortedStrikes} />
-
-            {/* Strike Detail Panel */}
+            <AggregatePanel
+                visibleStrikes={strikes}
+                data={rawData}
+                atmStrike={atmStrike}
+            />  {/* Strike Detail Panel */}
             {selectedStrikeData && (
                 <StrikeDetailPanel
                     strikeData={selectedStrikeData}
@@ -210,6 +325,9 @@ const OptionChainTable = ({ showControls = true }) => {
                 isOpen={!!selectedCell}
                 onClose={handleCloseModal}
                 cellData={selectedCell}
+                symbol={symbol}
+                expiry={expiry}
+                date={date}
             />
 
             {/* Strike Analysis Modal */}
@@ -225,6 +343,11 @@ const OptionChainTable = ({ showControls = true }) => {
                 isOpen={!!aggregateColumn}
                 onClose={handleCloseAggregateModal}
                 columnType={aggregateColumn}
+                strikes={strikes}
+                data={rawData}
+                atmStrike={atmStrike}
+                symbol={symbol}
+                expiry={expiry}
             />
         </div>
     );

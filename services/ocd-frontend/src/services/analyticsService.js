@@ -29,6 +29,7 @@ export const analyticsService = {
         field = 'oi',
         interval = '5m',
         limit = 50,
+        date = null,
     }) => {
         const response = await apiClient.get(
             `${ANALYTICS_BASE}/timeseries/${symbol}/${strike}`,
@@ -39,6 +40,7 @@ export const analyticsService = {
                     field,
                     interval,
                     limit,
+                    date,
                 },
             }
         );
@@ -60,6 +62,7 @@ export const analyticsService = {
         expiry,
         field = 'oi',
         interval = '5m',
+        date = null,
     }) => {
         const response = await apiClient.get(
             `${ANALYTICS_BASE}/timeseries/${symbol}/${strike}/multi`,
@@ -68,6 +71,7 @@ export const analyticsService = {
                     expiry,
                     field,
                     interval,
+                    date,
                 },
             }
         );

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
     CalendarDaysIcon,
@@ -9,457 +9,655 @@ import {
     PauseIcon,
     ForwardIcon,
     BackwardIcon,
-    ArrowPathIcon,
-    ChartBarIcon
-} from '@heroicons/react/24/outline';
+    ChevronDoubleLeftIcon,
+    ChevronDoubleRightIcon,
+    ChartBarIcon,
+    Cog6ToothIcon,
+    QuestionMarkCircleIcon
+} from '@heroicons/react/24/solid';
 import { historicalService } from '../services/historicalService';
-import { selectIsAuthenticated, selectSelectedSymbol, selectSelectedExpiry } from '../context/selectors';
-import Card from '../components/common/Card';
+import { setSid } from '../context/dataSlice';
+import { selectIsAuthenticated, selectSelectedSymbol } from '../context/selectors';
+import { ColumnConfigProvider } from '../context/ColumnConfigContext';
+import { TableSettingsProvider } from '../context/TableSettingsContext';
+import { SettingsButton } from '../components/features/options/TableSettingsModal';
+import OptionChainTable from '../components/features/options/OptionChainTable';
+import SymbolSelector from '../components/charts/SymbolSelector';
+import TimeClockSelector from '../components/common/TimeClockSelector';
 import Button from '../components/common/Button';
+
+// Time-based interval presets (in seconds)
+const INTERVAL_PRESETS = [
+    { label: '5s', value: 5, description: '5 seconds' },
+    { label: '15s', value: 15, description: '15 seconds' },
+    { label: '30s', value: 30, description: '30 seconds' },
+    { label: '1m', value: 60, description: '1 minute' },
+    { label: '5m', value: 300, description: '5 minutes' },
+    { label: '15m', value: 900, description: '15 minutes' },
+    { label: '30m', value: 1800, description: '30 minutes' },
+    { label: '1h', value: 3600, description: '1 hour' },
+];
+
+// Playback speed presets (milliseconds between auto-steps)
+const SPEED_PRESETS = [
+    { label: '0.5x', value: 2000 },
+    { label: '1x', value: 1000 },
+    { label: '2x', value: 500 },
+    { label: '3x', value: 333 },
+    { label: '5x', value: 200 },
+    { label: '10x', value: 100 },
+];
+
+// Market hours (IST)
+const MARKET_OPEN = { hour: 9, minute: 15, second: 0 };
+const MARKET_CLOSE = { hour: 15, minute: 30, second: 0 };
+
+// Helper: Parse time string to seconds since midnight
+const parseTimeToSeconds = (timeStr) => {
+    if (!timeStr) return null;
+    const parts = timeStr.split(':');
+    const hours = parseInt(parts[0] || 0);
+    const minutes = parseInt(parts[1] || 0);
+    const seconds = parseInt(parts[2] || 0);
+    return hours * 3600 + minutes * 60 + seconds;
+};
+
+// Helper: Format seconds since midnight to HH:MM:SS or HH:MM
+const formatSecondsToTime = (totalSeconds, includeSeconds = true) => {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (includeSeconds) {
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
 
 /**
  * Historical Option Chain Page
- * Query and replay historical option chain data
+ * 
+ * Features:
+ * - Expiry-Centric Navigation
+ * - Strict Data Isolation (No Live Data Leakage)
+ * - Custom Clock Interface
+ * - Enhanced Playback Controls with Interval, Speed, and Shortcuts
  */
 const Historical = () => {
     const isAuthenticated = useSelector(selectIsAuthenticated);
     const navigate = useNavigate();
-    const selectedSymbol = useSelector(selectSelectedSymbol);
-    const selectedExpiry = useSelector(selectSelectedExpiry);
+    const dispatch = useDispatch();
 
-    // State
+    // Global State
+    const selectedSymbol = useSelector(selectSelectedSymbol);
+    const symbols = useSelector((state) => state.chart.symbols);
+    const theme = useSelector((state) => state.theme.theme);
+
+    // Selection State
+    const [availableExpiries, setAvailableExpiries] = useState([]);
+    const [selectedExpiry, setSelectedExpiry] = useState('');
+
     const [availableDates, setAvailableDates] = useState([]);
-    const [availableTimes, setAvailableTimes] = useState([]);
     const [selectedDate, setSelectedDate] = useState('');
-    const [selectedTime, setSelectedTime] = useState('');
+
+    const [showClock, setShowClock] = useState(false);
+
+    // Data State
     const [snapshotData, setSnapshotData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    // Playback state
+    // Enhanced Playback State (time-based)
     const [isPlaying, setIsPlaying] = useState(false);
-    const [playbackSpeed, setPlaybackSpeed] = useState(1);
-    const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
+    const [playbackSpeed, setPlaybackSpeed] = useState(1000);
+    const [stepInterval, setStepInterval] = useState(300); // Default 5 minutes in seconds
+    const [playbackTime, setPlaybackTime] = useState('09:15:00'); // Current playback time HH:MM:SS
+    const [showSettings, setShowSettings] = useState(false);
+    const intervalRef = useRef(null);
+    const controlsRef = useRef(null);
 
-    // Fetch available dates on mount
+    // Initial Symbol Fetch (if missing)
     useEffect(() => {
-        const fetchDates = async () => {
+        if (!symbols || symbols.length === 0) {
+            import('../services/analyticsService').then(({ analyticsService }) => {
+                analyticsService.getSymbols().then(data => {
+                    if (data.success && data.data) {
+                        import('../context/chartSlice').then(({ setSymbols }) => {
+                            dispatch(setSymbols(data.data));
+                        });
+                    }
+                });
+            });
+        }
+    }, [symbols, dispatch]);
+
+    // 1. Handle Symbol Change
+    const handleSymbolChange = (symbolObj) => {
+        console.log("Historical: Symbol changed to", symbolObj);
+        // Clear downstream
+        setAvailableExpiries([]);
+        setAvailableDates([]);
+        setSnapshotData(null);
+        setSelectedExpiry('');
+        setSelectedDate('');
+        setPlaybackTime('09:15:00');
+
+        // Update Symbol Redux - Use setSid directly to avoid triggering live data fetch
+        dispatch(setSid(symbolObj.symbol));
+    };
+
+    // 2. Fetch Expiries when Symbol Changes
+    useEffect(() => {
+        if (!selectedSymbol) return;
+
+        const fetchExpiries = async () => {
             try {
-                const response = await historicalService.getAvailableDates(selectedSymbol);
-                setAvailableDates(response.dates || []);
-                if (response.dates?.length > 0) {
-                    setSelectedDate(response.dates[0]);
-                }
+                const response = await historicalService.getAvailableExpiries(selectedSymbol);
+                setAvailableExpiries(response.expiries || []);
             } catch (err) {
-                console.error('Failed to fetch dates:', err);
-                setError('Failed to load available dates');
+                console.error("Failed to fetch expiries:", err);
+            }
+        };
+        fetchExpiries();
+    }, [selectedSymbol]);
+
+    // 3. Fetch Dates when Expiry Changes
+    useEffect(() => {
+        if (!selectedSymbol || !selectedExpiry) {
+            setAvailableDates([]);
+            return;
+        }
+
+        const fetchDates = async () => {
+            // Reset downstream
+            setAvailableDates([]);
+            setSelectedDate('');
+            setSnapshotData(null);
+
+            try {
+                // Pass expiry to filter dates correctly
+                const response = await historicalService.getAvailableDates(selectedSymbol, selectedExpiry);
+                setAvailableDates(response.dates || []);
+            } catch (err) {
+                console.error("Failed to fetch dates:", err);
             }
         };
         fetchDates();
-    }, [selectedSymbol]);
+    }, [selectedSymbol, selectedExpiry]);
 
-    // Fetch available times when date changes
-    useEffect(() => {
-        if (!selectedDate) return;
+    // 4. Fetch Times - REMOVED (Time-based navigation)
 
-        const fetchTimes = async () => {
-            try {
-                const response = await historicalService.getAvailableTimes({ symbol: selectedSymbol, date: selectedDate });
-                setAvailableTimes(response.times || []);
-                if (response.times?.length > 0) {
-                    setSelectedTime(response.times[0]);
-                    setCurrentTimeIndex(0);
-                }
-            } catch (err) {
-                console.error('Failed to fetch times:', err);
-            }
-        };
-        fetchTimes();
-    }, [selectedSymbol, selectedDate]);
-
-    // Fetch snapshot data
-    const fetchSnapshot = useCallback(async () => {
-        if (!selectedDate || !selectedTime || !selectedExpiry) return;
+    // 5. Fetch Snapshot logic
+    const fetchSnapshot = useCallback(async (timeStr) => {
+        if (!selectedSymbol || !selectedExpiry || !selectedDate || !timeStr) return;
 
         setLoading(true);
         setError(null);
-
         try {
             const response = await historicalService.getHistoricalSnapshot({
                 symbol: selectedSymbol,
                 expiry: selectedExpiry,
                 date: selectedDate,
-                time: selectedTime,
+                time: timeStr
             });
             setSnapshotData(response);
         } catch (err) {
-            console.error('Failed to fetch snapshot:', err);
-            setError(err.message || 'Failed to load historical data');
+            console.error("Failed to fetch snapshot:", err);
+            setError("No data available for this timestamp");
+            setSnapshotData(null);
         } finally {
             setLoading(false);
         }
-    }, [selectedSymbol, selectedExpiry, selectedDate, selectedTime]);
+    }, [selectedSymbol, selectedExpiry, selectedDate]);
 
-    // Auto-fetch on selection change
-    useEffect(() => {
-        if (selectedDate && selectedTime && selectedExpiry) {
-            fetchSnapshot();
-        }
-    }, [selectedDate, selectedTime, selectedExpiry, fetchSnapshot]);
-
-    // Playback controls
-    useEffect(() => {
-        if (!isPlaying || availableTimes.length === 0) return;
-
-        const interval = setInterval(() => {
-            setCurrentTimeIndex((prev) => {
-                const next = prev + 1;
-                if (next >= availableTimes.length) {
-                    setIsPlaying(false);
-                    return prev;
-                }
-                setSelectedTime(availableTimes[next]);
-                return next;
-            });
-        }, 1000 / playbackSpeed);
-
-        return () => clearInterval(interval);
-    }, [isPlaying, playbackSpeed, availableTimes]);
-
-    const handlePrevTime = () => {
-        if (currentTimeIndex > 0) {
-            const newIndex = currentTimeIndex - 1;
-            setCurrentTimeIndex(newIndex);
-            setSelectedTime(availableTimes[newIndex]);
-        }
+    // Handle Clock Time Selection
+    const handleTimeSelect = (timeStr) => {
+        // Ensure HH:MM:SS format
+        const normalizedTime = timeStr.includes(':') && timeStr.split(':').length === 2
+            ? `${timeStr}:00`
+            : timeStr;
+        setPlaybackTime(normalizedTime);
+        fetchSnapshot(normalizedTime);
     };
 
-    const handleNextTime = () => {
-        if (currentTimeIndex < availableTimes.length - 1) {
-            const newIndex = currentTimeIndex + 1;
-            setCurrentTimeIndex(newIndex);
-            setSelectedTime(availableTimes[newIndex]);
+    // Step navigation with time-based intervals
+    const stepForward = useCallback(() => {
+        const currentSeconds = parseTimeToSeconds(playbackTime);
+        const marketCloseSeconds = MARKET_CLOSE.hour * 3600 + MARKET_CLOSE.minute * 60;
+        const newSeconds = Math.min(marketCloseSeconds, currentSeconds + stepInterval);
+        const newTime = formatSecondsToTime(newSeconds);
+        setPlaybackTime(newTime);
+        // Fetch snapshot for new time
+        if (selectedSymbol && selectedExpiry && selectedDate) {
+            fetchSnapshot(newTime);
         }
-    };
+    }, [playbackTime, stepInterval, selectedSymbol, selectedExpiry, selectedDate, fetchSnapshot]);
 
-    if (!isAuthenticated) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-                <h2 className="text-2xl font-bold dark:text-white">Authentication Required</h2>
-                <p className="text-gray-600 dark:text-gray-400">Please log in to view historical data.</p>
-                <Button onClick={() => navigate('/login')}>Login Now</Button>
-            </div>
-        );
-    }
+    const stepBackward = useCallback(() => {
+        const currentSeconds = parseTimeToSeconds(playbackTime);
+        const marketOpenSeconds = MARKET_OPEN.hour * 3600 + MARKET_OPEN.minute * 60;
+        const newSeconds = Math.max(marketOpenSeconds, currentSeconds - stepInterval);
+        const newTime = formatSecondsToTime(newSeconds);
+        setPlaybackTime(newTime);
+        // Fetch snapshot for new time
+        if (selectedSymbol && selectedExpiry && selectedDate) {
+            fetchSnapshot(newTime);
+        }
+    }, [playbackTime, stepInterval, selectedSymbol, selectedExpiry, selectedDate, fetchSnapshot]);
 
-    // Calculate summary stats from snapshot
-    const callOITotal = Object.values(snapshotData?.option_chain || {}).reduce((sum, s) => {
-        return sum + (s.ce?.OI || s.ce?.oi || 0);
-    }, 0);
+    const jumpToStart = useCallback(() => {
+        const marketOpenTime = formatSecondsToTime(MARKET_OPEN.hour * 3600 + MARKET_OPEN.minute * 60);
+        setPlaybackTime(marketOpenTime);
+        if (selectedSymbol && selectedExpiry && selectedDate) {
+            fetchSnapshot(marketOpenTime);
+        }
+    }, [selectedSymbol, selectedExpiry, selectedDate, fetchSnapshot]);
 
-    const putOITotal = Object.values(snapshotData?.option_chain || {}).reduce((sum, s) => {
-        return sum + (s.pe?.OI || s.pe?.oi || 0);
-    }, 0);
+    const jumpToEnd = useCallback(() => {
+        const marketCloseTime = formatSecondsToTime(MARKET_CLOSE.hour * 3600 + MARKET_CLOSE.minute * 60);
+        setPlaybackTime(marketCloseTime);
+        if (selectedSymbol && selectedExpiry && selectedDate) {
+            fetchSnapshot(marketCloseTime);
+        }
+    }, [selectedSymbol, selectedExpiry, selectedDate, fetchSnapshot]);
+
+    const togglePlay = useCallback(() => {
+        setIsPlaying(prev => !prev);
+    }, []);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Don't trigger if typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            switch (e.key) {
+                case ' ': // Space - Play/Pause
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+                case 'ArrowLeft': // Left arrow - Step back
+                    e.preventDefault();
+                    stepBackward();
+                    break;
+                case 'ArrowRight': // Right arrow - Step forward
+                    e.preventDefault();
+                    stepForward();
+                    break;
+                case 'Home': // Home - Jump to start
+                    e.preventDefault();
+                    jumpToStart();
+                    break;
+                case 'End': // End - Jump to end
+                    e.preventDefault();
+                    jumpToEnd();
+                    break;
+                case '[': // [ - Decrease speed
+                    e.preventDefault();
+                    setPlaybackSpeed(prev => {
+                        const idx = SPEED_PRESETS.findIndex(p => p.value === prev);
+                        return idx > 0 ? SPEED_PRESETS[idx - 1].value : prev;
+                    });
+                    break;
+                case ']': // ] - Increase speed
+                    e.preventDefault();
+                    setPlaybackSpeed(prev => {
+                        const idx = SPEED_PRESETS.findIndex(p => p.value === prev);
+                        return idx < SPEED_PRESETS.length - 1 ? SPEED_PRESETS[idx + 1].value : prev;
+                    });
+                    break;
+                case ',': // , - Decrease step interval
+                    e.preventDefault();
+                    setStepInterval(prev => {
+                        const idx = INTERVAL_PRESETS.findIndex(p => p.value === prev);
+                        return idx > 0 ? INTERVAL_PRESETS[idx - 1].value : prev;
+                    });
+                    break;
+                case '.': // . - Increase step interval
+                    e.preventDefault();
+                    setStepInterval(prev => {
+                        const idx = INTERVAL_PRESETS.findIndex(p => p.value === prev);
+                        return idx < INTERVAL_PRESETS.length - 1 ? INTERVAL_PRESETS[idx + 1].value : prev;
+                    });
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [togglePlay, stepForward, stepBackward, jumpToStart, jumpToEnd]);
+
+    // Auto-play loop with time-based stepping
+    useEffect(() => {
+        if (isPlaying && selectedSymbol && selectedExpiry && selectedDate) {
+            const marketCloseSeconds = MARKET_CLOSE.hour * 3600 + MARKET_CLOSE.minute * 60;
+
+            intervalRef.current = setInterval(() => {
+                setPlaybackTime(prev => {
+                    const currentSeconds = parseTimeToSeconds(prev);
+                    const newSeconds = currentSeconds + stepInterval;
+
+                    if (newSeconds >= marketCloseSeconds) {
+                        setIsPlaying(false);
+                        return formatSecondsToTime(marketCloseSeconds);
+                    }
+
+                    const newTime = formatSecondsToTime(newSeconds);
+                    // Fetch snapshot for new time
+                    historicalService.getHistoricalSnapshot({
+                        symbol: selectedSymbol,
+                        expiry: selectedExpiry,
+                        date: selectedDate,
+                        time: newTime
+                    }).then(setSnapshotData).catch(e => console.error(e));
+
+                    return newTime;
+                });
+            }, playbackSpeed);
+        }
+        return () => clearInterval(intervalRef.current);
+    }, [isPlaying, selectedSymbol, selectedExpiry, selectedDate, playbackSpeed, stepInterval]);
+
+    if (!isAuthenticated) return <div className="p-8 text-center text-gray-500">Authentication Required</div>;
+
+    // Calculate display values from playbackTime
+    const displayTime = snapshotData?.time || playbackTime;
+
+    // Calculate progress based on market hours
+    const marketOpenSeconds = MARKET_OPEN.hour * 3600 + MARKET_OPEN.minute * 60;
+    const marketCloseSeconds = MARKET_CLOSE.hour * 3600 + MARKET_CLOSE.minute * 60;
+    const currentSeconds = parseTimeToSeconds(playbackTime) || marketOpenSeconds;
+    const progress = ((currentSeconds - marketOpenSeconds) / (marketCloseSeconds - marketOpenSeconds)) * 100;
+
+    const isReady = !!(selectedSymbol && selectedExpiry && selectedDate);
+
+    const currentSpeedLabel = SPEED_PRESETS.find(p => p.value === playbackSpeed)?.label || '1x';
+    const currentIntervalLabel = INTERVAL_PRESETS.find(p => p.value === stepInterval)?.label || '5m';
 
     return (
-        <>
+        <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-gray-50 dark:bg-gray-900">
             <Helmet>
-                <title>Historical Data | Stockify</title>
-                <meta name="description" content="View and replay historical option chain data" />
+                <title>Historical Chain | Stockify</title>
             </Helmet>
 
-            <div className="w-full px-4 py-4 space-y-4">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                            Historical Option Chain
-                        </h1>
-                        <p className="text-sm text-gray-500 mt-1">
-                            Replay historical option chain data for any date
-                        </p>
-                    </div>
-                    <button
-                        onClick={fetchSnapshot}
-                        disabled={loading}
-                        className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                    >
-                        <ArrowPathIcon className={`w-5 h-5 text-gray-600 dark:text-gray-400 ${loading ? 'animate-spin' : ''}`} />
-                    </button>
-                </div>
-
-                {/* Controls Card */}
-                <Card variant="glass" className="p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        {/* Symbol Display */}
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-2">Symbol</label>
-                            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-2.5 text-gray-900 dark:text-white font-medium">
-                                {selectedSymbol}
+            <ColumnConfigProvider>
+                <TableSettingsProvider>
+                    {/* 1. Compact Header */}
+                    <div className="flex-none z-30 bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-sm px-4 py-2 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                            {/* Historical Badge */}
+                            <div className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs font-bold uppercase tracking-wider">
+                                <ClockIcon className="w-3 h-3" />
+                                <span>Historical</span>
                             </div>
-                        </div>
 
-                        {/* Date Selector */}
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-2">
-                                <CalendarDaysIcon className="w-4 h-4 inline mr-1" />
-                                Date
-                            </label>
+                            {/* Symbol */}
+                            <div className="z-50"> {/* Increased Z-Index wrapper for Symbol Selector */}
+                                <SymbolSelector
+                                    symbols={symbols}
+                                    currentSymbol={{ symbol: selectedSymbol }}
+                                    onSelect={handleSymbolChange}
+                                    theme={theme}
+                                />
+                            </div>
+
+                            {/* Expiry */}
+                            <select
+                                value={selectedExpiry}
+                                onChange={(e) => setSelectedExpiry(e.target.value)}
+                                disabled={!selectedSymbol}
+                                className="bg-gray-100 dark:bg-gray-700 border-none rounded px-3 py-1 text-sm focus:ring-1 focus:ring-blue-500"
+                            >
+                                <option value="">Select Expiry</option>
+                                {availableExpiries.map(e => <option key={e} value={e}>{e}</option>)}
+                            </select>
+
+                            {/* Date */}
                             <select
                                 value={selectedDate}
                                 onChange={(e) => setSelectedDate(e.target.value)}
-                                className="w-full bg-gray-100 dark:bg-gray-800 border-0 rounded-lg px-4 py-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                disabled={!selectedExpiry}
+                                className="bg-gray-100 dark:bg-gray-700 border-none rounded px-3 py-1 text-sm focus:ring-1 focus:ring-blue-500"
                             >
-                                {availableDates.map((date) => (
-                                    <option key={date} value={date}>{date}</option>
-                                ))}
+                                <option value="">Select Date</option>
+                                {availableDates.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
-                        </div>
 
-                        {/* Time Selector */}
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-2">
-                                <ClockIcon className="w-4 h-4 inline mr-1" />
-                                Time
-                            </label>
-                            <select
-                                value={selectedTime}
-                                onChange={(e) => {
-                                    setSelectedTime(e.target.value);
-                                    setCurrentTimeIndex(availableTimes.indexOf(e.target.value));
-                                }}
-                                className="w-full bg-gray-100 dark:bg-gray-800 border-0 rounded-lg px-4 py-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                            {/* Clock Trigger */}
+                            <button
+                                onClick={() => isReady && setShowClock(true)}
+                                disabled={!isReady}
+                                className={`
+                                flex items-center gap-2 px-3 py-1 rounded border transition-colors
+                                ${isReady
+                                        ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-100'
+                                        : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 cursor-not-allowed'}
+                            `}
                             >
-                                {availableTimes.map((time) => (
-                                    <option key={time} value={time}>{time}</option>
-                                ))}
-                            </select>
+                                <ClockIcon className="w-4 h-4" />
+                                <span className="font-mono font-medium">{displayTime !== '--:--' ? displayTime : 'Select Time'}</span>
+                            </button>
                         </div>
 
-                        {/* Playback Speed */}
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-2">Speed</label>
-                            <select
-                                value={playbackSpeed}
-                                onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-                                className="w-full bg-gray-100 dark:bg-gray-800 border-0 rounded-lg px-4 py-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value={0.5}>0.5x</option>
-                                <option value={1}>1x</option>
-                                <option value={2}>2x</option>
-                                <option value={5}>5x</option>
-                                <option value={10}>10x</option>
-                            </select>
+                        <div className="flex items-center gap-2">
+                            <SettingsButton />
                         </div>
                     </div>
 
-                    {/* Playback Controls */}
-                    <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <button
-                            onClick={handlePrevTime}
-                            disabled={currentTimeIndex === 0}
-                            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                        >
-                            <BackwardIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                        </button>
-
-                        <button
-                            onClick={() => setIsPlaying(!isPlaying)}
-                            className={`p-3 rounded-xl transition-all ${isPlaying
-                                ? 'bg-red-100 dark:bg-red-900/30 text-red-600'
-                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'
-                                }`}
-                        >
-                            {isPlaying ? (
-                                <PauseIcon className="w-6 h-6" />
-                            ) : (
-                                <PlayIcon className="w-6 h-6" />
-                            )}
-                        </button>
-
-                        <button
-                            onClick={handleNextTime}
-                            disabled={currentTimeIndex >= availableTimes.length - 1}
-                            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                        >
-                            <ForwardIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                        </button>
-
-                        <div className="ml-4 text-sm text-gray-500">
-                            {currentTimeIndex + 1} / {availableTimes.length} snapshots
-                        </div>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="mt-4">
-                        <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-blue-500 transition-all duration-300"
-                                style={{
-                                    width: `${availableTimes.length > 0 ? ((currentTimeIndex + 1) / availableTimes.length) * 100 : 0}%`
-                                }}
-                            />
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-400 mt-1">
-                            <span>{availableTimes[0] || '09:15'}</span>
-                            <span>{availableTimes[availableTimes.length - 1] || '15:30'}</span>
-                        </div>
-                    </div>
-                </Card>
-
-                {/* Error Display */}
-                {error && (
-                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-700 dark:text-red-400">
-                        {error}
-                    </div>
-                )}
-
-                {/* Loading State */}
-                {loading && (
-                    <div className="flex items-center justify-center py-12">
-                        <ArrowPathIcon className="w-8 h-8 animate-spin text-blue-500" />
-                        <span className="ml-2 text-gray-500">Loading historical data...</span>
-                    </div>
-                )}
-
-                {/* Snapshot Data Display */}
-                {snapshotData && !loading && (
-                    <div className="space-y-4">
-                        {/* Summary Stats */}
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                            <Card variant="glass" className="p-4 text-center">
-                                <div className="text-xs text-gray-500 uppercase mb-1">Spot Price</div>
-                                <div className="text-xl font-bold text-gray-900 dark:text-white">
-                                    {snapshotData.spot?.toLocaleString()}
-                                </div>
-                            </Card>
-                            <Card variant="glass" className="p-4 text-center">
-                                <div className="text-xs text-gray-500 uppercase mb-1">ATM Strike</div>
-                                <div className="text-xl font-bold text-yellow-600">
-                                    {snapshotData.atm_strike?.toLocaleString()}
-                                </div>
-                            </Card>
-                            <Card variant="glass" className="p-4 text-center">
-                                <div className="text-xs text-gray-500 uppercase mb-1">PCR</div>
-                                <div className={`text-xl font-bold ${snapshotData.pcr > 1 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {snapshotData.pcr?.toFixed(3)}
-                                </div>
-                            </Card>
-                            <Card variant="glass" className="p-4 text-center">
-                                <div className="text-xs text-gray-500 uppercase mb-1">Max Pain</div>
-                                <div className="text-xl font-bold text-purple-600">
-                                    {snapshotData.max_pain?.toLocaleString()}
-                                </div>
-                            </Card>
-                            <Card variant="glass" className="p-4 text-center">
-                                <div className="text-xs text-gray-500 uppercase mb-1">Total OI</div>
-                                <div className="text-sm font-bold text-gray-900 dark:text-white">
-                                    <span className="text-green-600">{(callOITotal / 100000).toFixed(1)}L CE</span>
-                                    {' / '}
-                                    <span className="text-red-600">{(putOITotal / 100000).toFixed(1)}L PE</span>
-                                </div>
-                            </Card>
-                        </div>
-
-                        {/* Option Chain Table */}
-                        <Card variant="glass" className="overflow-hidden">
-                            <div className="overflow-x-auto max-h-[500px]">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0">
-                                        <tr>
-                                            <th colSpan="4" className="py-2 px-4 text-green-600 font-semibold border-r border-gray-200 dark:border-gray-700">
-                                                CALLS
-                                            </th>
-                                            <th className="py-2 px-4 text-yellow-600 font-semibold border-r border-gray-200 dark:border-gray-700">
-                                                STRIKE
-                                            </th>
-                                            <th colSpan="4" className="py-2 px-4 text-red-600 font-semibold">
-                                                PUTS
-                                            </th>
-                                        </tr>
-                                        <tr className="text-xs text-gray-500">
-                                            <th className="py-2 px-2">OI</th>
-                                            <th className="py-2 px-2">Volume</th>
-                                            <th className="py-2 px-2">IV</th>
-                                            <th className="py-2 px-2 border-r border-gray-200 dark:border-gray-700">LTP</th>
-                                            <th className="py-2 px-2 border-r border-gray-200 dark:border-gray-700"></th>
-                                            <th className="py-2 px-2">LTP</th>
-                                            <th className="py-2 px-2">IV</th>
-                                            <th className="py-2 px-2">Volume</th>
-                                            <th className="py-2 px-2">OI</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {Object.entries(snapshotData.option_chain || {})
-                                            .sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]))
-                                            .slice(0, 30)
-                                            .map(([strike, data]) => {
-                                                const isATM = parseFloat(strike) === snapshotData.atm_strike;
-                                                return (
-                                                    <tr
-                                                        key={strike}
-                                                        className={`border-b border-gray-100 dark:border-gray-800 ${isATM ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''
-                                                            }`}
-                                                    >
-                                                        {/* Call side */}
-                                                        <td className="py-2 px-2 text-center text-green-600">
-                                                            {((data.ce?.OI || data.ce?.oi || 0) / 1000).toFixed(0)}K
-                                                        </td>
-                                                        <td className="py-2 px-2 text-center text-gray-600 dark:text-gray-400">
-                                                            {((data.ce?.volume || data.ce?.vol || 0) / 1000).toFixed(0)}K
-                                                        </td>
-                                                        <td className="py-2 px-2 text-center text-blue-600">
-                                                            {data.ce?.iv?.toFixed(1) || '-'}
-                                                        </td>
-                                                        <td className="py-2 px-2 text-center font-medium border-r border-gray-200 dark:border-gray-700">
-                                                            {data.ce?.ltp?.toFixed(2) || '-'}
-                                                        </td>
-
-                                                        {/* Strike */}
-                                                        <td className={`py-2 px-4 text-center font-bold border-r border-gray-200 dark:border-gray-700 ${isATM ? 'text-yellow-600' : 'text-gray-900 dark:text-white'
-                                                            }`}>
-                                                            {parseFloat(strike).toFixed(0)}
-                                                        </td>
-
-                                                        {/* Put side */}
-                                                        <td className="py-2 px-2 text-center font-medium">
-                                                            {data.pe?.ltp?.toFixed(2) || '-'}
-                                                        </td>
-                                                        <td className="py-2 px-2 text-center text-blue-600">
-                                                            {data.pe?.iv?.toFixed(1) || '-'}
-                                                        </td>
-                                                        <td className="py-2 px-2 text-center text-gray-600 dark:text-gray-400">
-                                                            {((data.pe?.volume || data.pe?.vol || 0) / 1000).toFixed(0)}K
-                                                        </td>
-                                                        <td className="py-2 px-2 text-center text-red-600">
-                                                            {((data.pe?.OI || data.pe?.oi || 0) / 1000).toFixed(0)}K
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })
-                                        }
-                                    </tbody>
-                                </table>
+                    {/* 2. Main Content Area */}
+                    <div className="flex-1 relative overflow-hidden">
+                        {/* Error Overlay */}
+                        {error && (
+                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-red-500/90 text-white px-4 py-2 rounded-lg text-sm shadow-lg backdrop-blur">
+                                {error}
                             </div>
-                        </Card>
-                    </div>
-                )}
+                        )}
 
-                {/* Empty State */}
-                {!snapshotData && !loading && !error && (
-                    <Card variant="glass" className="p-12 text-center">
-                        <ChartBarIcon className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                            No Historical Data
-                        </h3>
-                        <p className="text-gray-500">
-                            Select a date and time to view historical option chain data
-                        </p>
-                    </Card>
-                )}
-            </div>
-        </>
+                        {/* Table Container */}
+                        <div className="absolute inset-0 overflow-auto scrollbar-thin">
+                            <div className="min-w-full inline-block align-middle">
+                                <OptionChainTable
+                                    showControls={false}
+                                    externalData={snapshotData}
+                                    isExternalLoading={loading}
+                                    symbol={selectedSymbol}
+                                    expiry={selectedExpiry}
+                                    date={selectedDate}
+                                />
+                            </div>
+                        </div>
+
+                        {/* 3. Enhanced Sticky Bottom Playback Controls */}
+                        {snapshotData && (
+                            <div
+                                ref={controlsRef}
+                                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1 w-auto max-w-[95%] animate-in slide-in-from-bottom-5 fade-in duration-300"
+                            >
+                                {/* Settings Panel (Collapsible) */}
+                                {showSettings && (
+                                    <div className="w-full bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-2 mb-1 animate-in slide-in-from-bottom-2 fade-in duration-200">
+                                        <div className="flex items-center justify-between gap-4">
+                                            {/* Step Interval */}
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] text-gray-500 uppercase font-bold whitespace-nowrap">Step:</span>
+                                                <div className="flex gap-1">
+                                                    {INTERVAL_PRESETS.map(preset => (
+                                                        <button
+                                                            key={preset.value}
+                                                            onClick={() => setStepInterval(preset.value)}
+                                                            title={preset.description}
+                                                            className={`px-2 py-1 text-xs rounded transition-all ${stepInterval === preset.value
+                                                                ? 'bg-blue-500 text-white shadow-sm'
+                                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                                }`}
+                                                        >
+                                                            {preset.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Divider */}
+                                            <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
+
+                                            {/* Playback Speed */}
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] text-gray-500 uppercase font-bold whitespace-nowrap">Speed:</span>
+                                                <div className="flex gap-1">
+                                                    {SPEED_PRESETS.map(preset => (
+                                                        <button
+                                                            key={preset.value}
+                                                            onClick={() => setPlaybackSpeed(preset.value)}
+                                                            className={`px-2 py-1 text-xs rounded transition-all ${playbackSpeed === preset.value
+                                                                ? 'bg-green-500 text-white shadow-sm'
+                                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                                }`}
+                                                        >
+                                                            {preset.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Keyboard Shortcuts Help */}
+                                            <div className="relative group">
+                                                <QuestionMarkCircleIcon className="w-4 h-4 text-gray-400 cursor-help" />
+                                                <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-56 bg-gray-900 text-white text-[10px] rounded-lg p-3 shadow-xl z-50">
+                                                    <div className="font-bold mb-1 text-xs">Keyboard Shortcuts</div>
+                                                    <div className="space-y-0.5">
+                                                        <div><kbd className="px-1 bg-gray-700 rounded">Space</kbd> Play/Pause</div>
+                                                        <div><kbd className="px-1 bg-gray-700 rounded">←</kbd> Step Back</div>
+                                                        <div><kbd className="px-1 bg-gray-700 rounded">→</kbd> Step Forward</div>
+                                                        <div><kbd className="px-1 bg-gray-700 rounded">Home</kbd> Jump to Start</div>
+                                                        <div><kbd className="px-1 bg-gray-700 rounded">End</kbd> Jump to End</div>
+                                                        <div><kbd className="px-1 bg-gray-700 rounded">[</kbd> <kbd className="px-1 bg-gray-700 rounded">]</kbd> Change Speed</div>
+                                                        <div><kbd className="px-1 bg-gray-700 rounded">,</kbd> <kbd className="px-1 bg-gray-700 rounded">.</kbd> Change Step</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Main Controller */}
+                                <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-2 flex items-center gap-3">
+
+                                    {/* Time Info */}
+                                    <div className="flex flex-col min-w-[70px] px-2">
+                                        <span className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Time</span>
+                                        <span className="text-lg font-mono font-bold text-gray-800 dark:text-white leading-none">
+                                            {playbackTime}
+                                        </span>
+                                    </div>
+
+                                    {/* Jump to Start */}
+                                    <button
+                                        onClick={jumpToStart}
+                                        title="Jump to Start (Home)"
+                                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                    >
+                                        <ChevronDoubleLeftIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                                    </button>
+
+                                    {/* Step Back */}
+                                    <button
+                                        onClick={stepBackward}
+                                        title={`Step Back ${currentIntervalLabel} (←)`}
+                                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                    >
+                                        <BackwardIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                                    </button>
+
+                                    {/* Play/Pause */}
+                                    <button
+                                        onClick={togglePlay}
+                                        title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+                                        className={`p-2.5 rounded-xl shadow-lg transition-all active:scale-95 ${isPlaying ? 'bg-amber-500 shadow-amber-500/30 text-white' : 'bg-blue-600 shadow-blue-500/30 text-white'}`}
+                                    >
+                                        {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
+                                    </button>
+
+                                    {/* Step Forward */}
+                                    <button
+                                        onClick={stepForward}
+                                        title={`Step Forward ${currentIntervalLabel} (→)`}
+                                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                    >
+                                        <ForwardIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                                    </button>
+
+                                    {/* Jump to End */}
+                                    <button
+                                        onClick={jumpToEnd}
+                                        title="Jump to End (End)"
+                                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                    >
+                                        <ChevronDoubleRightIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                                    </button>
+
+                                    {/* Seeker */}
+                                    <div className="flex-1 flex flex-col gap-0.5 min-w-[120px] max-w-[200px]">
+                                        <input
+                                            type="range"
+                                            min={MARKET_OPEN.hour * 3600 + MARKET_OPEN.minute * 60}
+                                            max={MARKET_CLOSE.hour * 3600 + MARKET_CLOSE.minute * 60}
+                                            value={parseTimeToSeconds(playbackTime) || MARKET_OPEN.hour * 3600 + MARKET_OPEN.minute * 60}
+                                            onChange={(e) => {
+                                                const newTime = formatSecondsToTime(Number(e.target.value));
+                                                setPlaybackTime(newTime);
+                                                if (selectedSymbol && selectedExpiry && selectedDate) {
+                                                    fetchSnapshot(newTime);
+                                                }
+                                            }}
+                                            className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                        />
+                                        <div className="flex justify-between text-[9px] text-gray-400">
+                                            <span>09:15</span>
+                                            <span className="font-medium text-gray-600 dark:text-gray-300">{Math.round(progress)}%</span>
+                                            <span>15:30</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Quick Info Pills */}
+                                    <div className="flex items-center gap-1 pl-2 border-l border-gray-200 dark:border-gray-700">
+                                        <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded">
+                                            {currentIntervalLabel}
+                                        </span>
+                                        <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400 rounded">
+                                            {currentSpeedLabel}
+                                        </span>
+                                    </div>
+
+                                    {/* Settings Toggle */}
+                                    <button
+                                        onClick={() => setShowSettings(!showSettings)}
+                                        title="Playback Settings"
+                                        className={`p-1.5 rounded-lg transition-colors ${showSettings ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500'}`}
+                                    >
+                                        <Cog6ToothIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </TableSettingsProvider>
+            </ColumnConfigProvider>
+
+            {/* Clock Modal */}
+            {showClock && (
+                <TimeClockSelector
+                    value={playbackTime || '09:15'}
+                    onChange={handleTimeSelect}
+                    onClose={() => setShowClock(false)}
+                    theme={theme}
+                />
+            )}
+        </div>
     );
 };
 
 export default Historical;
+

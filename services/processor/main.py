@@ -449,6 +449,7 @@ class ProcessorService:
             'symbol_id': context_dict['symbol_id'],
             'expiry': expiry,  # Include expiry date
             'timestamp': original_timestamp.isoformat(),
+            'trade_date': original_timestamp.date().isoformat(),  # Trading day derived from timestamp
             'processing_timestamp': datetime.now(pytz.timezone('Asia/Kolkata')).isoformat(),
             
             'context': context_dict,
