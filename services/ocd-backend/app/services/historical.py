@@ -84,10 +84,21 @@ class HistoricalService:
     async def get_available_expiries(self, symbol: str) -> List[str]:
         """
         Get list of unique expiries with historical data from TimescaleDB.
+        Cached for 5 minutes.
         
         Returns:
             List of expiry strings in YYYY-MM-DD format, sorted most recent first
         """
+        # Check Redis cache first
+        cache_key = f"hist:exp:{symbol.upper()}"
+        if self.cache:
+            try:
+                cached = await self.cache.get_json(cache_key)
+                if cached is not None:
+                    return cached
+            except Exception:
+                pass
+        
         if self.db is None:
             logger.error("No database connection for get_available_expiries")
             return []
@@ -130,6 +141,14 @@ class HistoricalService:
                             seen.add(date_str)
                     except (ValueError, TypeError, Exception):
                         pass
+            
+            # Cache the result for 5 minutes
+            if self.cache and expiries:
+                try:
+                    await self.cache.set_json(cache_key, expiries, ttl=300)
+                except Exception:
+                    pass
+            
             return expiries
         except Exception as e:
             logger.error(f"Error getting available expiries: {e}")
@@ -139,10 +158,21 @@ class HistoricalService:
         """
         Get list of dates with historical data from TimescaleDB.
         If expiry is provided, returns dates where that expiry was active.
+        Cached for 5 minutes.
         
         Returns:
             List of date strings in YYYY-MM-DD format, empty if no data
         """
+        # Check Redis cache first
+        cache_key = f"hist:dates:{symbol.upper()}:{expiry or 'all'}"
+        if self.cache:
+            try:
+                cached = await self.cache.get_json(cache_key)
+                if cached is not None:
+                    return cached
+            except Exception:
+                pass
+        
         if self.db is None:
             logger.error("No database connection for get_available_dates")
             return []
@@ -208,7 +238,16 @@ class HistoricalService:
                 )
             
             rows = result.fetchall()
-            return [row[0].strftime('%Y-%m-%d') for row in rows if row[0]]
+            dates = [row[0].strftime('%Y-%m-%d') for row in rows if row[0]]
+            
+            # Cache the result for 5 minutes
+            if self.cache and dates:
+                try:
+                    await self.cache.set_json(cache_key, dates, ttl=300)
+                except Exception:
+                    pass
+            
+            return dates
         except Exception as e:
             logger.error(f"Error getting available dates: {e}")
             return []
@@ -217,10 +256,21 @@ class HistoricalService:
         """
         Get available snapshot times for a date from TimescaleDB.
         Uses TimescaleDB time_bucket for efficient aggregation.
+        Cached for 5 minutes.
         
         Returns:
             List of time strings in HH:MM format, empty if no data
         """
+        # Check Redis cache first
+        cache_key = f"hist:times:{symbol.upper()}:{date_str}"
+        if self.cache:
+            try:
+                cached = await self.cache.get_json(cache_key)
+                if cached is not None:
+                    return cached
+            except Exception:
+                pass
+        
         if self.db is None:
             logger.error("No database connection for get_available_times")
             return []
@@ -245,7 +295,16 @@ class HistoricalService:
                 {"symbol_id": symbol_id, "target_date": target_date_obj}
             )
             rows = result.fetchall()
-            return [row[0].strftime('%H:%M') for row in rows if row[0]]
+            times = [row[0].strftime('%H:%M') for row in rows if row[0]]
+            
+            # Cache the result for 5 minutes
+            if self.cache and times:
+                try:
+                    await self.cache.set_json(cache_key, times, ttl=300)
+                except Exception:
+                    pass
+            
+            return times
         except Exception as e:
             logger.error(f"Error getting available times: {e}")
             return []
@@ -261,11 +320,37 @@ class HistoricalService:
         Get a complete historical option chain snapshot from TimescaleDB.
         
         Optimized single-query approach for sub-ms performance.
+        Cached for 24 hours (historical data is immutable).
         No fallbacks - returns None if data not found.
         
         Returns:
             HistoricalSnapshot or None if not found
         """
+        # Check Redis cache first (historical data is immutable - long TTL)
+        cache_key = f"hist:snap:{symbol.upper()}:{expiry}:{date_str}:{time_str}"
+        if self.cache:
+            try:
+                cached = await self.cache.get_json(cache_key)
+                if cached is not None:
+                    # Reconstruct HistoricalSnapshot from cached dict
+                    return HistoricalSnapshot(
+                        symbol=cached['symbol'],
+                        expiry=cached['expiry'],
+                        timestamp=datetime.fromisoformat(cached['timestamp']),
+                        spot=cached['spot'],
+                        spot_change=cached['spot_change'],
+                        atm_strike=cached['atm_strike'],
+                        atm_iv=cached['atm_iv'],
+                        pcr=cached['pcr'],
+                        max_pain=cached['max_pain'],
+                        total_call_oi=cached['total_call_oi'],
+                        total_put_oi=cached['total_put_oi'],
+                        option_chain=cached['option_chain'],
+                        futures=cached.get('futures')
+                    )
+            except Exception:
+                pass
+        
         if self.db is None:
             logger.error("No database connection for get_historical_snapshot")
             return None
@@ -303,7 +388,7 @@ class HistoricalService:
             day_start = target_time.replace(hour=0, minute=0, second=0, microsecond=0)
             day_end = day_start + timedelta(hours=23, minutes=59, seconds=59)
             
-            logger.info(f"Historical: Searching nearest snapshot for {symbol} on {date_str} around {time_str}")
+            logger.debug(f"Historical: Searching snapshot for {symbol} on {date_str} around {time_str}")
 
             # Query 1: Get market snapshot (Nearest in the whole day)
             snapshot_result = await self.db.execute(
@@ -326,29 +411,13 @@ class HistoricalService:
             snapshot_row = snapshot_result.fetchone()
             
             if not snapshot_row:
-                logger.warning(f"Historical: Query 1 (Snapshot) found nothing for {symbol} on {date_str}")
+                logger.debug(f"Historical: No snapshot for {symbol} on {date_str}")
                 return None
             
-            logger.info(f"Historical: Found snapshot at {snapshot_row[0]}")
-            
             timestamp, spot, spot_change, pcr, max_pain, atmiv, ce_oi, pe_oi = snapshot_row
-            
-            # DEBUG: Check contracts availability and timestamp
-            try:
-                debug_con = await self.db.execute(
-                    text("SELECT timestamp FROM option_contracts WHERE symbol_id = :sid AND expiry = :exp LIMIT 1"),
-                    {"sid": symbol_id, "exp": expiry_val}
-                )
-                dc = debug_con.fetchone()
-                if dc:
-                    logger.info(f"DEBUG: Found a contract at {dc[0]} (Type: {type(dc[0])})")
-                else:
-                    logger.warning(f"DEBUG: NO contracts found for symbol_id {symbol_id}/expiry {expiry} at all!")
-            except Exception as e:
-                logger.error(f"Debug contracts failed: {e}")
 
             # Query 2: Get option contracts (batch fetch, indexed)
-            # Widened window to +/- 15 mins to catch potentially drifting ingestions
+            # Use a narrow window around the snapshot timestamp for efficiency
             contracts_result = await self.db.execute(
                 text("""
                     SELECT strike_price, option_type, ltp, volume, oi, oi_change, iv,
@@ -362,12 +431,11 @@ class HistoricalService:
                 {
                     "symbol_id": symbol_id,
                     "expiry": expiry_val,
-                    "start_time": timestamp - timedelta(minutes=15),
-                    "end_time": timestamp + timedelta(minutes=15)
+                    "start_time": timestamp - timedelta(minutes=5),
+                    "end_time": timestamp + timedelta(minutes=5)
                 }
             )
             contracts = contracts_result.fetchall()
-            logger.info(f"Historical: Query 2 (Contracts) found {len(contracts)} rows.")
             
             # Build option chain dict (O(n) single pass)
             option_chain = {}
@@ -403,7 +471,7 @@ class HistoricalService:
             strikes = sorted([float(k) for k in option_chain.keys()])
             atm_strike = min(strikes, key=lambda x: abs(x - spot)) if strikes else spot
             
-            return HistoricalSnapshot(
+            snapshot = HistoricalSnapshot(
                 symbol=symbol,
                 expiry=expiry,
                 timestamp=timestamp,
@@ -418,6 +486,30 @@ class HistoricalService:
                 option_chain=option_chain,
                 futures=None
             )
+            
+            # Cache the snapshot for 24 hours (historical data is immutable)
+            if self.cache and snapshot:
+                try:
+                    cache_data = {
+                        'symbol': snapshot.symbol,
+                        'expiry': snapshot.expiry,
+                        'timestamp': snapshot.timestamp.isoformat(),
+                        'spot': snapshot.spot,
+                        'spot_change': snapshot.spot_change,
+                        'atm_strike': snapshot.atm_strike,
+                        'atm_iv': snapshot.atm_iv,
+                        'pcr': snapshot.pcr,
+                        'max_pain': snapshot.max_pain,
+                        'total_call_oi': snapshot.total_call_oi,
+                        'total_put_oi': snapshot.total_put_oi,
+                        'option_chain': snapshot.option_chain,
+                        'futures': snapshot.futures
+                    }
+                    await self.cache.set_json(cache_key, cache_data, ttl=86400)  # 24 hours
+                except Exception:
+                    pass
+            
+            return snapshot
             
         except Exception as e:
             logger.error(f"Error getting historical snapshot: {e}")

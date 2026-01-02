@@ -702,6 +702,9 @@ class AppUserDB(Base):
     username = Column(String(80), unique=True, nullable=False, index=True)
     full_name = Column(String(255), nullable=True)
     profile_image = Column(Text, nullable=True)
+    phone = Column(String(20), nullable=True)
+    bio = Column(Text, nullable=True)
+    location = Column(String(100), nullable=True)
     
     # Authentication status
     is_email_verified = Column(Boolean, default=False, nullable=False)
@@ -719,6 +722,9 @@ class AppUserDB(Base):
     # Session tracking
     last_login = Column(DateTime(timezone=True), nullable=True)
     last_logout = Column(DateTime(timezone=True), nullable=True)
+    
+    # User preferences and settings
+    preferences = Column(JSON, default=dict, nullable=False)
     
     # Timestamps provided by Base/TimestampMixin in OCD, implementing manually here or using Mixin if available
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -765,11 +771,15 @@ class AppUserDB(Base):
             "username": self.username,
             "full_name": self.full_name,
             "profile_image": self.profile_image,
+            "phone": self.phone,
+            "bio": self.bio,
+            "location": self.location,
             "role": self.role.value,
             "is_active": self.is_active,
             "is_email_verified": self.is_email_verified,
             "is_premium": self.is_premium,
             "login_provider": self.login_provider,
+            "preferences": self.preferences,
             "subscription_expires": (
                 self.subscription_expires.isoformat()
                 if self.subscription_expires else None
@@ -820,3 +830,32 @@ class AdminAuditLogDB(Base):
     def __repr__(self):
         return f"<AdminAuditLog {self.action} on {self.resource_type} by {self.actor_id}>"
 
+
+class UserActivityLogDB(Base):
+    """
+    User Activity Log - Tracks user actions for profile history and security.
+    """
+    __tablename__ = "user_activity_logs"
+    
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        index=True
+    )
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('app_users.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True
+    )
+    activity_type = Column(String(50), nullable=False, index=True)  # LOGIN, PROFILE_UPDATE, SETTINGS_UPDATE, PASSWORD_CHANGE
+    description = Column(String(255), nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    timestamp = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    
+    # Relationships
+    user = relationship("AppUserDB", backref="activity_logs")
+    
+    def __repr__(self):
+        return f"<UserActivityLog {self.activity_type} for {self.user_id}>"

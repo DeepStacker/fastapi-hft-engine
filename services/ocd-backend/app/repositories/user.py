@@ -45,9 +45,13 @@ class UserRepository(BaseRepository[User]):
         firebase_uid: str,
         email: str,
         username: str,
+        full_name: Optional[str] = None,
         is_email_verified: bool = False,
         login_provider: str = "email",
         profile_image: Optional[str] = None,
+        phone: Optional[str] = None,
+        bio: Optional[str] = None,
+        location: Optional[str] = None,
         role: UserRole = UserRole.USER,
     ) -> User:
         """Create a new user"""
@@ -55,9 +59,13 @@ class UserRepository(BaseRepository[User]):
             firebase_uid=firebase_uid,
             email=email,
             username=username.lower(),
+            full_name=full_name,
             is_email_verified=is_email_verified,
             login_provider=login_provider,
             profile_image=profile_image,
+            phone=phone,
+            bio=bio,
+            location=location,
             role=role,
         )
         self.db.add(user)

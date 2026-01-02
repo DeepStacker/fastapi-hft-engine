@@ -27,7 +27,7 @@ export const notificationService = {
      * @returns {Promise<{success: boolean}>}
      */
     markAllAsRead: async () => {
-        const response = await apiClient.put('/notifications/read-all');
+        const response = await apiClient.post('/notifications/read-all');
         return response.data;
     },
 
@@ -37,7 +37,7 @@ export const notificationService = {
      * @returns {Promise<{success: boolean}>}
      */
     markAsRead: async (notificationId) => {
-        const response = await apiClient.put(`/notifications/${notificationId}/read`);
+        const response = await apiClient.post(`/notifications/${notificationId}/read`);
         return response.data;
     },
 

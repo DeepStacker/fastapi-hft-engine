@@ -14,6 +14,7 @@ import json
 from app.config.settings import settings
 from app.services.options import OptionsService
 from app.services.dhan_client import DhanClient
+from app.cache.redis import get_redis
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,8 +31,9 @@ async def generate_sse_events(
     Yields:
         SSE-formatted data strings
     """
-    dhan_client = DhanClient()
-    options_service = OptionsService(dhan_client)
+    cache = await get_redis()
+    dhan_client = DhanClient(cache=cache)
+    options_service = OptionsService(dhan_client, cache=cache)
     
     try:
         while True:
@@ -107,8 +109,9 @@ async def poll_data(
     Returns single data snapshot (not streaming).
     Use this when both WebSocket and SSE are unavailable.
     """
-    dhan_client = DhanClient()
-    options_service = OptionsService(dhan_client)
+    cache = await get_redis()
+    dhan_client = DhanClient(cache=cache)
+    options_service = OptionsService(dhan_client, cache=cache)
     
     try:
         data = await options_service.get_live_data(symbol.upper(), expiry)

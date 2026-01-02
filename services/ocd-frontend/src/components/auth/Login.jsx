@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { signInWithGoogle } from "../../firebase/init";
+import { signInWithGoogle, loginWithEmail } from "../../firebase/init";
 import { setUser } from "../../context/authSlice";
 import { toast } from "react-toastify";
 import {
@@ -10,6 +10,10 @@ import {
   ChartBarIcon,
   BoltIcon,
   SparklesIcon,
+  EnvelopeIcon,
+  LockClosedIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from "@heroicons/react/24/outline";
 
 const Login = () => {
@@ -17,6 +21,13 @@ const Login = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Manual Login State
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
 
   const { isAuthenticated, user, authLoading } = useSelector((state) => state.auth);
   const theme = useSelector((state) => state.theme?.theme || "light");
@@ -34,7 +45,38 @@ const Login = () => {
     }
   }, [isAuthenticated, user, navigate, authLoading, mounted]);
 
-  const handleLogin = async () => {
+  const handleManualLogin = async (e) => {
+    e.preventDefault();
+    if (!formData.email || !formData.password) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const user = await loginWithEmail(formData.email, formData.password);
+      if (user) {
+        const token = await user.getIdToken(true);
+        localStorage.setItem("authToken", token);
+        const userData = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          token: token,
+        };
+        dispatch(setUser(userData));
+        toast.success("Welcome back! 🎉");
+      }
+    } catch (error) {
+      console.error("Login Error:", error);
+      toast.error(error.message || "Login failed. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
     try {
       setLoading(true);
       const user = await signInWithGoogle();
@@ -152,11 +194,10 @@ const Login = () => {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="w-full max-w-md"
         >
-          <div className={`p-8 rounded-3xl shadow-2xl border backdrop-blur-sm ${
-            isDark 
-              ? 'bg-slate-900/80 border-slate-800' 
-              : 'bg-white/80 border-slate-200'
-          }`}>
+          <div className={`p-8 rounded-3xl shadow-2xl border backdrop-blur-sm ${isDark
+            ? 'bg-slate-900/80 border-slate-800'
+            : 'bg-white/80 border-slate-200'
+            }`}>
             {/* Card Header */}
             <div className="text-center mb-8">
               <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -167,41 +208,116 @@ const Login = () => {
               </p>
             </div>
 
-            {/* Google Login Button */}
-            <motion.button
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleLogin}
-              disabled={loading}
-              className={`w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold text-lg transition-all ${
-                loading
-                  ? 'bg-slate-400 cursor-not-allowed text-white'
-                  : 'bg-white text-slate-900 border-2 border-slate-200 hover:border-blue-500 hover:shadow-lg shadow-md'
-              }`}
-            >
-              {loading ? (
-                <>
-                  <div className="w-6 h-6 border-2 border-slate-400 border-t-white rounded-full animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  <img
-                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                    alt="Google"
-                    className="w-6 h-6"
+            {/* Login Form */}
+            <form onSubmit={handleManualLogin} className="space-y-5">
+              {/* Email */}
+              <div>
+                <label className={`block text-sm font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Email Address
+                </label>
+                <div className="relative group">
+                  <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors ${isDark ? 'text-slate-500 group-focus-within:text-blue-500' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
+                    <EnvelopeIcon className="w-5 h-5" />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className={`block w-full pl-11 pr-4 py-3.5 rounded-2xl border-2 transition-all outline-none ${isDark
+                        ? 'bg-slate-800/50 border-slate-700 text-white focus:border-blue-500 focus:bg-slate-800'
+                        : 'bg-white border-slate-100 text-slate-900 focus:border-blue-500'
+                      }`}
+                    placeholder="john@example.com"
                   />
-                  Continue with Google
-                </>
-              )}
-            </motion.button>
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={`text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                    Password
+                  </label>
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs font-bold text-blue-500 hover:text-blue-600 transition-colors"
+                  >
+                    Forgot Password?
+                  </Link>
+                </div>
+                <div className="relative group">
+                  <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors ${isDark ? 'text-slate-500 group-focus-within:text-blue-500' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
+                    <LockClosedIcon className="w-5 h-5" />
+                  </div>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className={`block w-full pl-11 pr-12 py-3.5 rounded-2xl border-2 transition-all outline-none ${isDark
+                        ? 'bg-slate-800/50 border-slate-700 text-white focus:border-blue-500 focus:bg-slate-800'
+                        : 'bg-white border-slate-100 text-slate-900 focus:border-blue-500'
+                      }`}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-blue-500 transition-colors"
+                  >
+                    {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Login Button */}
+              <motion.button
+                whileHover={{ scale: 1.01, y: -2 }}
+                whileTap={{ scale: 0.99 }}
+                type="submit"
+                disabled={loading}
+                className={`w-full py-4 px-6 rounded-2xl font-bold text-lg transition-all shadow-lg hover:shadow-xl ${loading
+                    ? 'bg-slate-400 cursor-not-allowed text-white'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/25'
+                  }`}
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Signing in...
+                  </div>
+                ) : (
+                  "Sign In"
+                )}
+              </motion.button>
+            </form>
 
             {/* Divider */}
             <div className="flex items-center gap-4 my-6">
               <div className={`flex-1 h-px ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
-              <span className={`text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>or</span>
-              <div className={`flex-1 h-px ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
+              <span className={`text-xs font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>OR CONTINUE WITH</span>
+              <div className={`flex-1 h-px ${isDark ? 'bg-slate-700' : 'text-slate-200'}`} />
             </div>
+
+            {/* Google Login Button */}
+            <motion.button
+              whileHover={{ scale: 1.01, y: -2 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className={`w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-2xl font-bold transition-all border-2 ${isDark
+                  ? 'bg-slate-800/50 border-slate-700 text-white hover:bg-slate-800 hover:border-slate-600'
+                  : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50 hover:border-slate-200'
+                }`}
+            >
+              <img
+                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                alt="Google"
+                className="w-5 h-5"
+              />
+              Sign in with Google
+            </motion.button>
 
             {/* Register Link */}
             <div className="text-center">

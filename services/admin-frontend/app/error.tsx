@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { AlertTriangle, RefreshCcw, Home } from 'lucide-react';
-import { Button } from '@/components/ui/button'; // Assuming we have shadcn/ui components or similar, if not I will use raw HTML but project seems to use lucide/tailwind
+import { Button } from '@/components/ui/Button'; // Assuming we have shadcn/ui components or similar, if not I will use raw HTML but project seems to use lucide/tailwind
 import Link from 'next/link';
 
 export default function Error({

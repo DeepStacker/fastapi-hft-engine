@@ -20,6 +20,8 @@ import Register from "./components/auth/Register";
 import PrivateRoute from "./components/auth/PrivateRoute";
 import ErrorBoundary from "./ErrorBoundary";
 import MainLayout from "./layouts/MainLayout";
+import ForgotPassword from "./components/auth/ForgotPassword";
+import ResetPassword from "./components/auth/ResetPassword";
 
 // Lazy-loaded Pages (code splitting for better initial load)
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -99,6 +101,26 @@ function App() {
                       element={
                         !isAuthenticated ? (
                           <Register />
+                        ) : (
+                          <Navigate to="/dashboard" replace />
+                        )
+                      }
+                    />
+                    <Route
+                      path="/forgot-password"
+                      element={
+                        !isAuthenticated ? (
+                          <ForgotPassword />
+                        ) : (
+                          <Navigate to="/dashboard" replace />
+                        )
+                      }
+                    />
+                    <Route
+                      path="/reset-password"
+                      element={
+                        !isAuthenticated ? (
+                          <ResetPassword />
                         ) : (
                           <Navigate to="/dashboard" replace />
                         )

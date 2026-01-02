@@ -458,6 +458,10 @@ export const setupAuthListener = () => (dispatch) => {
                 is_email_verified: backendUser.is_email_verified,
                 subscription_expires: backendUser.subscription_expires,
                 login_provider: backendUser.login_provider,
+                preferences: backendUser.preferences,
+                phone: backendUser.phone,
+                bio: backendUser.bio,
+                location: backendUser.location,
               }),
             };
 
@@ -474,6 +478,17 @@ export const setupAuthListener = () => (dispatch) => {
             storage.setItem("authToken", token);
 
             dispatch(setUser(userData));
+
+            // Apply theme from preferences if available
+            if (userData.preferences?.theme) {
+              const { setDarkTheme, setLightTheme } = await import("./themeSlice");
+              if (userData.preferences.theme === 'dark') {
+                dispatch(setDarkTheme());
+              } else {
+                dispatch(setLightTheme());
+              }
+            }
+
             tokenManager.scheduleTokenRefresh(dispatch);
           } catch (error) {
             console.error("❌ Error setting up authenticated user:", error);

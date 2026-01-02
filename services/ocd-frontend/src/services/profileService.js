@@ -41,10 +41,34 @@ export const profileService = {
      * Get user's trading stats
      * @returns {Promise<{success: boolean, stats: Object}>}
      */
-    getStats: async () => {
-        const response = await apiClient.get('/profile/me/stats');
+    getMyTradingStats: async () => {
+        const response = await apiClient.get('/profile/stats');
         return response.data;
     },
+
+    /**
+     * Get user's activity history
+     * @returns {Promise<{success: boolean, activities: Array}>}
+     */
+    getActivityLogs: async () => {
+        const response = await apiClient.get('/profile/activity');
+        return response.data;
+    },
+
+    /**
+     * Change user password
+     * @param {Object} data - {current_password, new_password}
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
+    changePassword: async (data) => {
+        const response = await apiClient.post('/profile/security/change-password', data);
+        return response.data;
+    },
+
+    // Aliases for backward compatibility
+    getStats: async () => {
+        return await profileService.getMyTradingStats();
+    }
 };
 
 export default profileService;

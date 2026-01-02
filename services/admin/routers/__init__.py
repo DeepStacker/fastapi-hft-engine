@@ -17,10 +17,11 @@ from services.admin.routers.deployment import router as deployment_router
 from services.admin.routers.dhan_tokens import router as dhan_tokens_router
 from services.admin.routers.traders import router as traders_router
 from services.admin.routers.audit import router as audit_router
+from services.admin.routers.notifications import router as notifications_router
 
 __all__ = [
     "system_router", "kafka_router", "instruments_router",
     "services_router", "database_router", "config_router", "auth_router",
     "docker_router", "logs_router", "metrics_router", "deployment_router",
-    "dhan_tokens_router", "traders_router", "audit_router"
+    "dhan_tokens_router", "traders_router", "audit_router", "notifications_router"
 ]

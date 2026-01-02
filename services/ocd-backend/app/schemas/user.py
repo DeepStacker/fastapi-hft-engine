@@ -45,6 +45,9 @@ class UserProfileUpdate(BaseModel):
     username: Optional[str] = Field(None, min_length=3, max_length=80)
     full_name: Optional[str] = Field(None, max_length=255)
     profile_image: Optional[str] = None
+    phone: Optional[str] = Field(None, max_length=20)
+    bio: Optional[str] = Field(None, max_length=500)
+    location: Optional[str] = Field(None, max_length=100)
     
     @field_validator("username")
     @classmethod
@@ -63,13 +66,16 @@ class UserResponse(BaseModel):
     username: str
     full_name: Optional[str] = None
     profile_image: Optional[str] = None
+    phone: Optional[str] = None
+    bio: Optional[str] = None
+    location: Optional[str] = None
     role: str
     is_active: bool
     is_email_verified: bool
     is_premium: bool
     login_provider: str
-    subscription_expires: Optional[datetime] = None
     last_login: Optional[datetime] = None
+    preferences: Optional[dict] = Field(default_factory=dict)
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)

@@ -2,13 +2,18 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { signInWithGoogle } from "../../firebase/init";
+import { registerWithEmail, signInWithGoogle } from "../../firebase/init";
 import { setUser } from "../../context/authSlice";
 import { toast } from "react-toastify";
 import {
   ArrowTrendingUpIcon,
   CheckCircleIcon,
   RocketLaunchIcon,
+  UserIcon,
+  EnvelopeIcon,
+  LockClosedIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from "@heroicons/react/24/outline";
 
 const Register = () => {
@@ -16,6 +21,15 @@ const Register = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Manual Registration State
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
 
   const { isAuthenticated, user, authLoading } = useSelector((state) => state.auth);
   const theme = useSelector((state) => state.theme?.theme || "light");
@@ -30,6 +44,48 @@ const Register = () => {
       navigate("/dashboard", { replace: true });
     }
   }, [isAuthenticated, user, navigate, authLoading, mounted]);
+
+  const validateForm = () => {
+    if (!formData.fullName.trim()) return "Full name is required";
+    if (!formData.email.trim()) return "Email is required";
+    if (!/^\S+@\S+\.\S+$/.test(formData.email)) return "Invalid email format";
+    if (formData.password.length < 8) return "Password must be at least 8 characters";
+    if (formData.password !== formData.confirmPassword) return "Passwords do not match";
+    return null;
+  };
+
+  const handleManualRegister = async (e) => {
+    e.preventDefault();
+    const error = validateForm();
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const user = await registerWithEmail(formData.email, formData.password, formData.fullName);
+      if (user) {
+        const token = await user.getIdToken(true);
+        localStorage.setItem("authToken", token);
+        const userData = {
+          uid: user.uid,
+          email: user.email,
+          displayName: formData.fullName,
+          photoURL: user.photoURL,
+          token,
+        };
+        dispatch(setUser(userData));
+        toast.success("Account created! Welcome to DeepStrike 🚀");
+        navigate("/dashboard");
+      }
+    } catch (error) {
+      console.error("Registration Error:", error);
+      toast.error(error.message || "Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogleRegister = async () => {
     try {
@@ -149,11 +205,10 @@ const Register = () => {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="w-full max-w-md"
         >
-          <div className={`p-8 rounded-3xl shadow-2xl border backdrop-blur-sm ${
-            isDark 
-              ? 'bg-slate-900/80 border-slate-800' 
-              : 'bg-white/80 border-slate-200'
-          }`}>
+          <div className={`p-8 rounded-3xl shadow-2xl border backdrop-blur-sm ${isDark
+            ? 'bg-slate-900/80 border-slate-800'
+            : 'bg-white/80 border-slate-200'
+            }`}>
             {/* Card Header */}
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl mb-4 shadow-lg shadow-purple-500/30">
@@ -167,45 +222,158 @@ const Register = () => {
               </p>
             </div>
 
-            {/* Google Register Button */}
-            <motion.button
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleGoogleRegister}
-              disabled={loading}
-              className={`w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold text-lg transition-all ${
-                loading
-                  ? 'bg-slate-400 cursor-not-allowed text-white'
-                  : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30 hover:shadow-xl'
-              }`}
-            >
-              {loading ? (
-                <>
-                  <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Creating account...
-                </>
-              ) : (
-                <>
-                  <img
-                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                    alt="Google"
-                    className="w-6 h-6"
+            {/* Registration Form */}
+            <form onSubmit={handleManualRegister} className="space-y-4">
+              {/* Full Name */}
+              <div>
+                <label className={`block text-sm font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Full Name
+                </label>
+                <div className="relative group">
+                  <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors ${isDark ? 'text-slate-500 group-focus-within:text-blue-500' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
+                    <UserIcon className="w-5 h-5" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={formData.fullName}
+                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    className={`block w-full pl-11 pr-4 py-3.5 rounded-2xl border-2 transition-all outline-none ${isDark
+                        ? 'bg-slate-800/50 border-slate-700 text-white focus:border-purple-500 focus:bg-slate-800'
+                        : 'bg-white border-slate-100 text-slate-900 focus:border-purple-500'
+                      }`}
+                    placeholder="John Doe"
                   />
-                  Sign up with Google
-                </>
-              )}
-            </motion.button>
+                </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className={`block text-sm font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Email Address
+                </label>
+                <div className="relative group">
+                  <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors ${isDark ? 'text-slate-500 group-focus-within:text-blue-500' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
+                    <EnvelopeIcon className="w-5 h-5" />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className={`block w-full pl-11 pr-4 py-3.5 rounded-2xl border-2 transition-all outline-none ${isDark
+                        ? 'bg-slate-800/50 border-slate-700 text-white focus:border-purple-500 focus:bg-slate-800'
+                        : 'bg-white border-slate-100 text-slate-900 focus:border-purple-500'
+                      }`}
+                    placeholder="john@example.com"
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className={`block text-sm font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Password
+                </label>
+                <div className="relative group">
+                  <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors ${isDark ? 'text-slate-500 group-focus-within:text-blue-500' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
+                    <LockClosedIcon className="w-5 h-5" />
+                  </div>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className={`block w-full pl-11 pr-12 py-3.5 rounded-2xl border-2 transition-all outline-none ${isDark
+                        ? 'bg-slate-800/50 border-slate-700 text-white focus:border-purple-500 focus:bg-slate-800'
+                        : 'bg-white border-slate-100 text-slate-900 focus:border-purple-500'
+                      }`}
+                    placeholder="Minimum 8 characters"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-blue-500 transition-colors"
+                  >
+                    {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className={`block text-sm font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Confirm Password
+                </label>
+                <div className="relative group">
+                  <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors ${isDark ? 'text-slate-500 group-focus-within:text-blue-500' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
+                    <LockClosedIcon className="w-5 h-5" />
+                  </div>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    className={`block w-full pl-11 pr-12 py-3.5 rounded-2xl border-2 transition-all outline-none ${isDark
+                        ? 'bg-slate-800/50 border-slate-700 text-white focus:border-purple-500 focus:bg-slate-800'
+                        : 'bg-white border-slate-100 text-slate-900 focus:border-purple-500'
+                      }`}
+                    placeholder="Repeat password"
+                  />
+                </div>
+              </div>
+
+              {/* Register Button */}
+              <motion.button
+                whileHover={{ scale: 1.01, y: -2 }}
+                whileTap={{ scale: 0.99 }}
+                type="submit"
+                disabled={loading}
+                className={`w-full py-4 px-6 rounded-2xl font-bold text-lg transition-all shadow-lg hover:shadow-xl ${loading
+                    ? 'bg-slate-400 cursor-not-allowed text-white'
+                    : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-purple-500/25'
+                  }`}
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating Account...
+                  </div>
+                ) : (
+                  "Create Free Account"
+                )}
+              </motion.button>
+            </form>
 
             {/* Divider */}
             <div className="flex items-center gap-4 my-6">
               <div className={`flex-1 h-px ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
-              <span className={`text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>or</span>
+              <span className={`text-xs font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>OR SIGN UP WITH</span>
               <div className={`flex-1 h-px ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
             </div>
 
+            {/* Google Register Button */}
+            <motion.button
+              whileHover={{ scale: 1.01, y: -2 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={handleGoogleRegister}
+              disabled={loading}
+              className={`w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-2xl font-bold transition-all border-2 ${isDark
+                  ? 'bg-slate-800/50 border-slate-700 text-white hover:bg-slate-800 hover:border-slate-600'
+                  : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50 hover:border-slate-200'
+                }`}
+            >
+              <img
+                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                alt="Google"
+                className="w-5 h-5"
+              />
+              Continue with Google
+            </motion.button>
+
             {/* Login Link */}
-            <div className="text-center">
-              <p className={`${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            <div className="mt-8 text-center">
+              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 Already have an account?{' '}
                 <Link to="/login" className="font-bold text-purple-500 hover:text-purple-600 transition-colors">
                   Sign in

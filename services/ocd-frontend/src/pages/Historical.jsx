@@ -114,6 +114,7 @@ const Historical = () => {
     const [showSettings, setShowSettings] = useState(false);
     const intervalRef = useRef(null);
     const controlsRef = useRef(null);
+    const abortControllerRef = useRef(null); // For request cancellation
 
     // Initial Symbol Fetch (if missing)
     useEffect(() => {
@@ -331,7 +332,10 @@ const Historical = () => {
     }, [togglePlay, stepForward, stepBackward, jumpToStart, jumpToEnd]);
 
     // Auto-play loop with time-based stepping
+    // Uses request counter to ignore stale responses (don't cancel - let them complete)
     useEffect(() => {
+        let requestCounter = 0; // Track latest request
+
         if (isPlaying && selectedSymbol && selectedExpiry && selectedDate) {
             const marketCloseSeconds = MARKET_CLOSE.hour * 3600 + MARKET_CLOSE.minute * 60;
 
@@ -346,19 +350,35 @@ const Historical = () => {
                     }
 
                     const newTime = formatSecondsToTime(newSeconds);
-                    // Fetch snapshot for new time
+
+                    // Increment counter for this request
+                    const thisRequest = ++requestCounter;
+
+                    // Fetch snapshot - don't cancel, just ignore stale responses
                     historicalService.getHistoricalSnapshot({
                         symbol: selectedSymbol,
                         expiry: selectedExpiry,
                         date: selectedDate,
                         time: newTime
-                    }).then(setSnapshotData).catch(e => console.error(e));
+                    }).then(data => {
+                        // Only apply if this is still the latest request
+                        if (thisRequest === requestCounter && data) {
+                            setSnapshotData(data);
+                        }
+                    }).catch(e => {
+                        console.error('Snapshot fetch error:', e);
+                    });
 
                     return newTime;
                 });
             }, playbackSpeed);
         }
-        return () => clearInterval(intervalRef.current);
+
+        // Cleanup: just clear interval, let pending requests complete
+        return () => {
+            clearInterval(intervalRef.current);
+            requestCounter = 0; // Reset counter so pending responses are ignored
+        };
     }, [isPlaying, selectedSymbol, selectedExpiry, selectedDate, playbackSpeed, stepInterval]);
 
     if (!isAuthenticated) return <div className="p-8 text-center text-gray-500">Authentication Required</div>;

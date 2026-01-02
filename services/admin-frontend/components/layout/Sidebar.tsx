@@ -18,24 +18,46 @@ import {
   Menu,
   Key,
   Users,
-  History
+  History,
+  Bell
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const navItems = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Traders', href: '/traders', icon: Users },
-  { name: 'Services', href: '/services', icon: Server },
-  { name: 'Audit Logs', href: '/audit', icon: History },
-  { name: 'System Logs', href: '/logs', icon: FileText },
-  { name: 'Metrics', href: '/metrics', icon: Activity },
-  { name: 'Orchestration', href: '/orchestration', icon: Box },
-  { name: 'Kafka', href: '/kafka', icon: MessageSquare },
-  { name: 'Instruments', href: '/instruments', icon: BarChart3 },
-  { name: 'Database', href: '/database', icon: Database },
-  { name: 'Configuration', href: '/config', icon: Settings },
-  { name: 'Dhan Tokens', href: '/dhan-tokens', icon: Key },
+const navSections = [
+  {
+    title: 'Overview',
+    items: [
+      { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+      { name: 'Traders', href: '/traders', icon: Users },
+      { name: 'Notifications', href: '/notifications', icon: Bell },
+    ],
+  },
+  {
+    title: 'System',
+    items: [
+      { name: 'Services', href: '/services', icon: Server },
+      { name: 'Metrics', href: '/metrics', icon: Activity },
+      { name: 'Audit Logs', href: '/audit', icon: History },
+      { name: 'System Logs', href: '/logs', icon: FileText },
+    ],
+  },
+  {
+    title: 'Management',
+    items: [
+      { name: 'Orchestration', href: '/orchestration', icon: Box },
+      { name: 'Kafka', href: '/kafka', icon: MessageSquare },
+      { name: 'Instruments', href: '/instruments', icon: BarChart3 },
+      { name: 'Database', href: '/database', icon: Database },
+    ],
+  },
+  {
+    title: 'Settings',
+    items: [
+      { name: 'Configuration', href: '/config', icon: Settings },
+      { name: 'Dhan Tokens', href: '/dhan-tokens', icon: Key },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -70,37 +92,70 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group relative",
-                isActive 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              )}
-            >
-              <item.icon className={cn("w-5 h-5 shrink-0", isActive && "text-primary")} />
-              
-              {!isCollapsed && (
-                <span className="font-medium whitespace-nowrap">
-                  {item.name}
+      <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar">
+        {navSections.map((section, sectionIdx) => (
+          <div key={section.title} className={sectionIdx > 0 ? '' : ''}>
+            {/* Section Header */}
+            {!isCollapsed && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="px-3 mb-2"
+              >
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {section.title}
                 </span>
-              )}
-              
-              {/* Tooltip for collapsed state */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                  {item.name}
-                </div>
-              )}
-            </Link>
-          );
-        })}
+              </motion.div>
+            )}
+
+            {/* Section Items */}
+            <div className="space-y-1">
+              {section.items.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all-smooth group relative",
+                      isActive 
+                        ? "bg-primary/10 text-primary shadow-sm" 
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    )}
+                  >
+                    {/* Active Indicator */}
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeNav"
+                        className="absolute left-0 w-1 h-6 bg-primary rounded-r-full"
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                      />
+                    )}
+                    
+                    <item.icon className={cn("w-5 h-5 shrink-0", isActive && "text-primary")} />
+                    
+                    {!isCollapsed && (
+                      <motion.span
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="font-medium whitespace-nowrap text-sm"
+                      >
+                        {item.name}
+                      </motion.span>
+                    )}
+                    
+                    {/* Tooltip for collapsed state */}
+                    {isCollapsed && (
+                      <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 border border-border">
+                        {item.name}
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Collapse Toggle */}

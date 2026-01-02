@@ -11,6 +11,7 @@ from app.core.security import verify_firebase_token
 from app.core.exceptions import UnauthorizedException, ForbiddenException
 from app.models.user import User, UserRole
 from app.repositories.user import UserRepository
+from app.services.notification import create_welcome_notifications
 from app.cache.redis import RedisCache, get_redis
 
 logger = logging.getLogger(__name__)
@@ -64,15 +65,42 @@ async def get_current_user(
     
     if not user:
         # Auto-create user on first login
-        user = await user_repo.create(
-            firebase_uid=firebase_uid,
-            email=token_data.get("email", ""),
-            username=token_data.get("email", "").split("@")[0],
-            is_email_verified=token_data.get("email_verified", False),
-            login_provider=token_data.get("sign_in_provider", "email"),
-            profile_image=token_data.get("picture"),
-        )
-        logger.info(f"Created new user: {user.email}")
+        try:
+            user = await user_repo.create(
+                firebase_uid=firebase_uid,
+                email=token_data.get("email", ""),
+                username=token_data.get("email", "").split("@")[0],
+                full_name=token_data.get("name"),
+                is_email_verified=token_data.get("email_verified", False),
+                login_provider=token_data.get("sign_in_provider", "email"),
+                profile_image=token_data.get("picture"),
+            )
+            await db.commit()
+            
+            # Create welcome notifications for the new user
+            try:
+                await create_welcome_notifications(db, user.id)
+                logger.info(f"Created welcome notifications for: {user.email}")
+            except Exception as notif_error:
+                logger.warning(f"Failed to create welcome notifications: {notif_error}")
+            
+            logger.info(f"Auto-created new user: {user.email}")
+        except Exception as e:
+            # Handle possible race condition or existing email with different UID
+            if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+                await db.rollback()
+                user = await user_repo.get_by_email(token_data.get("email", ""))
+                if user:
+                    # Link existing email account to new Firebase UID
+                    user.firebase_uid = firebase_uid
+                    await db.commit()
+                    logger.info(f"Linked existing user {user.email} to new Firebase UID: {firebase_uid}")
+                else:
+                    # If still not found, re-raise the original error
+                    raise UnauthorizedException("Failed to register user account")
+            else:
+                logger.error(f"Error auto-creating user: {e}")
+                raise
     
     if not user.is_active:
         raise ForbiddenException("User account is deactivated")

@@ -24,6 +24,8 @@ import {
   ScaleIcon,
   BanknotesIcon,
   ArrowTrendingUpIcon,
+  ChatBubbleLeftRightIcon,
+  ArrowRightIcon,
 } from "@heroicons/react/24/outline";
 import { BellIcon as BellIconSolid } from "@heroicons/react/24/solid";
 import { notificationService } from "../../services/notificationService";
@@ -75,6 +77,17 @@ const Sidebar = () => {
       setNotificationList(prev => prev.map(n => ({ ...n, is_read: true })));
     } catch {
       // Silent failure - notifications will be refreshed on next interval
+    }
+  };
+
+  // Handle mark single as read
+  const handleMarkRead = async (id) => {
+    try {
+      await notificationService.markAsRead(id);
+      setNotifications(prev => Math.max(0, prev - 1));
+      setNotificationList(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch {
+      // Silent failure
     }
   };
 
@@ -285,52 +298,98 @@ const Sidebar = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 className={`absolute mb-2 w-80 rounded-xl shadow-2xl border overflow-hidden z-[100] ${isCollapsed
-                    ? "left-full ml-2 bottom-0"
-                    : "bottom-full left-0"
+                  ? "left-full ml-2 bottom-0"
+                  : "bottom-full left-0"
                   } ${theme === "dark"
                     ? "bg-gray-800 border-gray-700"
                     : "bg-white border-gray-200"
                   }`}
               >
-                <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                  <span className="font-semibold text-sm">Notifications</span>
+                {/* Header */}
+                <div className={`p-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700 bg-gray-800/50' : 'border-gray-50 bg-gray-50/50'}`}>
+                  <div className="flex items-center gap-2">
+                    <BellIcon className="w-4 h-4 text-blue-500" />
+                    <span className="font-bold text-xs uppercase tracking-widest opacity-80">Notifications</span>
+                  </div>
                   {notifications > 0 && (
                     <button
                       onClick={handleMarkAllRead}
-                      className="text-xs text-blue-500 hover:text-blue-600"
+                      className="text-[10px] font-bold uppercase tracking-tighter text-blue-500 hover:text-blue-600 transition-colors px-2 py-1 rounded-md hover:bg-blue-500/10"
                     >
                       Mark all read
                     </button>
                   )}
                 </div>
-                <div className="max-h-64 overflow-y-auto">
+
+                {/* List Content */}
+                <div className="max-h-80 overflow-y-auto custom-scrollbar">
                   {notificationList.length > 0 ? (
                     notificationList.map((notif) => (
                       <div
                         key={notif.id}
-                        className={`p-3 border-b border-gray-100 dark:border-gray-700 last:border-0 ${!notif.is_read ? "bg-blue-50 dark:bg-blue-900/20" : ""
-                          }`}
+                        onClick={() => !notif.is_read && handleMarkRead(notif.id)}
+                        className={`p-4 border-b transition-all relative group cursor-pointer ${theme === 'dark'
+                            ? 'border-gray-700/50 hover:bg-gray-700/30'
+                            : 'border-gray-50 hover:bg-gray-50'
+                          } ${!notif.is_read ? (theme === 'dark' ? 'bg-blue-600/5' : 'bg-blue-50/20') : ''}`}
                       >
-                        <div className="flex items-start gap-2">
-                          <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${notif.type === "success" ? "bg-green-500" :
-                            notif.type === "warning" ? "bg-yellow-500" :
-                              notif.type === "error" ? "bg-red-500" :
-                                notif.type === "price" ? "bg-purple-500" :
-                                  "bg-blue-500"
-                            }`} />
+                        {!notif.is_read && (
+                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600 shadow-[2px_0_10px_rgba(37,99,235,0.4)]" />
+                        )}
+
+                        <div className="flex gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${notif.type === "success" ? "bg-green-500/10 text-green-500" :
+                              notif.type === "warning" ? "bg-yellow-500/10 text-yellow-500" :
+                                notif.type === "error" ? "bg-red-500/10 text-red-500" :
+                                  "bg-blue-500/10 text-blue-500"
+                            }`}>
+                            <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                          </div>
+
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{notif.title}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{notif.message}</p>
+                            <div className="flex justify-between items-start mb-0.5">
+                              <p className={`text-sm font-bold truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{notif.title}</p>
+                              <span className="text-[9px] font-medium text-gray-500 whitespace-nowrap ml-2 opacity-60">
+                                {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p className={`text-xs leading-relaxed line-clamp-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {notif.message}
+                            </p>
+
+                            {notif.link && (
+                              <Link
+                                to={notif.link}
+                                className="inline-flex items-center gap-1 mt-2 text-[10px] font-black text-blue-500 hover:text-blue-600 uppercase tracking-widest"
+                              >
+                                View
+                                <ArrowRightIcon className="w-2.5 h-2.5" />
+                              </Link>
+                            )}
                           </div>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-                      <BellIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No notifications</p>
+                    <div className="p-10 text-center">
+                      <div className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center ${theme === 'dark' ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                        <BellIcon className="w-8 h-8 text-gray-400 opacity-30" />
+                      </div>
+                      <p className={`text-sm font-bold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>All caught up!</p>
+                      <p className="text-xs text-gray-500 mt-1 opacity-70">No new notifications</p>
                     </div>
                   )}
+                </div>
+
+                {/* Footer */}
+                <div className={`p-3 text-center border-t ${theme === 'dark' ? 'border-gray-700 bg-gray-800/80' : 'border-gray-100 bg-gray-50/50'}`}>
+                  <Link
+                    to="/profile"
+                    onClick={() => setIsNotificationsOpen(false)}
+                    className="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-blue-500 transition-colors"
+                  >
+                    View Settings
+                  </Link>
                 </div>
               </motion.div>
             )}

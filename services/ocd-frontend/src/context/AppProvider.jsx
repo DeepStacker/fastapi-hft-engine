@@ -168,8 +168,18 @@ export const AppProvider = ({ children }) => {
 
     fetchData(); // Initial fetch
 
-    // Poll interval - 5s for different expiry, 3s for WebSocket fallback
-    const pollInterval = !isExpiryMatch ? 5000 : 3000;
+    // Poll interval - Priority: User Preferences -> localStorage -> default
+    const prefRate = user?.preferences?.refresh_rate;
+    const storedRate = localStorage.getItem('app_refresh_rate');
+
+    let customInterval = null;
+    if (prefRate) {
+      customInterval = prefRate * 1000;
+    } else if (storedRate) {
+      customInterval = parseInt(storedRate.replace('s', '')) * 1000;
+    }
+
+    const pollInterval = customInterval || (!isExpiryMatch ? 5000 : 3000);
     pollTimerRef.current = setInterval(fetchData, pollInterval);
     logger.log(`⏱️ Global: Poll interval set to ${pollInterval}ms`);
 

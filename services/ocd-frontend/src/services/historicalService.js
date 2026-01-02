@@ -60,9 +60,10 @@ export const historicalService = {
      * @param {string} params.expiry - Expiry timestamp
      * @param {string} params.date - Date in YYYY-MM-DD format
      * @param {string} params.time - Time in HH:MM format
+     * @param {AbortSignal} [params.signal] - Optional AbortController signal for cancellation
      * @returns {Promise<{success: boolean, symbol: string, expiry: string, date: string, time: string, option_chain: Object}>}
      */
-    getHistoricalSnapshot: async ({ symbol, expiry, date, time }) => {
+    getHistoricalSnapshot: async ({ symbol, expiry, date, time, signal }) => {
         // Use unified endpoint with historical mode
         const response = await apiClient.get(`/options/chain/${symbol}/${expiry}`, {
             params: {
@@ -71,7 +72,8 @@ export const historicalService = {
                 time,
                 include_greeks: true,
                 include_reversal: false
-            }
+            },
+            signal // Pass AbortController signal for cancellation
         });
         return response.data;
     },

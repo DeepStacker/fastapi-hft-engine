@@ -98,7 +98,11 @@ async def get_option_chain(
             )
         
         from app.services.historical import HistoricalService
-        historical_service = HistoricalService(db=db)
+        from app.cache.redis import get_redis
+        
+        # Get Redis cache for sub-millisecond cached responses
+        cache = await get_redis()
+        historical_service = HistoricalService(db=db, cache=cache)
         
         snapshot = await historical_service.get_historical_snapshot(
             symbol=symbol,

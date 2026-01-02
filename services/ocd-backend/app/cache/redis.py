@@ -297,6 +297,27 @@ class CacheKeys:
     @staticmethod
     def rate_limit(ip: str, endpoint: str) -> str:
         return f"ratelimit:{ip}:{endpoint}"
+    
+    # Historical data cache keys (immutable data = long TTL)
+    @staticmethod
+    def historical_snapshot(symbol: str, expiry: str, date: str, time: str) -> str:
+        """Cache key for historical snapshots (TTL: 24h+)"""
+        return f"hist:snap:{symbol}:{expiry}:{date}:{time}"
+    
+    @staticmethod
+    def historical_expiries(symbol: str) -> str:
+        """Cache key for available expiries (TTL: 5min)"""
+        return f"hist:exp:{symbol}"
+    
+    @staticmethod
+    def historical_dates(symbol: str, expiry: str) -> str:
+        """Cache key for available dates (TTL: 5min)"""
+        return f"hist:dates:{symbol}:{expiry}"
+    
+    @staticmethod
+    def historical_times(symbol: str, date: str) -> str:
+        """Cache key for available times (TTL: 5min)"""
+        return f"hist:times:{symbol}:{date}"
 
 
 async def get_redis() -> RedisCache:

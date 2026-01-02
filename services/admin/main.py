@@ -24,7 +24,8 @@ from services.admin.routers import (
     deployment_router,
     dhan_tokens_router,
     traders_router,
-    audit_router
+    audit_router,
+    notifications_router
 )
 
 # Import services for lifecycle management
@@ -47,15 +48,8 @@ admin_app = FastAPI(
     version="2.0.0"
 )
 
-# CORS - Allow frontend on port 3000
-admin_app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8001"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
+# CORS is handled by nginx gateway - do not add CORSMiddleware here
+# to avoid duplicate Access-Control-Allow-Origin headers
 
 # Include routers (auth first - has public endpoints)
 admin_app.include_router(auth_router)  # Public login endpoint
@@ -72,6 +66,7 @@ admin_app.include_router(deployment_router)
 admin_app.include_router(dhan_tokens_router)
 admin_app.include_router(traders_router)
 admin_app.include_router(audit_router)
+admin_app.include_router(notifications_router)
 
 # Root endpoint
 @admin_app.get("/")

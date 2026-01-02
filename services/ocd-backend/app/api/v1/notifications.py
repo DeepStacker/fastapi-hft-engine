@@ -15,6 +15,7 @@ from app.config.database import get_db
 from app.core.dependencies import CurrentUser, OptionalUser
 from app.models.notification import Notification, NotificationType
 from app.utils.timezone import get_ist_isoformat
+from app.services.notification import create_welcome_notifications
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -50,35 +51,6 @@ class NotificationListResponse(BaseModel):
 
 
 # ============== Helper Functions ==============
-
-async def create_welcome_notifications(db: AsyncSession, user_id: UUID) -> None:
-    """Create welcome notifications for a new user"""
-    welcome_notifications = [
-        {
-            "title": "Welcome to DeepStrike!",
-            "message": "Start exploring real-time option chain data and analytics.",
-            "type": NotificationType.SUCCESS,
-            "link": "/dashboard"
-        },
-        {
-            "title": "Pro Tip: Try Screeners",
-            "message": "Use our Scalp and Positional screeners for trading opportunities.",
-            "type": NotificationType.INFO,
-            "link": "/screeners"
-        },
-    ]
-    
-    for notif in welcome_notifications:
-        notification = Notification(
-            user_id=user_id,
-            title=notif["title"],
-            message=notif["message"],
-            type=notif["type"],
-            link=notif["link"],
-        )
-        db.add(notification)
-    
-    await db.commit()
 
 
 # ============== Endpoints ==============

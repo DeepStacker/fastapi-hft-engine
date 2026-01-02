@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Progress } from '@/components/ui/Progress';
 import { Activity, Cpu, HardDrive, Server, Wifi } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 // Types
 interface MetricPoint {

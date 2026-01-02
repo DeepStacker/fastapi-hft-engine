@@ -535,7 +535,7 @@ services:
       # App config
       LOG_LEVEL: INFO
       UVICORN_ACCESS_LOG: "false"
-      GUNICORN_WORKERS: "1"
+      GUNICORN_WORKERS: "4"
       RATE_LIMIT_PER_MINUTE: "600"
       CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000","http://localhost:80"]'
       SECRET_KEY: ${SECRET_KEY}

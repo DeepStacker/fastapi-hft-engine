@@ -22,6 +22,9 @@ from app.schemas.user import (
 )
 from app.schemas.common import ResponseModel
 from app.utils.timezone import get_ist_now
+from app.services.notification import create_welcome_notifications
+from app.cache.redis import RedisCache, get_redis
+from app.api.v1.profile import log_activity
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -76,12 +79,23 @@ async def verify_token(
                 firebase_uid=firebase_uid,
                 email=email,
                 username=username,
+                full_name=token_data.get("name"),
                 is_email_verified=token_data.get("email_verified", False),
                 login_provider=token_data.get("sign_in_provider", "email"),
                 profile_image=token_data.get("picture"),
                 role=initial_role,
             )
             await db.commit()
+            
+            # Create welcome notifications for the new user
+            try:
+                await create_welcome_notifications(db, user.id)
+                logger.info(f"Created welcome notifications for: {email}")
+            except Exception as notif_error:
+                logger.warning(f"Failed to create welcome notifications: {notif_error}")
+            
+            # Log registration activity
+            await log_activity(db, user.id, "REGISTRATION", "New user registered via Firebase")
             
             if should_be_admin:
                 logger.info(f"Created new ADMIN user: {email} (matched ADMIN_EMAIL)")
@@ -91,10 +105,15 @@ async def verify_token(
             # Handle race condition - another request created the user
             if "unique" in str(e).lower() or "duplicate" in str(e).lower():
                 await db.rollback()
-                user = await user_repo.get_by_firebase_uid(firebase_uid)
                 if not user:
                     # Try by email as fallback
                     user = await user_repo.get_by_email(email)
+                    if user:
+                        # Link existing email account to new Firebase UID
+                        user.firebase_uid = firebase_uid
+                        await db.commit()
+                        logger.info(f"Linked existing user {email} to new Firebase UID: {firebase_uid}")
+                
                 logger.info(f"Race condition handled - found existing user: {email}")
             else:
                 raise
@@ -105,9 +124,25 @@ async def verify_token(
             await db.commit()
             logger.info(f"Promoted existing user to ADMIN: {email}")
     
-    # Update last login
-    if user:
+        # Update last login
         await user_repo.update_last_login(user.id)
+        
+        # Ensure welcome notifications if they don't have any
+        from app.models.notification import Notification
+        from sqlalchemy import select, func
+        
+        count_query = select(func.count()).select_from(Notification).where(Notification.user_id == user.id)
+        count_result = await db.execute(count_query)
+        if (count_result.scalar() or 0) == 0:
+            try:
+                await create_welcome_notifications(db, user.id)
+                logger.info(f"Created missed welcome notifications for: {user.email}")
+            except Exception as notif_error:
+                logger.warning(f"Failed to create welcome notifications: {notif_error}")
+        
+        # Log login activity - Throttle to once per 30 minutes
+        await log_activity(db, user.id, "LOGIN", "User session verified", throttle_seconds=1800)
+             
         await db.commit()
     
     return AuthVerifyResponse(

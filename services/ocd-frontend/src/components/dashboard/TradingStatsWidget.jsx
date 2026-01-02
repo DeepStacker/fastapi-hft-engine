@@ -26,7 +26,7 @@ const TradingStatsWidget = () => {
         const fetchStats = async () => {
             try {
                 setLoading(true);
-                const response = await profileService.getStats();
+                const response = await profileService.getMyTradingStats();
                 if (response.success) {
                     setStats(response.stats);
                 }

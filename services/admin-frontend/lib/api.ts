@@ -194,6 +194,19 @@ export const api = {
   updateDhanTokens: (data: { auth_token?: string, authorization_token?: string }) =>
     apiClient.put('/dhan-tokens', data),
   testDhanTokens: () => apiClient.post('/dhan-tokens/test'),
+
+  // Notifications (Admin Broadcast)
+  getNotificationStats: () => apiClient.get('/notifications/stats'),
+  getUsersForNotification: (search: string = '') =>
+    apiClient.get('/notifications/users', { params: { search } }),
+  broadcastNotification: (data: {
+    title: string,
+    message: string,
+    type?: string,
+    target: 'all' | 'user',
+    user_email?: string,
+    link?: string
+  }) => apiClient.post('/notifications/broadcast', data),
 };
 
 // Export as both 'api' and 'adminAPI' for compatibility

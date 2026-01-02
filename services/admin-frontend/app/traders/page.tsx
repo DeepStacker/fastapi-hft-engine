@@ -22,6 +22,7 @@ import {
 import { toast } from '@/components/ui/Toaster';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { motion } from 'framer-motion';
 
 interface Trader {
   id: string;
