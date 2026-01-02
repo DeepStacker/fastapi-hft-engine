@@ -39,6 +39,8 @@ export const historicalService = {
 
     /**
      * Get a specific historical snapshot
+     * Now uses the unified /options/chain endpoint with mode=historical
+     * 
      * @param {Object} params - Query parameters
      * @param {string} params.symbol - Trading symbol
      * @param {string} params.expiry - Expiry timestamp
@@ -47,16 +49,19 @@ export const historicalService = {
      * @returns {Promise<{success: boolean, symbol: string, expiry: string, date: string, time: string, option_chain: Object}>}
      */
     getHistoricalSnapshot: async ({ symbol, expiry, date, time }) => {
-        const response = await apiClient.get(`${HISTORICAL_BASE}/snapshot`, {
+        // Use unified endpoint with historical mode
+        const response = await apiClient.get(`/options/chain/${symbol}/${expiry}`, {
             params: {
-                symbol,
-                expiry,
+                mode: 'historical',
                 date,
                 time,
-            },
+                include_greeks: true,
+                include_reversal: false
+            }
         });
         return response.data;
     },
+
 
     /**
      * Get multiple snapshots for replay functionality

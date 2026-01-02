@@ -1,5 +1,5 @@
 # Pydantic models for Admin API
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -181,8 +181,7 @@ class AppUser(BaseModel):
     created_at: datetime
     last_login: Optional[datetime]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class AppUserUpdate(BaseModel):
     is_active: Optional[bool] = None
@@ -207,6 +206,5 @@ class AuditLog(BaseModel):
     ip_address: Optional[str]
     status: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 

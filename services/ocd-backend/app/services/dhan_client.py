@@ -4,10 +4,11 @@ Handles all communication with Dhan trading API
 """
 import logging
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 
 import httpx
+import pytz # Added for timezone conversion
 
 from app.config.settings import settings
 from app.config.symbols import (
@@ -27,27 +28,16 @@ logger = logging.getLogger(__name__)
 _shared_client: Optional[httpx.AsyncClient] = None
 
 
-class DhanClient:
+from core.clients.dhan import BaseDhanClient
+
+class DhanClient(BaseDhanClient):
     """
-    Async HTTP client for Dhan API.
-    Features:
-    - Connection pooling with limits for high concurrency
-    - Retry with exponential backoff
-    - Response caching with Redis
-    - Full data processing (percentages, filtering)
-    - Dynamic auth token support
+    Service-specific Dhan Client (OCD Backend).
+    Extends BaseDhanClient with:
+    - HFT Engine fallback logic
+    - Service-specific data transformation
+    - Configuration service integration
     """
-    
-    # Default headers for Dhan API
-    DEFAULT_HEADERS = {
-        "accept": "application/json, text/plain, */*",
-        "accept-encoding": "gzip, deflate, br, zstd",
-        "accept-language": "en-US,en;q=0.7",
-        "content-type": "application/json",
-        "origin": "https://web.dhan.co",
-        "referer": "https://web.dhan.co/",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-    }
     
     # Lot sizes for major indices
     LOT_SIZES = {
@@ -63,45 +53,31 @@ class DhanClient:
         self, 
         cache: Optional[RedisCache] = None,
         auth_token: Optional[str] = None,
-        use_hft_source: Optional[bool] = None  # HFT mode toggle
+        use_hft_source: Optional[bool] = None
     ):
-        self.base_url = settings.DHAN_API_BASE_URL
-        self.timeout = settings.DHAN_API_TIMEOUT
-        self.retry_count = settings.DHAN_API_RETRY_COUNT
-        self.retry_delay = settings.DHAN_API_RETRY_DELAY
-        self.cache = cache
-        self._static_token = auth_token  # Token passed at init (may be stale)
-        self._client: Optional[httpx.AsyncClient] = None
-        self._current_token: Optional[str] = None  # Currently active token
+        super().__init__(cache, auth_token)
         
-        # HFT Engine integration - use setting if not explicitly passed
+        # OCD-specific HFT integration
         self.use_hft_source = use_hft_source if use_hft_source is not None else settings.USE_HFT_DATA_SOURCE
-        self._hft_adapter = None  # Lazy initialization
+        self._hft_adapter = None
     
+    # Override _get_auth_token to use ConfigService (OCD specific)
     async def _get_auth_token(self) -> str:
-        """Get auth token from Redis dhan:tokens -> config service -> settings fallback"""
+        # Try parent method first (Redis "dhan:tokens")
+        token = await super()._get_auth_token()
+        if token and token != self._static_token:
+             return token
+             
+        # Fallback to ConfigService
         try:
-            # First try to get token from Redis dhan:tokens key (fastest, most up-to-date)
-            if self.cache:
-                try:
-                    import json
-                    token_data = await self.cache.get("dhan:tokens")
-                    if token_data:
-                        tokens = json.loads(token_data) if isinstance(token_data, str) else token_data
-                        if tokens and tokens.get("auth_token"):
-                            logger.debug("Got auth token from Redis dhan:tokens")
-                            return tokens["auth_token"]
-                except Exception as e:
-                    logger.warning(f"Failed to get token from Redis dhan:tokens: {e}")
-            
-            # Fallback to config service (SystemConfigDB)
             from app.services.config_service import get_config
-            token = await get_config("DHAN_AUTH_TOKEN", self._static_token, self.cache)
-            return token or self._static_token or ""
+            # Note: passing self.cache which is expected to be OCD's RedisCache
+            conf_token = await get_config("DHAN_AUTH_TOKEN", self._static_token, self.cache)
+            return conf_token or self._static_token or ""
         except Exception as e:
-            logger.warning(f"Failed to get token from config service: {e}")
-            return self._static_token or settings.DHAN_AUTH_TOKEN or ""
-    
+            logger.warning(f"ConfigService token fetch failed: {e}")
+            return self._static_token or ""
+            
     async def _get_hft_adapter(self):
         """Get or create HFT Engine data adapter (lazy initialization)"""
         if self._hft_adapter is None:
@@ -109,54 +85,12 @@ class DhanClient:
             self._hft_adapter = await get_hft_adapter()
             logger.debug("HFT Engine adapter retrieved (singleton)")
         return self._hft_adapter
-    
-    async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client with connection pooling for high concurrency"""
-        global _shared_client
         
-        # Get current token from config service
-        token = await self._get_auth_token()
-        
-        # Check if token changed - need new client
-        token_changed = self._current_token is not None and self._current_token != token
-        if token_changed:
-            logger.info(f"Auth token changed, recreating HTTP client")
-            if _shared_client and not _shared_client.is_closed:
-                await _shared_client.aclose()
-            _shared_client = None
-        
-        if _shared_client is None or _shared_client.is_closed:
-            headers = dict(self.DEFAULT_HEADERS)
-            # Add auth token if available
-            if token:
-                headers["auth"] = token
-                self._current_token = token
-            
-            logger.info("Initializing new global HTTP client pool")
-            _shared_client = httpx.AsyncClient(
-                timeout=self.timeout,
-                headers=headers,
-                limits=httpx.Limits(
-                    max_connections=100,  # Increased for high traffic
-                    max_keepalive_connections=50,
-                    keepalive_expiry=30
-                ),
-            )
-        
-        self._client = _shared_client
-        return self._client
-    
-    async def close(self):
-        """
-        Close the HTTP client. 
-        Only use this if you explicitly want to tear down the shared pool (e.g. on auth error).
-        """
-        global _shared_client
-        if self._client and self._client == _shared_client:
-            if not self._client.is_closed:
-                await self._client.aclose()
-            _shared_client = None
-            self._client = None
+    # Alias for backward compatibility if needed, or simply use request()
+    async def _request(self, *args, **kwargs):
+        """Wrapper for parent request method"""
+        return await self.request(*args, **kwargs)
+
     
     def _get_segment(self, symbol: str) -> int:
         """Get segment code for symbol using imported function"""
@@ -330,6 +264,10 @@ class DhanClient:
             # Sort expiry dates (ascending - nearest first)
             int_exp_list.sort()
             
+            # Convert timestamps to current year (fixes 2016 date issue)
+            int_exp_list = self._convert_expiry_timestamps(int_exp_list)
+            int_exp_list.sort() # Sort again after conversion just in case
+            
             logger.info(f"Found {len(int_exp_list)} valid expiry dates for {symbol}")
             if int_exp_list:
                 logger.info(f"First expiry: {int_exp_list[0]}, Last: {int_exp_list[-1]}")
@@ -348,6 +286,83 @@ class DhanClient:
             logger.error(f"Failed to get expiry dates for {symbol}: {e}")
             raise
     
+    def _convert_expiry_timestamps(self, timestamps: List[int]) -> List[int]:
+        """
+        Converts expiry timestamps from Dhan API to ensure they are in the current year.
+        Dhan API sometimes returns expiry dates with a 2016 year, which needs correction.
+        """
+        converted = []
+        current_year = datetime.now(pytz.timezone(settings.TIMEZONE)).year
+        
+        for old_ts in timestamps:
+            try:
+                # Convert timestamp to datetime object in IST
+                old_dt = datetime.fromtimestamp(old_ts, tz=pytz.timezone(settings.TIMEZONE))
+                
+                # If the year is in the past (e.g. 2016-2020), shift it to current era
+                # Dhan mock data often starts in 2016. We preserve the relative spacing.
+                BASE_MOCK_YEAR = 2016
+                if old_dt.year < current_year:
+                    # Calculate offset (e.g. 2016->0, 2017->1)
+                    offset = max(0, old_dt.year - BASE_MOCK_YEAR)
+                    target_year = current_year + offset
+                    
+                    try:
+                        new_dt = old_dt.replace(year=target_year)
+                    except ValueError:
+                        # Handle leap years (e.g. Feb 29 2016 -> Feb 28 2026)
+                        new_dt = old_dt.replace(year=target_year, day=28)
+                else:
+                    new_dt = old_dt
+                
+                # Normalize to Noon IST to avoid timezone edge cases
+                # The raw timestamps are typically 00:00 IST.
+                # Setting to 12:00 noon ensures the same calendar day in both UTC and IST.
+                new_dt = new_dt.replace(hour=12, minute=0, second=0, microsecond=0)
+                
+                new_ts = int(new_dt.timestamp())
+                converted.append(new_ts)
+            except Exception as e:
+                logger.warning(f"Failed to convert expiry {old_ts}: {e}")
+                continue
+                
+        logger.info(f"Converted {len(timestamps)} timestamps to {len(converted)} valid dates (Current Year: {current_year})")
+        return converted
+        
+    def revert_expiry_timestamp(self, timestamp: int) -> int:
+        """
+        Reverts a converted timestamp back to the original Dhan API format (2016-era).
+        Undoes the 12:00 IST normalization and year shifting.
+        """
+        try:
+            current_year = datetime.now(pytz.timezone(settings.TIMEZONE)).year
+            BASE_MOCK_YEAR = 2016
+            
+            # Convert timestamp to datetime object in IST
+            dt = datetime.fromtimestamp(timestamp, tz=pytz.timezone(settings.TIMEZONE))
+            
+            # 1. Undo the Time Normalization (Set to 00:00:00)
+            dt = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # 2. Undo the Year Shift
+            if dt.year >= current_year:
+                offset = dt.year - current_year
+                original_year = BASE_MOCK_YEAR + offset
+                
+                try:
+                    dt = dt.replace(year=original_year)
+                except ValueError:
+                     # Handle leap years reverse (Feb 28 2026 -> Feb 29 2016)
+                    dt = dt.replace(year=original_year, day=29)
+            
+            original_ts = int(dt.timestamp())
+            # logger.debug(f"Reverted {timestamp} ({datetime.fromtimestamp(timestamp)}) -> {original_ts} ({dt})")
+            return original_ts
+            
+        except Exception as e:
+            logger.warning(f"Failed to revert expiry {timestamp}: {e}")
+            return timestamp
+
     async def get_option_chain(
         self,
         symbol: str,
@@ -359,19 +374,85 @@ class DhanClient:
         If USE_HFT_DATA_SOURCE is enabled, fetches from HFT Engine's Redis.
         Otherwise, fetches directly from Dhan API.
         """
-        # ====== HFT ENGINE MODE ======
+        # ====== HFT ENGINE MODE (with fallback) ======
+        logger.info(f"get_option_chain called for {symbol} with expiry={expiry} (type: {type(expiry)})")
         if self.use_hft_source:
             adapter = await self._get_hft_adapter()
-            return await adapter.get_option_chain(symbol, expiry)
+            
+            # Check if requested expiry is available in HFT Engine
+            # HFT only has data for the CURRENT (weekly) expiry
+            use_hft_for_this_request = False
+            
+            if not expiry:
+                # No specific expiry requested - use HFT (current/weekly expiry)
+                use_hft_for_this_request = True
+            else:
+                # Get the ACTUAL expiry date from HFT data (not from cached expiry list)
+                try:
+                    hft_chain = await adapter.get_option_chain(symbol, None)
+                    hft_current_expiry = hft_chain.get("expiry", "")  # e.g., "2026-01-06"
+                    
+                    if hft_current_expiry:
+                        expiry_str = str(expiry)
+                        
+                        # Case 1: Requested expiry is a date string (YYYY-MM-DD)
+                        if "-" in expiry_str:
+                            if hft_current_expiry == expiry_str:
+                                use_hft_for_this_request = True
+                                logger.debug(f"Expiry {expiry} matches HFT current expiry")
+                        # Case 2: Requested expiry is a timestamp
+                        else:
+                            try:
+                                exp_ts = int(float(expiry))
+                                exp_date = datetime.fromtimestamp(exp_ts, tz=pytz.timezone(settings.TIMEZONE))
+                                exp_date_str = exp_date.strftime("%Y-%m-%d")
+                                
+                                hft_date_obj = datetime.strptime(hft_current_expiry, "%Y-%m-%d").date()
+                                exp_date_obj = exp_date.date()
+                                
+                                delta_days = abs((hft_date_obj - exp_date_obj).days)
+                                
+                                if delta_days <= 1:
+                                    use_hft_for_this_request = True
+                                    logger.debug(f"Expiry ts {expiry} -> {exp_date_str} matches HFT ({hft_current_expiry}) within 1 day")
+                                else:
+                                    logger.info(f"Expiry {expiry} -> {exp_date_str} != HFT ({hft_current_expiry}) diff={delta_days} days")
+                            except (ValueError, TypeError) as e:
+                                logger.debug(f"Could not convert expiry {expiry} to date: {e}")
+                        
+                        if not use_hft_for_this_request:
+                            logger.info(f"Expiry {expiry} != HFT current ({hft_current_expiry}), falling back to Dhan API")
+                    else:
+                        logger.warning(f"HFT data has no expiry field, using HFT anyway")
+                        use_hft_for_this_request = True
+                except Exception as e:
+                    logger.warning(f"Failed to check HFT expiry: {e}, falling back to Dhan API")
+            
+            if use_hft_for_this_request:
+                return await adapter.get_option_chain(symbol, expiry)
         
         # ====== DIRECT DHAN API MODE ======
         seg = self._get_segment(symbol)
         sid = self._get_symbol_id(symbol)
 
+        # Convert expiry back to int if string
+        try:
+            exp_ts = int(float(expiry))
+            # REVERT expiry to original format for API call
+            original_exp_ts = self.revert_expiry_timestamp(exp_ts)
+            logger.info(f"Reverted expiry for API call: {exp_ts} -> {original_exp_ts}")
+        except (ValueError, TypeError):
+             logger.warning(f"Invalid expiry format received: {expiry}")
+             # Pass through if we can't parse it (might be empty or invalid)
+             original_exp_ts = expiry
+
         # Ensure expiry is an integer (timestamp)
-        if expiry and str(expiry).lower() not in ('null', 'none', ''):
+        # This block now processes the 'original_exp_ts' if 'expiry' was valid,
+        # or uses the potentially invalid 'expiry' directly if conversion failed.
+        # The 'expiry' variable here will be the one used for the payload.
+        if original_exp_ts and str(original_exp_ts).lower() not in ('null', 'none', ''):
             try:
-                expiry = int(expiry)
+                expiry = int(original_exp_ts)
             except ValueError:
                 # If conversion fails, let it fall through or fallback
                 pass

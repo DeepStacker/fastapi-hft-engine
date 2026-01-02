@@ -3,7 +3,7 @@ Standardized Health Check Response
 
 All services should use this schema for health endpoints.
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Dict, Any
 from datetime import datetime
 from core.utils.timezone import get_ist_now
@@ -26,8 +26,8 @@ class HealthResponse(BaseModel):
     # Additional details
     details: Optional[Dict[str, Any]] = None
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "healthy",
                 "service": "ocd-backend",
@@ -38,6 +38,7 @@ class HealthResponse(BaseModel):
                 "redis": "connected"
             }
         }
+    )
 
 
 def create_health_response(

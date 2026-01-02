@@ -63,13 +63,73 @@ async def get_option_chain(
     current_user: CurrentUser,
     include_greeks: bool = Query(default=True),
     include_reversal: bool = Query(default=True),
+    mode: str = Query(default="live", description="Mode: 'live' or 'historical'"),
+    date: str = Query(default=None, description="Date for historical mode (YYYY-MM-DD)"),
+    time: str = Query(default=None, description="Time for historical mode (HH:MM)"),
     service: OptionsService = Depends(get_options_service),
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Get option chain data with Greeks and reversal points.
+    Unified option chain endpoint supporting both live and historical modes.
+    
+    **Live Mode (default):**
+    - Returns real-time option chain data with Greeks and reversal calculations
+    
+    **Historical Mode:**
+    - Returns historical snapshot from TimescaleDB
+    - Requires `date` and `time` parameters
+    
+    Parameters:
+    - **symbol**: Trading symbol (e.g., NIFTY, BANKNIFTY)
+    - **expiry**: Expiry timestamp
+    - **mode**: 'live' (default) or 'historical'
+    - **date**: Required for historical mode (YYYY-MM-DD format)
+    - **time**: Required for historical mode (HH:MM format)
     """
     symbol = symbol.upper()
     
+    if mode == "historical":
+        # Historical mode - query TimescaleDB
+        if not date or not time:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=400, 
+                detail="Historical mode requires 'date' and 'time' parameters"
+            )
+        
+        from app.services.historical import HistoricalService
+        historical_service = HistoricalService(db=db)
+        
+        snapshot = await historical_service.get_historical_snapshot(
+            symbol=symbol,
+            expiry=expiry,
+            date_str=date,
+            time_str=time
+        )
+        
+        if not snapshot:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=404,
+                detail=f"No historical data found for {symbol} on {date} at {time}"
+            )
+        
+        # Return in same format as live data for frontend compatibility
+        return {
+            "symbol": symbol,
+            "expiry": expiry,
+            "timestamp": snapshot.timestamp.isoformat(),
+            "spot": {"ltp": snapshot.spot},
+            "atm_strike": snapshot.atm_strike,
+            "pcr": snapshot.pcr,
+            "max_pain_strike": snapshot.max_pain,
+            "oc": snapshot.option_chain,
+            "mode": "historical",
+            "date": date,
+            "time": time,
+        }
+    
+    # Live mode (default)
     data = await service.get_live_data(
         symbol=symbol,
         expiry=expiry,
@@ -77,7 +137,12 @@ async def get_option_chain(
         include_reversal=include_reversal
     )
     
+    # Add mode indicator to response
+    if data:
+        data["mode"] = "live"
+    
     return data
+
 
 
 @router.get("/live")

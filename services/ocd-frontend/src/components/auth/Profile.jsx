@@ -876,31 +876,110 @@ const Profile = () => {
       case "security":
         return renderSecurity();
       case "settings":
-      case "history":
-      default:
         return (
           <motion.div
             variants={tabContentVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={`text-center py-16 ${theme === "dark" ? "text-gray-400" : "text-gray-600"
-              }`}
+            className="space-y-6"
           >
-            <div className="space-y-4">
-              <div
-                className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center ${theme === "dark" ? "bg-gray-800" : "bg-gray-100"
-                  }`}
-              >
-                <CogIcon className="w-12 h-12" />
+            <h3 className={`text-2xl font-bold mb-4 ${theme === "dark" ? "text-white" : "text-gray-900"}`}>App Preferences</h3>
+
+            {/* App Settings Card */}
+            <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-gray-800/50 border-gray-700/50' : 'bg-white/50 border-gray-200/50'} backdrop-blur-xl`}>
+              <div className="space-y-6">
+                {/* Theme Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Theme Mode</h4>
+                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Select your preferred visual theme</p>
+                  </div>
+                  <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-1">
+                    <button className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${theme === 'light' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}>Light</button>
+                    <button className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${theme === 'dark' ? 'bg-gray-600 shadow text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}>Dark</button>
+                  </div>
+                </div>
+
+                <div className={`h-px w-full ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`} />
+
+                {/* Notifications */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Sound Effects</h4>
+                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Play sounds on trade execution</p>
+                  </div>
+                  <motion.button
+                    className="w-11 h-6 bg-blue-600 rounded-full relative"
+                    initial={false}
+                  >
+                    <motion.div className="w-4 h-4 bg-white rounded-full absolute top-1 right-1" />
+                  </motion.button>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold">Coming Soon</h3>
-              <p>
-                This feature is under development and will be available soon.
-              </p>
+            </div>
+
+            {/* Data Settings */}
+            <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-gray-800/50 border-gray-700/50' : 'bg-white/50 border-gray-200/50'} backdrop-blur-xl`}>
+              <h4 className={`font-semibold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Data Refresh Rate</h4>
+              <div className="flex gap-4">
+                {['1s', '3s', '5s'].map(rate => (
+                  <button key={rate} className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${rate === '1s'
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : theme === 'dark' ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    {rate}
+                  </button>
+                ))}
+              </div>
             </div>
           </motion.div>
         );
+
+      case "history":
+        return (
+          <motion.div
+            variants={tabContentVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <h3 className={`text-2xl font-bold mb-6 ${theme === "dark" ? "text-white" : "text-gray-900"}`}>Login History</h3>
+
+            <div className={`rounded-2xl border overflow-hidden ${theme === 'dark' ? 'bg-gray-800/50 border-gray-700/50' : 'bg-white/50 border-gray-200/50'} backdrop-blur-xl`}>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className={`border-b ${theme === 'dark' ? 'border-gray-700/50 bg-gray-800/50' : 'border-gray-200/50 bg-gray-50/50'}`}>
+                    <th className={`p-4 text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Device</th>
+                    <th className={`p-4 text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Location</th>
+                    <th className={`p-4 text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Date</th>
+                    <th className={`p-4 text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Status</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-700/50' : 'divide-gray-200/50'}`}>
+                  {[
+                    { device: 'MacBook Pro', location: 'Bangalore, IN', date: 'Just now', status: 'Active' },
+                    { device: 'iPhone 14', location: 'Mumbai, IN', date: '2 hours ago', status: 'Success' },
+                    { device: 'Chrome / Windows', location: 'Delhi, IN', date: 'Yesterday', status: 'Success' }
+                  ].map((log, i) => (
+                    <tr key={i} className="group hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                      <td className={`p-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{log.device}</td>
+                      <td className={`p-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{log.location}</td>
+                      <td className={`p-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{log.date}</td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${log.status === 'Active' ? 'bg-green-500/20 text-green-500' : 'bg-gray-500/20 text-gray-500'}`}>
+                          {log.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        );
+
+      default:
+        return null;
     }
   };
 

@@ -8,7 +8,6 @@ Provides time-series data for option chain metrics:
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, List
-import random
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -192,13 +191,19 @@ async def get_strike_timeseries(
     market_open = datetime.combine(today, datetime.strptime("09:15", "%H:%M").time())
     market_close = datetime.combine(today, datetime.strptime("15:30", "%H:%M").time())
     
-    # Start time is always market open (9:15 AM)
-    start_time = market_open
+    # Start time: Use Midnight to capture pre-market/simulation data
+    # (Previously hardcoded to 9:15 AM which blocked data if now < 9:15)
+    start_time = datetime.combine(today, datetime.min.time())
     
     # End time: current time, but capped at 3:30 PM for non-commodity symbols
+    # If currently pre-market (e.g. 5:30 AM), end_time will be 5:30 AM.
     if is_commodity:
         end_time = now
     else:
+        # If now is before market close, use now. If after, cap at close.
+        # But if now < market_open (e.g. 5 AM), we still want to show data up to 5 AM.
+        # Logic: min(now, market_close) works if now > close (returns close).
+        # If now < close (e.g. 5 AM), returns 5 AM.
         end_time = min(now, market_close)
 
     # Get symbol ID
@@ -225,24 +230,20 @@ async def get_strike_timeseries(
 
     # Fallback: Check if expiry needs conversion (ISO -> Unix Timestamp)
     # The DB often stores expiry as Unix timestamp string (e.g. "1767119400")
+    # Fallback: Check if expiry needs conversion (ISO -> Unix Timestamp)
+    # The DB often stores expiry as Unix timestamp string (e.g. "1767119400")
     if not timeseries and "-" in expiry:
         try:
-            # Convert YYYY-MM-DD to Midnight IST Timestamp
+            # Convert YYYY-MM-DD to Noon IST Timestamp (matching get_expiry_dates)
             dt = datetime.strptime(expiry, "%Y-%m-%d")
-            # Create IST timezone offset (+5:30)
-            ist_offset = timedelta(hours=5, minutes=30)
-            # Adjust to IST midnight (subtract offset from UTC) effectively
-            # Actually easier: 2025-12-31 00:00:00 IST is the timestamp
-            # We can use simple arithmetic if we assume input is date string
-            # 2025-12-31 00:00:00 local time -> timestamp
-            # Let's try matching the format we saw in DB: 1767119400
             
-            # Use 'mktime' on a struct time from the date at 00:00:00
-            # Warning: system local time might not be IST.
-            # Safe bet: Construct datetime, assume it is IST, convert to epoch.
+            # Use 12:00 IST (Noon) to match keys in storage
+            from datetime import time
             from app.utils.timezone import IST
-            dt_ist = datetime.combine(dt.date(), datetime.min.time()).replace(tzinfo=IST)
+            dt_ist = datetime.combine(dt.date(), time(12, 0)).replace(tzinfo=IST)
             unix_expiry = str(int(dt_ist.timestamp()))
+            
+            logger.info(f"Timeseries Query: Converted {expiry} -> {unix_expiry} (Noon IST)")
             
             timeseries = await repo.get_option_timeseries(
                 symbol_id=symbol_id,
@@ -367,11 +368,22 @@ async def get_strike_multiview_timeseries(
     market_open = datetime.combine(today, datetime.strptime("09:15", "%H:%M").time())
     market_close = datetime.combine(today, datetime.strptime("15:30", "%H:%M").time())
     
-    start_time = market_open
-    end_time = now if is_commodity else min(now, market_close)
-
+    # Start time: Use Midnight to capture pre-market/simulation data
+    start_time = datetime.combine(today, datetime.min.time())
+    
+    # End time: current time, but capped at 3:30 PM for non-commodity symbols
+    if is_commodity:
+        end_time = now
+    else:
+        # Allow viewing data beyond market hours (useful for mock/testing)
+        # identifying if it is mock data or not is complex, so we just uncap it.
+        end_time = now + timedelta(hours=1) # Allow slight future drift for HFT/Mock data
+        
     # Get symbol ID
     symbol_id = await repo.get_symbol_id(symbol)
+    
+    logger.info(f"MultiView Request: Symbol={symbol} ID={symbol_id} Expiry={expiry} Start={start_time} End={end_time}")
+    
     if not symbol_id:
         return MultiViewResponse(
             symbol=symbol,
@@ -382,15 +394,20 @@ async def get_strike_multiview_timeseries(
         )
     
     # Convert expiry if needed
+    # Convert expiry if needed
     query_expiry = expiry
+    # Normalize YYYY-MM-DD to Noon IST Timestamp if needed
     if "-" in expiry:
         try:
+            from datetime import time
             from app.utils.timezone import IST
             dt = datetime.strptime(expiry, "%Y-%m-%d")
-            dt_ist = datetime.combine(dt.date(), datetime.min.time()).replace(tzinfo=IST)
+            # Align to Noon IST
+            dt_ist = datetime.combine(dt.date(), time(12, 0)).replace(tzinfo=IST)
             query_expiry = str(int(dt_ist.timestamp()))
-        except Exception:
-            pass
+            logger.info(f"MultiView Query: Converted {expiry} -> {query_expiry} (Noon IST)")
+        except Exception as e:
+            logger.warning(f"MultiView expiry conversion failed: {e}")
     
     # Fetch CE and PE data
     ce_data = await repo.get_option_timeseries(

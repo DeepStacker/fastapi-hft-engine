@@ -4,7 +4,7 @@ Configuration Schemas - Request/Response models for admin config endpoints
 from typing import Optional, Any, List
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 import json
 
 
@@ -59,8 +59,7 @@ class ConfigResponse(BaseModel):
     fallback_value: Optional[str] = None
     updated_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConfigListResponse(BaseModel):
@@ -110,8 +109,7 @@ class InstrumentResponse(BaseModel):
     is_active: bool
     priority: int
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CacheClearRequest(BaseModel):

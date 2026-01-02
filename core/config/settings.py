@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(default=False)
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    TIMEZONE: str = "Asia/Kolkata"
     
     # ═══════════════════════════════════════════════════════════════════
     # Server Settings

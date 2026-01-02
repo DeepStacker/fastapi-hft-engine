@@ -8,9 +8,10 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.dependencies import OptionalUser
-from app.services.dhan_client import get_dhan_client
-from app.services.options import OptionsService, get_options_service
+from app.config.database import get_db
 from app.services.historical import HistoricalService, get_historical_service
 from app.cache.redis import get_redis, RedisCache
 
@@ -53,16 +54,11 @@ class HistoricalSnapshotResponse(BaseModel):
 # ============== Helper Functions ==============
 
 async def get_historical_service_dep(
-    cache: RedisCache = Depends(get_redis)
+    db: AsyncSession = Depends(get_db),
+    cache: RedisCache = Depends(get_redis),
 ) -> HistoricalService:
-    """Dependency to get historical service"""
-    dhan = await get_dhan_client(cache=cache)
-    options_service = OptionsService(dhan_client=dhan, cache=cache)
-    return HistoricalService(
-        dhan_client=dhan,
-        options_service=options_service,
-        cache=cache
-    )
+    """Dependency to get historical service with database connection"""
+    return HistoricalService(db=db, cache=cache)
 
 
 # ============== Available Dates Endpoint ==============
@@ -254,11 +250,15 @@ async def save_current_snapshot(
     symbol: str,
     expiry: str,
     current_user: OptionalUser = None,
+    db: AsyncSession = Depends(get_db),
     cache: RedisCache = Depends(get_redis),
 ):
     """
-    Save current option chain data as a historical snapshot.
+    Trigger manual save of current option chain data to TimescaleDB.
     Used for data collection. Requires authentication.
+    
+    Note: Live data is automatically persisted by OptionsService.save_snapshot().
+    This endpoint allows manual triggering if needed.
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -266,10 +266,14 @@ async def save_current_snapshot(
     symbol = symbol.upper()
     
     try:
-        dhan = await get_dhan_client(cache=cache)
-        options_service = OptionsService(dhan_client=dhan, cache=cache)
+        # Import here to avoid circular imports
+        from app.services.dhan_client import get_dhan_client
+        from app.services.options import OptionsService
         
-        # Get current live data
+        dhan = await get_dhan_client(cache=cache)
+        options_service = OptionsService(dhan_client=dhan, cache=cache, db=db)
+        
+        # Get current live data - this will auto-save to DB via save_snapshot()
         live_data = await options_service.get_live_data(
             symbol=symbol,
             expiry=expiry,
@@ -280,34 +284,16 @@ async def save_current_snapshot(
         if not live_data:
             raise HTTPException(status_code=404, detail="No live data available")
         
-        # Create snapshot
-        from app.services.historical import HistoricalSnapshot
-        snapshot = HistoricalSnapshot(
-            symbol=symbol,
-            expiry=expiry,
-            timestamp=datetime.now(),
-            spot=live_data.get("spot", {}).get("ltp", 0),
-            atm_strike=live_data.get("atm_strike", 0),
-            pcr=live_data.get("pcr", 0),
-            max_pain=live_data.get("max_pain_strike", 0),
-            option_chain=live_data.get("oc", {}),
-            futures=live_data.get("future"),
-        )
-        
-        # Save it
-        service = HistoricalService(cache=cache)
-        success = await service.save_snapshot(symbol, expiry, snapshot)
-        
-        if not success:
-            raise HTTPException(status_code=500, detail="Failed to save snapshot")
-        
         return {
             "success": True,
-            "message": f"Snapshot saved for {symbol} at {snapshot.timestamp.isoformat()}",
-            "timestamp": snapshot.timestamp.isoformat(),
+            "message": f"Snapshot saved for {symbol}",
+            "timestamp": live_data.get("timestamp"),
+            "spot": live_data.get("spot", {}).get("ltp", 0),
+            "strikes_saved": len(live_data.get("oc", {})),
         }
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error saving snapshot: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

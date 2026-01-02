@@ -313,7 +313,7 @@ const MultiSeriesChart = memo(({ views, enabledViews, width = 900, height = 500,
 
     // Mouse handlers
     const handleWheel = useCallback((e) => {
-        e.preventDefault();
+        // Note: Cannot preventDefault on passive wheel events in modern browsers
         const delta = e.deltaY > 0 ? -0.2 : 0.2;
         setZoomLevel(prev => Math.max(1, Math.min(10, prev + delta)));
     }, []);
@@ -824,18 +824,30 @@ const VIEW_TABS = [
  * Inspired by LOC Calculator's chart modal with multiple view options
  */
 const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
+    const { strike, side, field: propField, fullData } = cellData || {};
+
+    // Normalize field name
+    const getNormalizedField = (f) => {
+        const fieldMap = { 'OI': 'oi', 'oichng': 'oi_change' };
+        // Supported fields for chart
+        const supported = ['oi', 'oi_change', 'ltp', 'iv', 'volume', 'delta', 'theta', 'gamma', 'vega'];
+        const mapped = fieldMap[f] || f || 'oi';
+        // If mapped is supported, use it, else default to 'oi'
+        return supported.includes(mapped) ? mapped : 'oi';
+    };
+
     const [activeView, setActiveView] = useState('strike');
-    const [selectedField, setSelectedField] = useState('oi');
+    const [selectedField, setSelectedField] = useState(() => getNormalizedField(propField));
     const [timeSeriesData, setTimeSeriesData] = useState(null);
     const [aggregateData, setAggregateData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     const DEFAULT_VIEWS = useMemo(() => ({
-        ce: true,
-        pe: true,
+        ce: false,
+        pe: false,
         ce_minus_pe: false,
-        pe_minus_ce: false,
+        pe_minus_ce: true,
         ce_div_pe: false,
         pe_div_ce: false,
     }), []);
@@ -895,7 +907,36 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
     const symbol = useSelector(selectSelectedSymbol);
     const expiry = useSelector(selectSelectedExpiry);
 
-    const { strike, side, field, value: _value, fullData } = cellData || {};
+    // Sync selectedField when propField changes (e.g. clicking different cell)
+    useEffect(() => {
+        if (open && propField) {
+            const norm = getNormalizedField(propField);
+            if (norm !== selectedField) setSelectedField(norm);
+        }
+    }, [propField, isOpen]);
+
+    // Keyboard Navigation
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e) => {
+            if (activeView !== 'strike') return;
+
+            const fields = ['oi', 'oi_change', 'volume', 'iv', 'ltp', 'delta', 'theta', 'gamma', 'vega'];
+            const currentIndex = fields.indexOf(selectedField);
+
+            if (e.key === 'ArrowRight') {
+                const nextIndex = (currentIndex + 1) % fields.length;
+                setSelectedField(fields[nextIndex]);
+            } else if (e.key === 'ArrowLeft') {
+                const prevIndex = (currentIndex - 1 + fields.length) % fields.length;
+                setSelectedField(fields[prevIndex]);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, activeView, selectedField]);
 
     // Fetch multi-view time-series data for strike view
     const fetchStrikeData = useCallback(async () => {
@@ -964,45 +1005,31 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
         }
     }, [symbol, expiry]);
 
-    // Fetch on mount and view change, and set up polling
+    // Fetch logic - Purely Declarative
+    // Trigger fetch whenever dependencies change (Symbol, Strike, Expiry, Field, View)
     useEffect(() => {
+        if (!isOpen || !cellData) return;
+
         let pollInterval;
 
-        const fetchData = () => {
+        const performFetch = () => {
             if (activeView === 'strike') {
-                // Recognize all supported fields
-                const supportedFields = ['OI', 'oi', 'oichng', 'ltp', 'iv', 'volume', 'delta', 'theta', 'gamma', 'vega'];
-                if (field && supportedFields.includes(field)) {
-                    // Map field names: OI -> oi, oichng -> oi_change, rest pass through
-                    const fieldMap = { 'OI': 'oi', 'oichng': 'oi_change' };
-                    setSelectedField(fieldMap[field] || field);
-                }
-                fetchStrikeData();
+                // Only fetch if required params exist
+                if (symbol && strike) fetchStrikeData();
             } else {
                 fetchAggregateData(activeView);
             }
         };
 
-        if (isOpen && cellData) {
-            // Initial fetch
-            fetchData();
+        // Fetch immediately
+        performFetch();
 
-            // Set up polling (every 60 seconds)
-            pollInterval = setInterval(() => {
-                // Don't poll if user is actively interacting (optional refinement)
-                // For now, just refresh to keep chart "growing"
-                if (activeView === 'strike') {
-                    fetchStrikeData();
-                } else {
-                    fetchAggregateData(activeView);
-                }
-            }, 60000);
-        }
+        // Poll every 60s
+        pollInterval = setInterval(performFetch, 60000);
 
-        return () => {
-            if (pollInterval) clearInterval(pollInterval);
-        };
-    }, [isOpen, cellData, activeView, field, fetchStrikeData, fetchAggregateData]); // Dependencies for setup
+        return () => clearInterval(pollInterval);
+
+    }, [isOpen, activeView, symbol, strike, expiry, selectedField, fetchStrikeData, fetchAggregateData]); // cellData removed to avoid deep obj trigger, specific props used
 
     // Keep fetch functions in ref or dependency array? 
     // fetchStrikeData and fetchAggregateData are memoized via useCallback with dependencies.
@@ -1274,37 +1301,62 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData }) => {
             <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
                 <div className="relative w-[90vw] h-[85vh] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl transform transition-all overflow-hidden flex flex-col pointer-events-auto border border-gray-200 dark:border-gray-700">
                     {/* Header with Tabs and Close Button */}
-                    <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-2 bg-gray-50 dark:bg-gray-800">
-                        <div className="flex overflow-x-auto">
-                            {VIEW_TABS.map((tab) => {
-                                const Icon = tab.icon;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveView(tab.id)}
-                                        className={`px-3 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeView === tab.id
-                                            ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                                            }`}
-                                        title={tab.description}
-                                    >
-                                        <Icon className="w-3.5 h-3.5" />
-                                        {tab.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        <div className="flex items-center gap-3 pl-4">
-                            <span className="text-[10px] text-gray-400 hidden sm:block">
-                                Updated At {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                            <div className="h-4 w-px bg-gray-300 dark:bg-gray-700 hidden sm:block"></div>
+                    <div className="flex flex-col border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                        {/* Status Bar / Identifiers */}
+                        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700/50 bg-white dark:bg-gray-900/50">
+                            <div className="flex items-center gap-6 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold text-gray-700 dark:text-gray-200">{symbol}</span>
+                                    <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">{new Date(expiry * 1000).toLocaleDateString()}</span>
+                                </div>
+                                <div className="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold text-blue-600 dark:text-blue-400">{strike}</span>
+                                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${side === 'ce' ? 'text-green-600 bg-green-100 dark:bg-green-900/30' : 'text-red-600 bg-red-100 dark:bg-red-900/30'}`}>
+                                        {side?.toUpperCase()}
+                                    </span>
+                                </div>
+                                {activeView === 'strike' && (
+                                    <>
+                                        <div className="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-500 dark:text-gray-400">Field:</span>
+                                            <span className="font-semibold text-gray-800 dark:text-gray-100">{fieldLabels[selectedField]}</span>
+                                            <span className="text-[10px] text-gray-400 border border-gray-300 dark:border-gray-600 rounded px-1 ml-1">Use Left/Right keys</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
                             <button
                                 onClick={onClose}
                                 className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                             >
                                 <XMarkIcon className="w-5 h-5 text-gray-500 hover:text-red-500 transition-colors" />
                             </button>
+                        </div>
+
+                        {/* View Selector Tabs */}
+                        <div className="flex items-center justify-between px-2">
+                            <div className="flex overflow-x-auto">
+                                {VIEW_TABS.map((tab) => {
+                                    const Icon = tab.icon;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveView(tab.id)}
+                                            className={`px-3 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeView === tab.id
+                                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                                }`}
+                                            title={tab.description}
+                                        >
+                                            <Icon className="w-3.5 h-3.5" />
+                                            {tab.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
 

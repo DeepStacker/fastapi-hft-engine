@@ -4,7 +4,7 @@ Pydantic Models for Enriched Option Chain Data
 These models represent the cleaned and analyzed data ready for storage.
 """
 from typing import Optional, Literal, List, Dict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 
 
@@ -198,7 +198,8 @@ class EnrichedMarketData(BaseModel):
     illiquid_options_count: int = 0
     invalid_options_count: int = 0
     
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )

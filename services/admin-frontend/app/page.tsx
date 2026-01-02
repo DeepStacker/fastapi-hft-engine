@@ -256,7 +256,7 @@ export default function Dashboard() {
                   <div>
                     <p className="text-sm font-medium leading-none">{service.name}</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Uptime: {Math.floor(service.uptime / 3600)}h {Math.floor((service.uptime % 3600) / 60)}m
+                      Uptime: {Math.floor((service.uptime || 0) / 3600)}h {Math.floor(((service.uptime || 0) % 3600) / 60)}m
                     </p>
                   </div>
                 </div>

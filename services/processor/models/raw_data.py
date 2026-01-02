@@ -4,7 +4,7 @@ Pydantic Models for Raw Option Chain Data
 These models provide type safety and validation for data received from Dhan API.
 """
 from typing import Optional, Literal, List
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict
 from datetime import datetime
 
 
@@ -61,8 +61,7 @@ class RawOptionData(BaseModel):
     btyp: str = ''  # Build-up type
     BuiltupName: str = ''
     
-    class Config:
-        populate_by_name = True  # Allow 'OI' field
+    model_config = ConfigDict(populate_by_name=True)  # Allow 'OI' field
         
     @validator('ltp', 'bid', 'ask', pre=True)
     def handle_none_prices(cls, v):
@@ -157,8 +156,7 @@ class GlobalContext(BaseModel):
     # Expiry list
     explst: List[int] = Field(default_factory=list)
     
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RawMarketData(BaseModel):
@@ -173,5 +171,4 @@ class RawMarketData(BaseModel):
     # Metadata
     received_at: datetime = Field(default_factory=lambda: datetime.now())
     
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)

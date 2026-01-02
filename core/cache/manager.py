@@ -98,6 +98,14 @@ class CacheManager:
             logger.error(f"Cache get error: {e}", key=key)
             return None
     
+    async def get_json(self, key: str) -> Optional[Any]:
+        """Convenience method for JSON get"""
+        return await self.get(key, deserialize='json')
+
+    async def set_json(self, key: str, value: Any, ttl: int = 60) -> bool:
+        """Convenience method for JSON set"""
+        return await self.set(key, value, ttl=ttl, serialize='json')
+
     async def set(
         self,
         key: str,

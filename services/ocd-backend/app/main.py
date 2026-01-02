@@ -48,7 +48,7 @@ _noisy_loggers = [
     "hpack",
     # Internal loggers that create noise at DEBUG level
     "app.services.config_service",
-    "app.services.dhan_client",
+    # "app.services.dhan_client", # Enabled for debugging expiry issues
     "app.services.dhan_ticks",  # Logs on every chart data request
 ]
 for logger_name in _noisy_loggers:
@@ -107,11 +107,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         await init_db()
         logger.info("Database initialized")
         
-        # Seed default configs and instruments
-        from app.utils.seeder import run_seeder
-        seed_result = await run_seeder()
-        if seed_result["configs_seeded"] > 0 or seed_result["instruments_seeded"] > 0:
-            logger.info(f"Seeded {seed_result['configs_seeded']} configs, {seed_result['instruments_seeded']} instruments")
+        # Seed default configs and instruments (only one worker should seed)
+        # Use Redis lock to prevent multiple workers from seeding simultaneously
+        if redis_cache:
+            lock_key = "seeder:lock"
+            # Try to acquire lock (set if not exists, with 60s expiry)
+            lock_acquired = await redis_cache.redis.set(lock_key, "1", nx=True, ex=60)
+            if lock_acquired:
+                try:
+                    from app.utils.seeder import run_seeder
+                    seed_result = await run_seeder()
+                    if seed_result["configs_seeded"] > 0 or seed_result["instruments_seeded"] > 0:
+                        logger.info(f"Seeded {seed_result['configs_seeded']} configs, {seed_result['instruments_seeded']} instruments")
+                finally:
+                    # Release lock after seeding
+                    await redis_cache.redis.delete(lock_key)
+            else:
+                logger.debug("Seeding skipped - another worker is handling it")
+        else:
+            # No Redis - fall back to always seeding (single worker mode)
+            from app.utils.seeder import run_seeder
+            seed_result = await run_seeder()
+            if seed_result["configs_seeded"] > 0 or seed_result["instruments_seeded"] > 0:
+                logger.info(f"Seeded {seed_result['configs_seeded']} configs, {seed_result['instruments_seeded']} instruments")
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         raise

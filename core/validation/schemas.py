@@ -5,7 +5,7 @@ Pydantic models for request validation across all endpoints.
 Uses consolidated enums from core.schemas.
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 
@@ -163,8 +163,7 @@ class SymbolQueryParams(BaseModel):
 class QueryParameters(BaseModel):
     """Base class for query parameter validation"""
     
-    class Config:
-        extra = "forbid"  # Reject unknown query parameters
+    model_config = ConfigDict(extra="forbid")  # Reject unknown query parameters
 
 
 class OptionTypeValidator(QueryParameters):

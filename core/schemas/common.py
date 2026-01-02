@@ -5,7 +5,7 @@ Consolidated response wrappers and common schemas.
 All services should import from here instead of defining duplicates.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Generic, TypeVar
 from datetime import datetime
 
@@ -34,10 +34,11 @@ class ErrorResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     request_id: Optional[str] = Field(None, description="Request correlation ID")
     
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 class PaginatedResponse(BaseModel, Generic[T]):
@@ -67,8 +68,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     has_previous: bool = Field(..., description="Whether previous page exists")
     cursor: Optional[str] = Field(None, description="Cursor for cursor-based pagination")
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HealthResponse(BaseModel):
@@ -99,10 +99,11 @@ class HealthResponse(BaseModel):
         description="Individual component health checks"
     )
     
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 class ResponseWrapper(BaseModel, Generic[T]):
@@ -125,8 +126,7 @@ class ResponseWrapper(BaseModel, Generic[T]):
         description="Response metadata (cache status, timing, etc.)"
     )
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PaginationParams(BaseModel):

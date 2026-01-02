@@ -124,8 +124,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._fallback_requests: dict = {}
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Skip rate limiting for health checks and WebSocket upgrades
-        if "/health" in request.url.path or request.headers.get("upgrade") == "websocket":
+        # Skip rate limiting for health checks, WebSocket upgrades, and CORS preflight
+        if (
+            "/health" in request.url.path 
+            or request.headers.get("upgrade") == "websocket"
+            or request.method == "OPTIONS"
+        ):
             return await call_next(request)
         
         client_ip = self._get_client_ip(request)

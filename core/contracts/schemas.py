@@ -4,7 +4,7 @@ Service Communication Contracts
 Standardized request/response schemas for inter-service communication.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from enum import Enum
@@ -24,10 +24,11 @@ class BaseServiceRequest(BaseModel):
     service_name: str = Field(..., description="Calling service name")
     version: str = Field(default="v1", description="API version")
     
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 class BaseServiceResponse(BaseModel):
@@ -39,10 +40,11 @@ class BaseServiceResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
     error: Optional[Dict[str, Any]] = None
     
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 # Analytics Service Contracts
@@ -122,10 +124,11 @@ class RealtimeDataUpdate(BaseModel):
     data_type: str
     data: Dict[str, Any]
     
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 # Error Contracts
@@ -138,10 +141,11 @@ class ServiceError(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     request_id: Optional[str] = None
     
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 # Standard Error Codes

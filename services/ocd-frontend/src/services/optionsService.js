@@ -68,27 +68,56 @@ export const optionsService = {
 
     /**
      * Get option chain data with Greeks and reversal points
+     * Unified endpoint supporting both live and historical modes
+     * 
      * @param {string} symbol - Trading symbol (e.g., 'NIFTY')
      * @param {string} expiry - Expiry timestamp
      * @param {Object} options - Optional parameters
      * @param {boolean} options.includeGreeks - Include Greeks data (default: true)
      * @param {boolean} options.includeReversal - Include reversal data (default: true)
+     * @param {string} options.mode - 'live' (default) or 'historical'
+     * @param {string} options.date - For historical mode: date in YYYY-MM-DD format
+     * @param {string} options.time - For historical mode: time in HH:MM format
      */
     getOptionChain: async (symbol, expiry, options = {}) => {
-        const { includeGreeks = true, includeReversal = true } = options;
-        const cacheKey = getCacheKey('optionChain', { symbol, expiry, includeGreeks, includeReversal });
-        const cached = getCachedData(cacheKey);
-        if (cached) return cached;
+        const {
+            includeGreeks = true,
+            includeReversal = true,
+            mode = 'live',
+            date = null,
+            time = null
+        } = options;
 
-        const response = await apiClient.get(`/options/chain/${symbol}/${expiry}`, {
-            params: {
-                include_greeks: includeGreeks,
-                include_reversal: includeReversal
-            }
-        });
-        setCachedData(cacheKey, response.data);
+        // Don't cache historical queries - they should always return exact snapshot
+        const shouldCache = mode === 'live';
+        const cacheKey = getCacheKey('optionChain', { symbol, expiry, includeGreeks, includeReversal });
+
+        if (shouldCache) {
+            const cached = getCachedData(cacheKey);
+            if (cached) return cached;
+        }
+
+        const params = {
+            include_greeks: includeGreeks,
+            include_reversal: includeReversal,
+            mode
+        };
+
+        // Add historical-specific params
+        if (mode === 'historical') {
+            if (date) params.date = date;
+            if (time) params.time = time;
+        }
+
+        const response = await apiClient.get(`/options/chain/${symbol}/${expiry}`, { params });
+
+        if (shouldCache) {
+            setCachedData(cacheKey, response.data);
+        }
+
         return response.data;
     },
+
 
     /**
      * Get percentage/volume data for a specific option

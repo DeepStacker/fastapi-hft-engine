@@ -1,8 +1,9 @@
 """
 Core Clients Package - External API Clients
 
-All external API clients should be defined here as single source of truth.
+Shared clients available to all services.
 """
-from core.clients.dhan import DhanClientBase, get_dhan_client
 
-__all__ = ["DhanClientBase", "get_dhan_client"]
+from core.clients.dhan import BaseDhanClient
+
+__all__ = ["BaseDhanClient"]

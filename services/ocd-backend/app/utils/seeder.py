@@ -13,6 +13,11 @@ from app.config.database import AsyncSessionLocal
 from app.config.settings import settings
 from app.models.config import SystemConfig, TradingInstrument, ConfigCategory
 from app.repositories.config import ConfigRepository, InstrumentRepository
+from core.database.models import InstrumentDB
+from app.config.symbols import SYMBOL_LIST, SEGMENT_LIST, get_instrument_type
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -436,6 +441,17 @@ DEFAULT_INSTRUMENTS: List[Dict[str, Any]] = [
         "priority": 4,
     },
     {
+        "symbol": "NIFTYNXT50",
+        "display_name": "Nifty Next 50",
+        "segment": "IDX",
+        "lot_size": 10,
+        "tick_size": 0.05,
+        "strike_interval": 100.0,
+        "strikes_count": 10,
+        "is_active": True,
+        "priority": 4,
+    },
+    {
         "symbol": "SENSEX",
         "display_name": "BSE Sensex",
         "segment": "IDX",
@@ -536,6 +552,55 @@ async def seed_admin_user(db: AsyncSession) -> int:
     return 0
 
 
+async def seed_core_instruments(db: AsyncSession) -> int:
+    """
+    Seed core InstrumentDB table (for historical data & OptionsService).
+    Uses app.config.symbols mappings. Uses UPSERT to handle concurrency.
+    """
+    count = 0
+    now = datetime.utcnow()
+    
+    for symbol, symbol_id in SYMBOL_LIST.items():
+        # Determine details
+        segment_id = SEGMENT_LIST.get(symbol, 1) # Default 1 (EQ)
+        exchange = "NSE"
+        if symbol in ["SENSEX", "BANKEX"]:
+            exchange = "BSE"
+        elif symbol == "CRUDEOIL":
+            exchange = "MCX"
+            
+        # Use UPSERT (Insert ... ON CONFLICT DO UPDATE) to handle concurrent seeders
+        stmt = pg_insert(InstrumentDB).values(
+            symbol_id=symbol_id,
+            symbol=symbol,
+            segment_id=segment_id,
+            exchange=exchange,
+            is_active=True,
+            created_at=now,
+            updated_at=now
+        )
+        
+        stmt = stmt.on_conflict_do_update(
+            index_elements=['symbol_id'],
+            set_=dict(
+                symbol=symbol,
+                segment_id=segment_id,
+                exchange=exchange,
+                updated_at=now
+            )
+        )
+        
+        try:
+            await db.execute(stmt)
+            count += 1
+            logger.info(f"Seeded/Updated core instrument: {symbol} (ID: {symbol_id})")
+        except Exception as e:
+            logger.error(f"Failed to seed core instrument {symbol}: {e}")
+            
+    await db.commit()
+    return count
+
+
 async def run_seeder():
     """Run all seeders"""
     async with AsyncSessionLocal() as db:
@@ -543,13 +608,15 @@ async def run_seeder():
         
         config_count = await seed_configs(db)
         instrument_count = await seed_instruments(db)
+        core_instrument_count = await seed_core_instruments(db)
         admin_count = await seed_admin_user(db)
         
-        logger.info(f"Seeding complete: {config_count} configs, {instrument_count} instruments, {admin_count} admins")
+        logger.info(f"Seeding complete: {config_count} configs, {instrument_count} instruments, {core_instrument_count} core instruments, {admin_count} admins")
         
         return {
             "configs_seeded": config_count,
             "instruments_seeded": instrument_count,
+            "core_instruments_seeded": core_instrument_count,
             "admins_seeded": admin_count,
         }
 

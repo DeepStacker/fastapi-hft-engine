@@ -8,7 +8,6 @@ LOC Calculator-style aggregate views:
 - Percentage change views
 """
 import logging
-import random
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, Query
@@ -166,7 +165,7 @@ async def get_aggregate_coi(
         }
     except Exception as e:
         logger.error(f"Error getting aggregate COI: {e}")
-        return generate_mock_aggregate_data(symbol, "coi", top_n)
+        return {"success": False, "error": str(e), "symbol": symbol, "expiry": expiry, "data": []}
 
 
 # ============== Total OI Endpoint ==============

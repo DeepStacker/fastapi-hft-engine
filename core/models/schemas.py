@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 # Domain Models for API Requests/Responses
 
@@ -14,8 +14,21 @@ class MarketSnapshot(BaseModel):
     volume: int
     oi: int
     
-    class Config:
-        from_attributes = True
+    @field_validator('ltp')
+    @classmethod
+    def validate_ltp(cls, v):
+        if v < 0:
+            raise ValueError('LTP must be >= 0')
+        return v
+    
+    @field_validator('volume', 'oi')
+    @classmethod
+    def validate_non_negative(cls, v):
+        if v < 0:
+            raise ValueError('Volume and OI must be >= 0')
+        return v
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class OptionContract(BaseModel):
     """Option contract domain model"""
@@ -83,6 +96,20 @@ class Instrument(BaseModel):
     segment: str
     exchange: str
     is_active: int = Field(default=1)
+    
+    @field_validator('symbol_id')
+    @classmethod
+    def validate_symbol_id(cls, v):
+        if v <= 0:
+            raise ValueError('symbol_id must be positive')
+        return v
+    
+    @field_validator('is_active')
+    @classmethod
+    def validate_is_active(cls, v):
+        if v not in [0, 1]:
+            raise ValueError('is_active must be 0 or 1')
+        return v
     
     class Config:
         from_attributes = True

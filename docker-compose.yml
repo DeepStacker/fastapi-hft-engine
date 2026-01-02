@@ -272,6 +272,14 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -308,6 +316,14 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -344,6 +360,14 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -371,6 +395,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
+      ADMIN_PASSWORD: admin
       ENVIRONMENT: production
     ports:
       - "8001:8001"
@@ -422,7 +447,6 @@ services:
       - ./services/admin-frontend/postcss.config.mjs:/app/postcss.config.mjs
       - ./services/admin-frontend/tsconfig.json:/app/tsconfig.json
       - /app/node_modules
-      - /app/.next
     depends_on:
       - admin-service
     networks:
@@ -511,6 +535,8 @@ services:
       # App config
       LOG_LEVEL: INFO
       UVICORN_ACCESS_LOG: "false"
+      GUNICORN_WORKERS: "1"
+      RATE_LIMIT_PER_MINUTE: "600"
       CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000","http://localhost:80"]'
       SECRET_KEY: ${SECRET_KEY}
       PYTHONPATH: /app:/app/services/ocd-backend
@@ -531,6 +557,14 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 1G
     restart: unless-stopped
     logging:
       driver: "json-file"

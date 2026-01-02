@@ -4,7 +4,7 @@ User Schemas - Request/Response models for user endpoints
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 
 
 class UserBase(BaseModel):
@@ -72,8 +72,7 @@ class UserResponse(BaseModel):
     last_login: Optional[datetime] = None
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserListResponse(BaseModel):
@@ -86,8 +85,7 @@ class UserListResponse(BaseModel):
     is_premium: bool
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AuthVerifyRequest(BaseModel):

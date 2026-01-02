@@ -3,7 +3,7 @@ Options Schemas - Request/Response models for options data endpoints
 """
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from app.utils.timezone import get_ist_now
 
 
@@ -149,8 +149,7 @@ class PercentageDataRequest(BaseModel):
     strike: float
     option_type: str = Field(..., pattern="^(CE|PE)$")
     
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class IVDataRequest(BaseModel):
@@ -160,8 +159,7 @@ class IVDataRequest(BaseModel):
     strike: float
     option_type: str = Field(..., pattern="^(CE|PE)$")
     
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class DeltaDataRequest(BaseModel):
@@ -170,8 +168,7 @@ class DeltaDataRequest(BaseModel):
     expiry: str = Field(..., alias="exp_sid")
     strike: float
     
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class FuturePriceRequest(BaseModel):
@@ -179,8 +176,7 @@ class FuturePriceRequest(BaseModel):
     symbol: str = Field(..., alias="sid")
     expiry: str = Field(..., alias="exp_sid")
     
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class LiveDataSubscription(BaseModel):
@@ -188,5 +184,4 @@ class LiveDataSubscription(BaseModel):
     symbol: str = Field(..., alias="sid")
     expiry: str = Field(..., alias="exp_sid")
     
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)

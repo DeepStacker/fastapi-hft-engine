@@ -8,7 +8,7 @@ import numpy as np
 from typing import Literal, Dict, List
 from scipy.stats import norm
 from core.logging.logger import get_logger
-from services.processor.models.raw_data import OptionGreeks
+from core.analytics.models import OptionGreeks
 
 logger = get_logger("bsm")
 

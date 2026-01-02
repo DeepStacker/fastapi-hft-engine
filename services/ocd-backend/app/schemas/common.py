@@ -7,7 +7,7 @@ provides backward compatibility and OCD-specific additions.
 """
 from typing import Any, Generic, List, Optional, TypeVar
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 # Re-export from core schemas (single source of truth)
 from core.schemas.common import (
@@ -34,8 +34,7 @@ class ResponseModel(BaseModel, Generic[T]):
     message: Optional[str] = None
     data: Optional[T] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Extend core PaginatedResponse with backward-compatible properties
@@ -65,10 +64,11 @@ class HealthResponse(BaseModel):
     timestamp: datetime = Field(default_factory=get_ist_now)
     uptime_seconds: Optional[float] = None
     
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 class SortParams(BaseModel):

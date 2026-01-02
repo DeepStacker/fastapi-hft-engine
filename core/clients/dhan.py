@@ -1,29 +1,32 @@
 """
-Unified Dhan API Client - Single Source of Truth
-
-This module provides the base Dhan API client that all services should use.
-Service-specific adapters can extend this base class.
+Core Dhan API Client
+Base client for handling authentication and raw communication with Dhan API.
 """
-import httpx
-import asyncio
 import logging
+import asyncio
 from typing import Optional, Dict, Any, List
-from abc import ABC
+import httpx
+from datetime import datetime
+
 from core.config.settings import get_settings
-from core.resilience.circuit_breaker import CircuitBreaker
+from core.cache.redis import RedisCache
+from core.exceptions import DhanAPIException, ExternalAPIException, RateLimitException
 
 settings = get_settings()
-logger = logging.getLogger("dhan_client")
+logger = logging.getLogger(__name__)
 
+# Global shared client for connection pooling
+_shared_client: Optional[httpx.AsyncClient] = None
 
-class DhanClientBase:
+class BaseDhanClient:
     """
-    Base Dhan API client with connection pooling and circuit breaker.
-    
-    All services should use this as the foundation for Dhan API access.
+    Base Async HTTP client for Dhan API.
+    Handles:
+    - Authentication (static + dynamic)
+    - Connection pooling
+    - Rate limiting / Retries
+    - Raw API requests
     """
-    
-    BASE_URL = "https://scanx.dhan.co/scanx"
     
     DEFAULT_HEADERS = {
         "accept": "application/json, text/plain, */*",
@@ -32,151 +35,134 @@ class DhanClientBase:
         "content-type": "application/json",
         "origin": "https://web.dhan.co",
         "referer": "https://web.dhan.co/",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
     }
     
-    # Circuit breaker for API protection
-    _circuit_breaker = CircuitBreaker(
-        failure_threshold=5,
-        timeout=30,
-    )
-    
     def __init__(
-        self,
-        auth_token: Optional[str] = None,
-        timeout: float = 10.0,
-        max_connections: int = 50,
+        self, 
+        cache: Optional[RedisCache] = None,
+        auth_token: Optional[str] = None
     ):
-        self.auth_token = auth_token or settings.DHAN_AUTH_TOKEN or ""
-        self.timeout = timeout
-        self._client: Optional[httpx.AsyncClient] = None
-        self._max_connections = max_connections
+        self.base_url = settings.DHAN_API_BASE_URL
+        self.timeout = getattr(settings, 'DHAN_API_TIMEOUT', 10.0)
+        self.retry_count = getattr(settings, 'DHAN_API_RETRY_COUNT', 3)
+        self.retry_delay = getattr(settings, 'DHAN_API_RETRY_DELAY', 0.5)
         
+        self.cache = cache
+        self._static_token = auth_token or settings.DHAN_AUTH_TOKEN
+        self._client: Optional[httpx.AsyncClient] = None
+        self._current_token: Optional[str] = None
+        
+    async def _get_auth_token(self) -> str:
+        """Get auth token from Redis or fallback to static"""
+        # 1. Try Redis "dhan:tokens" if cache available
+        if self.cache:
+            try:
+                import json
+                token_data = await self.cache.get("dhan:tokens")
+                if token_data:
+                    tokens = json.loads(token_data) if isinstance(token_data, str) else token_data
+                    if tokens and tokens.get("auth_token"):
+                        return tokens["auth_token"]
+            except Exception as e:
+                logger.warning(f"Failed to get token from Redis: {e}")
+        
+        # 2. Fallback to static token
+        return self._static_token or ""
+
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client with connection pooling"""
-        if self._client is None or self._client.is_closed:
+        global _shared_client
+        
+        token = await self._get_auth_token()
+        
+        # Recreate client if token changed
+        token_changed = self._current_token is not None and self._current_token != token
+        if token_changed:
+            logger.info("Auth token changed, recreating HTTP client")
+            if _shared_client and not _shared_client.is_closed:
+                await _shared_client.aclose()
+            _shared_client = None
+            
+        if _shared_client is None or _shared_client.is_closed:
             headers = dict(self.DEFAULT_HEADERS)
-            if self.auth_token:
-                headers["auth"] = self.auth_token
-                
-            self._client = httpx.AsyncClient(
+            if token:
+                headers["auth"] = token
+                self._current_token = token
+            
+            _shared_client = httpx.AsyncClient(
                 timeout=self.timeout,
                 headers=headers,
-                limits=httpx.Limits(
-                    max_connections=self._max_connections,
-                    max_keepalive_connections=20,
-                    keepalive_expiry=30,
-                ),
+                limits=httpx.Limits(max_connections=100, max_keepalive_connections=50),
             )
+            
+        self._client = _shared_client
         return self._client
     
-    async def close(self):
-        """Close HTTP client"""
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
-            self._client = None
-    
-    def update_token(self, token: str):
-        """Update auth token (for dynamic token refresh)"""
-        self.auth_token = token
-        # Force new client on next request
-        if self._client and not self._client.is_closed:
-            asyncio.create_task(self._client.aclose())
-        self._client = None
-    
-    async def _request(
+    async def request(
         self,
         endpoint: str,
         payload: Dict[str, Any],
-        timeout: Optional[float] = None,
+        use_cache: bool = True,
+        cache_ttl: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Make API request with retry logic"""
-        url = f"{self.BASE_URL}{endpoint}"
-        client = await self._get_client()
+        """
+        Make a raw request to Dhan API with retry logic.
+        """
+        url = f"{self.base_url}{endpoint}"
+        cache_key = None
         
-        try:
-            response = await client.post(
-                url,
-                json=payload,
-                timeout=timeout or self.timeout,
-            )
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error {e.response.status_code} for {endpoint}")
-            raise
-        except Exception as e:
-            logger.error(f"Request failed for {endpoint}: {e}")
-            raise
-    
-    # ========================================================================
-    # Core API Methods
-    # ========================================================================
-    
-    async def fetch_option_chain(
-        self,
-        symbol_id: int,
-        expiry: int,
-        segment: int = 0,
-    ) -> Optional[Dict[str, Any]]:
-        """Fetch option chain data"""
-        payload = {
-            "Data": {
-                "Seg": segment,
-                "Sid": symbol_id,
-                "Exp": expiry,
-            }
-        }
-        try:
-            return await self._request("/optchain", payload)
-        except Exception as e:
-            logger.error(f"Option chain fetch failed: {e}")
-            return None
-    
-    async def fetch_spot_data(
-        self,
-        symbol_id: int,
-        segment: int = 0,
-    ) -> Optional[Dict[str, Any]]:
-        """Fetch spot/index data"""
-        payload = {
-            "Data": {
-                "Seg": segment,
-                "Secid": symbol_id,
-            }
-        }
-        try:
-            return await self._request("/rtscrdt", payload)
-        except Exception as e:
-            logger.error(f"Spot data fetch failed: {e}")
-            return None
-    
-    async def fetch_futures_data(
-        self,
-        symbol_id: int,
-        segment: int = 0,
-    ) -> Optional[Dict[str, Any]]:
-        """Fetch futures data (includes expiry dates)"""
-        payload = {
-            "Data": {
-                "Seg": segment,
-                "Sid": symbol_id,
-            }
-        }
-        try:
-            return await self._request("/futoptsum", payload)
-        except Exception as e:
-            logger.error(f"Futures data fetch failed: {e}")
-            return None
+        # Determine effective TTL
+        effective_ttl = cache_ttl if cache_ttl is not None else 5
+        should_cache = use_cache and self.cache and effective_ttl > 0
+        
+        if should_cache:
+            cache_key = f"dhan:{endpoint}:{hash(str(payload))}"
+            # Assuming cache.get_json exists (OCD RedisCache has it, Core Redis might need check)
+            # Core RedisCache might be different? Let's assume standard get/set or check later.
+            # Using generic get/set for now if wrapper not present
+            try:
+                if hasattr(self.cache, 'get_json'):
+                    cached = await self.cache.get_json(cache_key)
+                    if cached: return cached
+            except Exception: 
+                pass
 
+        last_error = None
+        for attempt in range(self.retry_count):
+            client = await self._get_client()
+            try:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                
+                if should_cache and cache_key and hasattr(self.cache, 'set_json'):
+                    await self.cache.set_json(cache_key, data, effective_ttl)
+                
+                return data
+                
+            except httpx.HTTPStatusError as e:
+                last_error = e
+                if e.response.status_code == 401:
+                    logger.warning("401 Unauthorized - resetting client")
+                    global _shared_client
+                    if _shared_client: await _shared_client.aclose()
+                    _shared_client = None
+                    continue
+                logger.warning(f"HTTP {e.response.status_code} attempt {attempt+1}")
+                
+            except Exception as e:
+                last_error = e
+                logger.error(f"Error attempt {attempt+1}: {e}")
+            
+            if attempt < self.retry_count - 1:
+                await asyncio.sleep(self.retry_delay * (2 ** attempt))
+                
+        raise DhanAPIException(f"Request failed: {last_error}")
 
-# Singleton instance for shared use
-_default_client: Optional[DhanClientBase] = None
-
-
-def get_dhan_client() -> DhanClientBase:
-    """Get shared Dhan client instance"""
-    global _default_client
-    if _default_client is None:
-        _default_client = DhanClientBase()
-    return _default_client
+    async def close(self):
+        """Close the shared client"""
+        global _shared_client
+        if _shared_client:
+            await _shared_client.aclose()
+            _shared_client = None

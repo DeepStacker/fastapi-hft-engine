@@ -8,6 +8,10 @@ import logging
 from typing import Optional
 from redis import asyncio as aioredis
 from core.config.settings import get_settings
+from core.cache.manager import CacheManager
+
+# Alias for compatibility with BaseDhanClient
+RedisCache = CacheManager
 
 settings = get_settings()
 logger = logging.getLogger("redis_factory")
