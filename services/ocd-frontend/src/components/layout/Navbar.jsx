@@ -22,6 +22,9 @@ import {
   ArrowTrendingUpIcon,
 } from "@heroicons/react/24/outline";
 import { BellIcon as BellIconSolid } from "@heroicons/react/24/solid";
+import { NotificationCenter, NotificationPreferences } from "../notifications";
+import notificationService from "../../services/notificationService";
+import usePushNotifications from "../../hooks/usePushNotifications";
 
 const Navbar = () => {
   const dispatch = useDispatch();
@@ -36,11 +39,37 @@ const Navbar = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [notifications] = useState(3); // Mock notifications
   const [isScrolled, setIsScrolled] = useState(false);
+
+  // Notification States
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const profileRef = useRef(null);
   const searchRef = useRef(null);
+
+  // Initialize Push Notifications
+  usePushNotifications(isAuthenticated);
+
+  // Fetch unread count
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchUnreadCount();
+      // Poll every minute for badge update
+      const interval = setInterval(fetchUnreadCount, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated]);
+
+  const fetchUnreadCount = async () => {
+    try {
+      const result = await notificationService.getNotifications({ unreadOnly: true, limit: 1 });
+      setUnreadCount(result.unread_count || 0);
+    } catch (error) {
+      console.error("Failed to fetch notification count", error);
+    }
+  };
 
   // Enhanced navigation structure with categories
   const navigationItems = [
@@ -321,8 +350,16 @@ const Navbar = () => {
                   action: () => navigate("/profile"),
                 },
                 {
+                  icon: BellIcon,
+                  label: "Notification Settings",
+                  action: () => {
+                    setIsProfileOpen(false);
+                    setIsPreferencesOpen(true);
+                  },
+                },
+                {
                   icon: CogIcon,
-                  label: "Settings",
+                  label: "App Settings",
                   action: () => navigate("/settings"),
                 },
                 {
@@ -351,330 +388,348 @@ const Navbar = () => {
   );
 
   return (
-    <motion.nav
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      className={`sticky top-0 z-50 transition-all duration-300 ${isScrolled
-        ? theme === "dark"
-          ? "bg-gray-900/95 backdrop-blur-md shadow-2xl"
-          : "bg-white/95 backdrop-blur-md shadow-2xl"
-        : theme === "dark"
-          ? "bg-gray-900 shadow-lg"
-          : "bg-white shadow-lg"
-        } ${theme === "dark" ? "text-white" : "text-gray-800"} border-b ${theme === "dark" ? "border-gray-700" : "border-gray-200"
-        }`}
-    >
-      <div className="container mx-auto px-4 lg:px-6">
-        <div className="flex justify-between items-center h-16">
-          {/* Enhanced Logo */}
-          <Link to="/" className="flex items-center space-x-4 group">
-            {/* Premium Logo Container */}
-            <motion.div
-              whileHover={{
-                scale: 1.05,
-                rotateY: 15,
-                rotateX: 5,
-              }}
-              transition={{
-                duration: 0.6,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-              className="relative"
-              style={{ perspective: "1000px" }}
-            >
+    <>
+      <motion.nav
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        className={`sticky top-0 z-50 transition-all duration-300 ${isScrolled
+          ? theme === "dark"
+            ? "bg-gray-900/95 backdrop-blur-md shadow-2xl"
+            : "bg-white/95 backdrop-blur-md shadow-2xl"
+          : theme === "dark"
+            ? "bg-gray-900 shadow-lg"
+            : "bg-white shadow-lg"
+          } ${theme === "dark" ? "text-white" : "text-gray-800"} border-b ${theme === "dark" ? "border-gray-700" : "border-gray-200"
+          }`}
+      >
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="flex justify-between items-center h-16">
+            {/* Enhanced Logo */}
+            <Link to="/" className="flex items-center space-x-4 group">
+              {/* Premium Logo Container */}
               <motion.div
                 whileHover={{
-                  boxShadow:
-                    "0 25px 50px -12px rgba(59, 130, 246, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)",
+                  scale: 1.05,
+                  rotateY: 15,
+                  rotateX: 5,
                 }}
-                className="w-14 h-14 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/20 border border-white/10 backdrop-blur-xl relative overflow-hidden"
+                transition={{
+                  duration: 0.6,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                className="relative"
+                style={{ perspective: "1000px" }}
               >
-                {/* Animated Background Mesh */}
-                <motion.div
-                  animate={{
-                    backgroundPosition: ["0% 0%", "100% 100%"],
-                    opacity: [0.3, 0.6, 0.3],
-                  }}
-                  transition={{
-                    duration: 4,
-                    repeat: Infinity,
-                    ease: "linear",
-                  }}
-                  className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-blue-300/20"
-                  style={{
-                    backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,255,255,0.2) 0%, transparent 50%),
-                           radial-gradient(circle at 75% 75%, rgba(99,102,241,0.2) 0%, transparent 50%)`,
-                  }}
-                />
-
-                {/* Strike Pattern */}
-                <motion.div
-                  initial={{ x: -30, opacity: 0 }}
-                  animate={{ x: 30, opacity: [0, 1, 0] }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    repeatDelay: 3,
-                    ease: "easeInOut",
-                  }}
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12"
-                />
-
-                {/* Main Trading Icon */}
                 <motion.div
                   whileHover={{
-                    scale: 1.15,
-                    rotate: [0, -10, 10, 0],
+                    boxShadow:
+                      "0 25px 50px -12px rgba(59, 130, 246, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)",
                   }}
-                  transition={{ duration: 0.4 }}
-                  className="relative z-10"
+                  className="w-14 h-14 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/20 border border-white/10 backdrop-blur-xl relative overflow-hidden"
                 >
-                  <ArrowTrendingUpIcon className="w-8 h-8 text-white drop-shadow-2xl filter" />
-                </motion.div>
+                  {/* Animated Background Mesh */}
+                  <motion.div
+                    animate={{
+                      backgroundPosition: ["0% 0%", "100% 100%"],
+                      opacity: [0.3, 0.6, 0.3],
+                    }}
+                    transition={{
+                      duration: 4,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                    className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-blue-300/20"
+                    style={{
+                      backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,255,255,0.2) 0%, transparent 50%),
+                             radial-gradient(circle at 75% 75%, rgba(99,102,241,0.2) 0%, transparent 50%)`,
+                    }}
+                  />
 
-                {/* Pulse Effect */}
+                  {/* Strike Pattern */}
+                  <motion.div
+                    initial={{ x: -30, opacity: 0 }}
+                    animate={{ x: 30, opacity: [0, 1, 0] }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      repeatDelay: 3,
+                      ease: "easeInOut",
+                    }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12"
+                  />
+
+                  {/* Main Trading Icon */}
+                  <motion.div
+                    whileHover={{
+                      scale: 1.15,
+                      rotate: [0, -10, 10, 0],
+                    }}
+                    transition={{ duration: 0.4 }}
+                    className="relative z-10"
+                  >
+                    <ArrowTrendingUpIcon className="w-8 h-8 text-white drop-shadow-2xl filter" />
+                  </motion.div>
+
+                  {/* Pulse Effect */}
+                  <motion.div
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      opacity: [0.5, 0, 0.5],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                    className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-400 to-purple-600"
+                  />
+                </motion.div>
+              </motion.div>
+
+              {/* Enhanced Typography */}
+              <motion.div
+                whileHover={{ x: 2 }}
+                transition={{ duration: 0.3 }}
+                className="relative"
+              >
+                <motion.h1
+                  whileHover={{
+                    scale: 1.02,
+                    filter: "drop-shadow(0 0 20px rgba(59, 130, 246, 0.3))",
+                  }}
+                  className="text-3xl font-black tracking-tight leading-none"
+                >
+                  <span className="block bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 dark:from-white dark:via-gray-200 dark:to-white bg-clip-text text-transparent group-hover:from-blue-700 group-hover:via-blue-600 group-hover:to-blue-700 transition-all duration-700">
+                    Deep
+                  </span>
+                  <span className="block bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 bg-clip-text text-transparent group-hover:from-purple-600 group-hover:via-pink-600 group-hover:to-blue-600 transition-all duration-700 -mt-1">
+                    Strike
+                  </span>
+                </motion.h1>
+
+                {/* Tagline */}
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  whileHover={{ opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="text-xs font-medium tracking-wider uppercase mt-1 bg-gradient-to-r from-gray-600 to-gray-400 dark:from-gray-400 dark:to-gray-500 bg-clip-text text-transparent"
+                >
+                  Trading Platform
+                </motion.p>
+
+                {/* Dynamic Underline */}
                 <motion.div
-                  animate={{
-                    scale: [1, 1.2, 1],
-                    opacity: [0.5, 0, 0.5],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  }}
-                  className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-400 to-purple-600"
+                  initial={{ scaleX: 0, opacity: 0 }}
+                  whileHover={{ scaleX: 1, opacity: 1 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                  className="absolute -bottom-1 left-0 h-1 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full origin-left"
                 />
               </motion.div>
-            </motion.div>
+            </Link>
 
-            {/* Enhanced Typography */}
-            <motion.div
-              whileHover={{ x: 2 }}
-              transition={{ duration: 0.3 }}
-              className="relative"
-            >
-              <motion.h1
-                whileHover={{
-                  scale: 1.02,
-                  filter: "drop-shadow(0 0 20px rgba(59, 130, 246, 0.3))",
-                }}
-                className="text-3xl font-black tracking-tight leading-none"
-              >
-                <span className="block bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 dark:from-white dark:via-gray-200 dark:to-white bg-clip-text text-transparent group-hover:from-blue-700 group-hover:via-blue-600 group-hover:to-blue-700 transition-all duration-700">
-                  Deep
-                </span>
-                <span className="block bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 bg-clip-text text-transparent group-hover:from-purple-600 group-hover:via-pink-600 group-hover:to-blue-600 transition-all duration-700 -mt-1">
-                  Strike
-                </span>
-              </motion.h1>
+            {/* Desktop Navigation */}
+            <div className="hidden lg:flex items-center space-x-8">
+              {allNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
 
-              {/* Tagline */}
-              <motion.p
-                initial={{ opacity: 0 }}
-                whileHover={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                className="text-xs font-medium tracking-wider uppercase mt-1 bg-gradient-to-r from-gray-600 to-gray-400 dark:from-gray-400 dark:to-gray-500 bg-clip-text text-transparent"
-              >
-                Trading Platform
-              </motion.p>
-
-              {/* Dynamic Underline */}
-              <motion.div
-                initial={{ scaleX: 0, opacity: 0 }}
-                whileHover={{ scaleX: 1, opacity: 1 }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
-                className="absolute -bottom-1 left-0 h-1 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full origin-left"
-              />
-            </motion.div>
-          </Link>
-
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center space-x-8">
-            {allNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-
-              return (
-                <motion.div
-                  key={item.path}
-                  whileHover={{ y: -2 }}
-                  className="relative"
-                >
-                  <Link
-                    to={item.path}
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 ${isActive
-                      ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30"
-                      : "hover:text-blue-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-                      }`}
+                return (
+                  <motion.div
+                    key={item.path}
+                    whileHover={{ y: -2 }}
+                    className="relative"
                   >
-                    <Icon className="w-5 h-5" />
-                    <span className="font-medium">{item.name}</span>
-                    {item.badge && (
-                      <span className="px-2 py-1 text-xs bg-green-500 text-white rounded-full">
-                        {item.badge}
-                      </span>
+                    <Link
+                      to={item.path}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 ${isActive
+                        ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30"
+                        : "hover:text-blue-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span className="font-medium">{item.name}</span>
+                      {item.badge && (
+                        <span className="px-2 py-1 text-xs bg-green-500 text-white rounded-full">
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTab"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"
+                      />
                     )}
-                  </Link>
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"
-                    />
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Right Side Actions */}
+            <div className="flex items-center space-x-4">
+              {/* Market Status */}
+              <MarketStatus />
+
+              {/* Search */}
+              <SearchComponent />
+
+              {/* Notifications */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsNotificationOpen(true)}
+                className={`relative p-2 rounded-lg transition-colors ${theme === "dark"
+                  ? "hover:bg-gray-700 text-gray-300"
+                  : "hover:bg-gray-100 text-gray-600"
+                  }`}
+              >
+                {unreadCount > 0 ? (
+                  <BellIconSolid className="w-5 h-5 text-blue-500" />
+                ) : (
+                  <BellIcon className="w-5 h-5" />
+                )}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </motion.button>
+
+              {/* Theme Toggle */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => dispatch(toggleTheme())}
+                className={`p-2 rounded-lg transition-colors ${theme === "dark"
+                  ? "bg-gray-700 text-yellow-400 hover:bg-gray-600"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                aria-label="Toggle Theme"
+              >
+                <motion.div
+                  initial={false}
+                  animate={{ rotate: theme === "dark" ? 0 : 180 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {theme === "dark" ? (
+                    <SunIcon className="w-5 h-5" />
+                  ) : (
+                    <MoonIcon className="w-5 h-5" />
                   )}
                 </motion.div>
-              );
-            })}
-          </div>
+              </motion.button>
 
-          {/* Right Side Actions */}
-          <div className="flex items-center space-x-4">
-            {/* Market Status */}
-            <MarketStatus />
+              {/* Profile Dropdown */}
+              {isAuthenticated && <ProfileDropdown />}
 
-            {/* Search */}
-            <SearchComponent />
-
-            {/* Notifications */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className={`relative p-2 rounded-lg transition-colors ${theme === "dark"
-                ? "hover:bg-gray-700 text-gray-300"
-                : "hover:bg-gray-100 text-gray-600"
-                }`}
-            >
-              {notifications > 0 ? (
-                <BellIconSolid className="w-5 h-5 text-blue-500" />
-              ) : (
-                <BellIcon className="w-5 h-5" />
-              )}
-              {notifications > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                  {notifications}
-                </span>
-              )}
-            </motion.button>
-
-            {/* Theme Toggle */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => dispatch(toggleTheme())}
-              className={`p-2 rounded-lg transition-colors ${theme === "dark"
-                ? "bg-gray-700 text-yellow-400 hover:bg-gray-600"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              aria-label="Toggle Theme"
-            >
-              <motion.div
-                initial={false}
-                animate={{ rotate: theme === "dark" ? 0 : 180 }}
-                transition={{ duration: 0.3 }}
+              {/* Mobile Menu Toggle */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="lg:hidden p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                aria-label="Toggle Menu"
               >
-                {theme === "dark" ? (
-                  <SunIcon className="w-5 h-5" />
-                ) : (
-                  <MoonIcon className="w-5 h-5" />
-                )}
-              </motion.div>
-            </motion.button>
-
-            {/* Profile Dropdown */}
-            {isAuthenticated && <ProfileDropdown />}
-
-            {/* Mobile Menu Toggle */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="lg:hidden p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              aria-label="Toggle Menu"
-            >
-              <AnimatePresence mode="wait">
-                {isMenuOpen ? (
-                  <motion.div
-                    key="close"
-                    initial={{ rotate: -90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: 90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <XMarkIcon className="w-6 h-6" />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="menu"
-                    initial={{ rotate: 90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: -90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Bars3Icon className="w-6 h-6" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        <AnimatePresence>
-          {isMenuOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="lg:hidden overflow-hidden border-t border-gray-200 dark:border-gray-700"
-            >
-              <div className="py-4 space-y-2">
-                {allNavItems.map((item, index) => {
-                  const Icon = item.icon;
-                  const isActive = location.pathname === item.path;
-
-                  return (
+                <AnimatePresence mode="wait">
+                  {isMenuOpen ? (
                     <motion.div
-                      key={item.path}
-                      initial={{ x: -20, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      transition={{ delay: index * 0.1 }}
+                      key="close"
+                      initial={{ rotate: -90, opacity: 0 }}
+                      animate={{ rotate: 0, opacity: 1 }}
+                      exit={{ rotate: 90, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
                     >
-                      <Link
-                        to={item.path}
-                        onClick={() => setIsMenuOpen(false)}
-                        className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
-                          ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30"
-                          : "hover:bg-gray-50 dark:hover:bg-gray-700"
-                          }`}
-                      >
-                        <Icon className="w-5 h-5" />
-                        <div>
-                          <div className="font-medium">{item.name}</div>
-                          <div
-                            className={`text-xs ${theme === "dark"
-                              ? "text-gray-400"
-                              : "text-gray-500"
-                              }`}
-                          >
-                            {item.description}
-                          </div>
-                        </div>
-                        {item.badge && (
-                          <span className="px-2 py-1 text-xs bg-green-500 text-white rounded-full">
-                            {item.badge}
-                          </span>
-                        )}
-                      </Link>
+                      <XMarkIcon className="w-6 h-6" />
                     </motion.div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </motion.nav>
+                  ) : (
+                    <motion.div
+                      key="menu"
+                      initial={{ rotate: 90, opacity: 0 }}
+                      animate={{ rotate: 0, opacity: 1 }}
+                      exit={{ rotate: -90, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Bars3Icon className="w-6 h-6" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.button>
+            </div>
+          </div>
+
+          {/* Mobile Menu */}
+          <AnimatePresence>
+            {isMenuOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="lg:hidden overflow-hidden border-t border-gray-200 dark:border-gray-700"
+              >
+                <div className="py-4 space-y-2">
+                  {allNavItems.map((item, index) => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+
+                    return (
+                      <motion.div
+                        key={item.path}
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <Link
+                          to={item.path}
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
+                            ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30"
+                            : "hover:bg-gray-50 dark:hover:bg-gray-700"
+                            }`}
+                        >
+                          <Icon className="w-5 h-5" />
+                          <div>
+                            <div className="font-medium">{item.name}</div>
+                            <div
+                              className={`text-xs ${theme === "dark"
+                                ? "text-gray-400"
+                                : "text-gray-500"
+                                }`}
+                            >
+                              {item.description}
+                            </div>
+                          </div>
+                          {item.badge && (
+                            <span className="px-2 py-1 text-xs bg-green-500 text-white rounded-full">
+                              {item.badge}
+                            </span>
+                          )}
+                        </Link>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.nav>
+
+      {/* Notification Components */}
+      <NotificationCenter
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+        onOpenPreferences={() => {
+          setIsNotificationOpen(false);
+          setIsPreferencesOpen(true);
+        }}
+      />
+
+      <NotificationPreferences
+        isOpen={isPreferencesOpen}
+        onClose={() => setIsPreferencesOpen(false)}
+      />
+    </>
   );
 };
 

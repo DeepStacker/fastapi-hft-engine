@@ -127,19 +127,6 @@ async def verify_token(
         # Update last login
         await user_repo.update_last_login(user.id)
         
-        # Ensure welcome notifications if they don't have any
-        from app.models.notification import Notification
-        from sqlalchemy import select, func
-        
-        count_query = select(func.count()).select_from(Notification).where(Notification.user_id == user.id)
-        count_result = await db.execute(count_query)
-        if (count_result.scalar() or 0) == 0:
-            try:
-                await create_welcome_notifications(db, user.id)
-                logger.info(f"Created missed welcome notifications for: {user.email}")
-            except Exception as notif_error:
-                logger.warning(f"Failed to create welcome notifications: {notif_error}")
-        
         # Log login activity - Throttle to once per 30 minutes
         await log_activity(db, user.id, "LOGIN", "User session verified", throttle_seconds=1800)
              

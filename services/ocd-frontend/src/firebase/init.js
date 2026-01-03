@@ -1,10 +1,22 @@
 // src/firebase/init.js
 import { initializeApp } from 'firebase/app';
 import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { firebaseConfig } from './config';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+
+// Firebase Cloud Messaging (for push notifications)
+let messaging = null;
+try {
+  // Only initialize messaging in browser environment with service worker support
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    messaging = getMessaging(app);
+  }
+} catch (error) {
+  console.warn('FCM not available:', error.message);
+}
 
 // ✅ Set persistent auth state
 const setAuthPersistence = async () => {
@@ -92,13 +104,88 @@ const confirmPasswordReset = async (oobCode, newPassword) => {
   }
 };
 
+// ============== Push Notifications (FCM) ==============
+
+/**
+ * Request notification permission and get FCM token
+ * @returns {Promise<string|null>} FCM token or null if denied
+ */
+const requestNotificationPermission = async () => {
+  if (!messaging) {
+    console.warn('FCM not initialized');
+    return null;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+
+    if (permission === 'granted') {
+      // Get FCM token
+      const token = await getToken(messaging, {
+        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || undefined,
+      });
+
+      console.log('FCM Token obtained:', token?.slice(0, 20) + '...');
+      return token;
+    } else {
+      console.log('Notification permission denied');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error getting FCM token:', error);
+    return null;
+  }
+};
+
+/**
+ * Listen for foreground messages
+ * @param {Function} callback - Called when message received
+ * @returns {Function} Unsubscribe function
+ */
+const onForegroundMessage = (callback) => {
+  if (!messaging) {
+    console.warn('FCM not initialized');
+    return () => { };
+  }
+
+  return onMessage(messaging, (payload) => {
+    console.log('Foreground message received:', payload);
+    callback(payload);
+  });
+};
+
+/**
+ * Setup push notifications with backend registration
+ * @param {Function} registerTokenFn - Function to register token with backend
+ */
+const setupPushNotifications = async (registerTokenFn) => {
+  const token = await requestNotificationPermission();
+
+  if (token && registerTokenFn) {
+    try {
+      await registerTokenFn(token);
+      console.log('FCM token registered with backend');
+    } catch (error) {
+      console.error('Failed to register FCM token:', error);
+    }
+  }
+
+  return token;
+};
+
 export {
   app,
   auth,
+  messaging,
   listenToAuthChanges,
   signInWithGoogle,
   registerWithEmail,
   loginWithEmail,
   sendPasswordReset,
-  confirmPasswordReset
+  confirmPasswordReset,
+  // Push notification exports
+  requestNotificationPermission,
+  onForegroundMessage,
+  setupPushNotifications,
 };
+

@@ -1,10 +1,11 @@
 """
 Notifications API Endpoints
 Provides endpoints for user notifications management.
+Enhanced with preferences, channels, and multi-purpose support.
 """
 import logging
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, time
 from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel, Field
@@ -13,9 +14,10 @@ from sqlalchemy import select, update, delete, func, and_
 
 from app.config.database import get_db
 from app.core.dependencies import CurrentUser, OptionalUser
-from app.models.notification import Notification, NotificationType
+from app.models.notification import Notification, NotificationType, NotificationPreference
 from app.utils.timezone import get_ist_isoformat
 from app.services.notification import create_welcome_notifications
+from app.services.notification_dispatcher import get_or_create_preferences
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -28,7 +30,11 @@ class NotificationCreate(BaseModel):
     title: str = Field(..., max_length=100)
     message: str = Field(..., max_length=500)
     type: str = Field("info", pattern="^(info|success|warning|error|trade|price)$")
+    purpose: str = Field("informative", pattern="^(transactional|informative|cta|personalized|system|feedback)$")
+    priority: str = Field("normal", pattern="^(low|normal|high|urgent)$")
     link: Optional[str] = None
+    action_url: Optional[str] = None
+    action_label: Optional[str] = None
 
 
 class NotificationResponse(BaseModel):
@@ -37,9 +43,15 @@ class NotificationResponse(BaseModel):
     title: str
     message: str
     type: str
+    channel: str = "in_app"
+    purpose: str = "informative"
+    priority: str = "normal"
     is_read: bool = False
+    sound_enabled: bool = True
     created_at: str
     link: Optional[str] = None
+    action_url: Optional[str] = None
+    action_label: Optional[str] = None
 
 
 class NotificationListResponse(BaseModel):
@@ -48,6 +60,27 @@ class NotificationListResponse(BaseModel):
     total: int
     unread_count: int
     notifications: List[NotificationResponse]
+
+
+class PreferencesUpdate(BaseModel):
+    """Update notification preferences"""
+    enable_in_app: Optional[bool] = None
+    enable_push: Optional[bool] = None
+    enable_email: Optional[bool] = None
+    enable_transactional: Optional[bool] = None
+    enable_informative: Optional[bool] = None
+    enable_cta: Optional[bool] = None
+    enable_personalized: Optional[bool] = None
+    enable_system: Optional[bool] = None
+    enable_feedback: Optional[bool] = None
+    enable_sound: Optional[bool] = None
+    quiet_hours_start: Optional[str] = None  # HH:MM format
+    quiet_hours_end: Optional[str] = None
+
+
+class FCMTokenUpdate(BaseModel):
+    """Register FCM token for push notifications"""
+    fcm_token: str = Field(..., max_length=500)
 
 
 # ============== Helper Functions ==============
@@ -248,3 +281,112 @@ async def create_notification(
             created_at=new_notif.created_at.isoformat() if new_notif.created_at else get_ist_isoformat(),
         )
     }
+
+
+# ============== Preferences Endpoints ==============
+
+@router.get("/preferences")
+async def get_preferences(
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get user notification preferences"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    prefs = await get_or_create_preferences(db, current_user.id)
+    
+    return {
+        "success": True,
+        "preferences": prefs.to_dict()
+    }
+
+
+@router.put("/preferences")
+async def update_preferences(
+    prefs_update: PreferencesUpdate,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update user notification preferences"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    prefs = await get_or_create_preferences(db, current_user.id)
+    
+    # Update fields that are provided
+    update_data = prefs_update.model_dump(exclude_unset=True)
+    
+    for field, value in update_data.items():
+        if field in ["quiet_hours_start", "quiet_hours_end"] and value:
+            # Parse time string to time object
+            try:
+                hours, minutes = map(int, value.split(":"))
+                value = time(hours, minutes)
+            except (ValueError, AttributeError):
+                continue
+        setattr(prefs, field, value)
+    
+    await db.commit()
+    await db.refresh(prefs)
+    
+    logger.info(f"User {current_user.id} updated notification preferences")
+    
+    return {
+        "success": True,
+        "message": "Preferences updated",
+        "preferences": prefs.to_dict()
+    }
+
+
+@router.post("/preferences/fcm-token")
+async def register_fcm_token(
+    token_update: FCMTokenUpdate,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Register FCM token for push notifications"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    prefs = await get_or_create_preferences(db, current_user.id)
+    prefs.fcm_token = token_update.fcm_token
+    
+    await db.commit()
+    
+    logger.info(f"User {current_user.id} registered FCM token")
+    
+    return {
+        "success": True,
+        "message": "FCM token registered"
+    }
+
+
+@router.post("/preferences/test")
+async def test_notification(
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Send a test notification to verify settings"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    from app.services.notification_dispatcher import NotificationDispatcher
+    
+    dispatcher = NotificationDispatcher(db)
+    result = await dispatcher.send(
+        user_id=current_user.id,
+        title="Test Notification",
+        message="This is a test notification to verify your settings are working correctly.",
+        type="info",
+        purpose="system",
+        priority="normal",
+        sound_enabled=True,
+    )
+    
+    return {
+        "success": True,
+        "message": "Test notification sent",
+        "delivery": result
+    }
+
