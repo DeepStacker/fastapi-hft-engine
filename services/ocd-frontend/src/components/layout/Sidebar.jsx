@@ -24,10 +24,12 @@ import {
   ScaleIcon,
   BanknotesIcon,
   ArrowTrendingUpIcon,
+  TicketIcon,
 } from "@heroicons/react/24/outline";
 import { BellIcon as BellIconSolid } from "@heroicons/react/24/solid";
 import { notificationService } from "../../services/notificationService";
 import { NotificationCenter, NotificationPreferences } from "../notifications";
+import SupportCenter from "../support/SupportCenter";
 import usePushNotifications from "../../hooks/usePushNotifications";
 
 
@@ -47,6 +49,7 @@ const Sidebar = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
 
   const profileRef = useRef(null);
 
@@ -241,6 +244,20 @@ const Sidebar = () => {
 
         {/* Bottom Section */}
         <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+          {/* Support */}
+          <button
+            onClick={() => setIsSupportOpen(true)}
+            className={`w-full flex items-center gap-3 px-3 py-2 mb-1 rounded-lg transition-colors ${theme === "dark"
+              ? "hover:bg-gray-800 text-gray-400"
+              : "hover:bg-gray-100 text-gray-600"
+              }`}
+          >
+            <TicketIcon className="w-5 h-5" />
+            {!isCollapsed && (
+              <span className="text-sm font-medium">Support</span>
+            )}
+          </button>
+
           {/* Notifications */}
           <div className="relative">
             <button
@@ -388,6 +405,11 @@ const Sidebar = () => {
       <NotificationPreferences
         isOpen={isPreferencesOpen}
         onClose={() => setIsPreferencesOpen(false)}
+      />
+
+      <SupportCenter
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
       />
     </>
   );

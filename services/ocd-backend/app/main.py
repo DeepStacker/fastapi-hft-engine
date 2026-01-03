@@ -268,6 +268,18 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(api_router, prefix="/api/v1")
 
 
+# Include Admin router
+from app.api.admin import support as admin_support
+app.include_router(admin_support.router, prefix="/api/admin/support", tags=["Admin Support"])
+
+
+# Mount static directory for file uploads
+import os
+from fastapi.staticfiles import StaticFiles
+os.makedirs("static/uploads", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
 # WebSocket endpoint - defined directly without CORSMiddleware involvement
 @app.websocket("/ws/options")
 async def options_websocket(websocket: WebSocket):
@@ -288,6 +300,17 @@ async def charts_websocket(websocket: WebSocket):
     """
     from app.api.websocket.charts_handlers import charts_websocket_endpoint
     await charts_websocket_endpoint(websocket)
+
+
+# Support WebSocket endpoint - real-time chat
+@app.websocket("/ws/support/{ticket_id}")
+async def support_websocket(websocket: WebSocket, ticket_id: str):
+    """
+    WebSocket endpoint for real-time support chat.
+    ws://.../ws/support/{ticket_id}?token=...
+    """
+    from app.api.websocket.support_handlers import support_websocket_endpoint
+    await support_websocket_endpoint(websocket, ticket_id)
 
 
 # Health check endpoint

@@ -345,7 +345,7 @@ const NotificationCenter = ({ isOpen, onClose, onOpenPreferences }) => {
                                             </button>
                                         </div>
                                     )}
-                                    )}
+
                                 </div>
                             )}
                         </div>

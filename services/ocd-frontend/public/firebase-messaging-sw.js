@@ -8,12 +8,12 @@ importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-comp
 // Firebase configuration - must match the app config
 // Note: In production, these should be injected during build
 const firebaseConfig = {
-    apiKey: self.VITE_FIREBASE_API_KEY || '',
-    authDomain: self.VITE_FIREBASE_AUTH_DOMAIN || '',
-    projectId: self.VITE_FIREBASE_PROJECT_ID || '',
-    storageBucket: self.VITE_FIREBASE_STORAGE_BUCKET || '',
-    messagingSenderId: self.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-    appId: self.VITE_FIREBASE_APP_ID || '',
+    apiKey: "AIzaSyAoeZHm-azcBvHdEFEfnKYibK6bYHyXqLU",
+    authDomain: "stockify-6e2b1.firebaseapp.com",
+    projectId: "stockify-6e2b1",
+    storageBucket: "stockify-6e2b1.appspot.com",
+    messagingSenderId: "1051195772160",
+    appId: "1:1051195772160:web:b2b7ea0d56cf988baf37e5",
 };
 
 // Initialize Firebase in service worker

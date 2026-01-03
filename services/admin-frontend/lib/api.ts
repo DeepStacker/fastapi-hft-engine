@@ -245,6 +245,23 @@ export const api = {
   // Bulk Operations
   bulkDeleteNotifications: (ids: string[]) =>
     apiClient.delete('/notifications/bulk', { data: { notification_ids: ids } }),
+
+  // Support System
+  getSupportTickets: (params?: { status?: string, priority?: string, page?: number }) =>
+    apiClient.get('/support/tickets', { params }),
+  getSupportTicket: (id: string) =>
+    apiClient.get(`/support/tickets/${id}`),
+  updateSupportTicket: (id: string, data: { status?: string, priority?: string }) =>
+    apiClient.patch(`/support/tickets/${id}`, data),
+  sendSupportReply: (id: string, message: string, attachments: string[] = []) =>
+    apiClient.post(`/support/tickets/${id}/messages`, { message, attachments }),
+  uploadSupportFile: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post('/support/tickets/upload', formData, { // Using v1 endpoint which assumes auth
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 // Export as both 'api' and 'adminAPI' for compatibility

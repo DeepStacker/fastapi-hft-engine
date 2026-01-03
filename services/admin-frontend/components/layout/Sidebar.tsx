@@ -31,6 +31,7 @@ const navSections = [
     items: [
       { name: 'Dashboard', href: '/', icon: LayoutDashboard },
       { name: 'Traders', href: '/traders', icon: Users },
+      { name: 'Support', href: '/support', icon: MessageSquare },
       { name: 'Notifications', href: '/notifications', icon: Bell },
     ],
   },

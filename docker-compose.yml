@@ -533,6 +533,7 @@ services:
       HFT_REDIS_URL: redis://redis:6379/0
       HFT_USE_GREEKS: "true"
       # App config
+      ENVIRONMENT: development
       LOG_LEVEL: INFO
       UVICORN_ACCESS_LOG: "false"
       GUNICORN_WORKERS: "4"
