@@ -12,7 +12,18 @@ import {
   Server,
   Activity,
   Shield,
-  LayoutGrid
+  LayoutGrid,
+  HardDrive,
+  Mail,
+  Radio,
+  Rocket,
+  Upload,
+  AppWindow,
+  Globe,
+  Clock,
+  Cpu,
+  Gauge,
+  MessageSquare
 } from 'lucide-react';
 
 interface ConfigSidebarProps {
@@ -40,6 +51,19 @@ export function ConfigSidebar({
       'system': Server,
       'monitoring': Activity,
       'security': Shield,
+      'infrastructure': HardDrive,
+      'smtp': Mail,
+      'websocket': Radio,
+      'hft': Rocket,
+      'file_upload': Upload,
+      'application': AppWindow,
+      'dhan_api': Globe,
+      'ingestion': Clock,
+      'processor': Cpu,
+      'storage': Database,
+      'realtime': Gauge,
+      'gateway': Server,
+      'kafka': MessageSquare,
     };
     return icons[category.toLowerCase()] || Settings2;
   };

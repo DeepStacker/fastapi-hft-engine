@@ -19,7 +19,8 @@ import {
   Key,
   Users,
   History,
-  Bell
+  Bell,
+  HardDrive
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -55,6 +56,7 @@ const navSections = [
     title: 'Settings',
     items: [
       { name: 'Configuration', href: '/config', icon: Settings },
+      { name: 'Infrastructure', href: '/infrastructure', icon: HardDrive },
       { name: 'Dhan Tokens', href: '/dhan-tokens', icon: Key },
     ],
   },

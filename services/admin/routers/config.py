@@ -276,8 +276,448 @@ SYSTEM_CONFIGS = {
         "category": "kafka",
         "data_type": "string",
         "requires_restart": True
+    },
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # Infrastructure - Service URLs and Connection Strings
+    # ═══════════════════════════════════════════════════════════════════
+    "database_url": {
+        "value": "postgresql+asyncpg://postgres:postgres@timescaledb:5432/stockify",
+        "description": "PostgreSQL/TimescaleDB connection URL",
+        "category": "infrastructure",
+        "data_type": "string",
+        "requires_restart": True,
+        "is_sensitive": True
+    },
+    "redis_url": {
+        "value": "redis://redis:6379/0",
+        "description": "Redis connection URL for caching and pub/sub",
+        "category": "infrastructure",
+        "data_type": "string",
+        "requires_restart": True,
+        "is_sensitive": True
+    },
+    "kafka_bootstrap_servers": {
+        "value": "kafka:29092",
+        "description": "Kafka bootstrap servers (comma-separated)",
+        "category": "infrastructure",
+        "data_type": "string",
+        "requires_restart": True,
+        "is_sensitive": True
+    },
+    "db_pool_size": {
+        "value": "20",
+        "description": "Database connection pool size",
+        "category": "infrastructure",
+        "data_type": "int",
+        "requires_restart": True
+    },
+    "db_max_overflow": {
+        "value": "10",
+        "description": "Maximum connections beyond pool size",
+        "category": "infrastructure",
+        "data_type": "int",
+        "requires_restart": True
+    },
+    "db_pool_timeout": {
+        "value": "30",
+        "description": "Connection pool timeout in seconds",
+        "category": "infrastructure",
+        "data_type": "int",
+        "requires_restart": True
+    },
+    "redis_max_connections": {
+        "value": "50",
+        "description": "Redis maximum connections",
+        "category": "infrastructure",
+        "data_type": "int",
+        "requires_restart": True
+    },
+    "redis_cache_ttl": {
+        "value": "300",
+        "description": "Default Redis cache TTL in seconds",
+        "category": "infrastructure",
+        "data_type": "int",
+        "requires_restart": False
+    },
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # Security - CORS, Rate Limiting, Auth
+    # ═══════════════════════════════════════════════════════════════════
+    "cors_allowed_origins": {
+        "value": "http://localhost:3000,http://localhost:5173,https://stockify-oc.vercel.app",
+        "description": "Comma-separated list of allowed CORS origins",
+        "category": "security",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    "cors_allow_credentials": {
+        "value": "true",
+        "description": "Allow credentials in CORS requests",
+        "category": "security",
+        "data_type": "bool",
+        "requires_restart": True
+    },
+    "rate_limit_enabled": {
+        "value": "true",
+        "description": "Enable API rate limiting",
+        "category": "security",
+        "data_type": "bool",
+        "requires_restart": True
+    },
+    "rate_limit_per_minute": {
+        "value": "200",
+        "description": "Maximum API requests per minute per user",
+        "category": "security",
+        "data_type": "int",
+        "requires_restart": False
+    },
+    "rate_limit_burst": {
+        "value": "50",
+        "description": "Burst allowance for rate limiting",
+        "category": "security",
+        "data_type": "int",
+        "requires_restart": False
+    },
+    "access_token_expire_minutes": {
+        "value": "1440",
+        "description": "Access token expiration time in minutes (default 24h)",
+        "category": "security",
+        "data_type": "int",
+        "requires_restart": False
+    },
+    "auth_algorithm": {
+        "value": "HS256",
+        "description": "JWT signing algorithm",
+        "category": "security",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # Monitoring - Prometheus, OTEL, Metrics
+    # ═══════════════════════════════════════════════════════════════════
+    "prometheus_url": {
+        "value": "http://prometheus:9090",
+        "description": "Prometheus server URL for metrics queries",
+        "category": "monitoring",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    "metrics_port": {
+        "value": "9090",
+        "description": "Port for Prometheus metrics endpoint",
+        "category": "monitoring",
+        "data_type": "int",
+        "requires_restart": True
+    },
+    "slow_query_threshold_ms": {
+        "value": "1000",
+        "description": "Slow query threshold in milliseconds",
+        "category": "monitoring",
+        "data_type": "int",
+        "requires_restart": False
+    },
+    "otel_enabled": {
+        "value": "false",
+        "description": "Enable OpenTelemetry tracing",
+        "category": "monitoring",
+        "data_type": "bool",
+        "requires_restart": True
+    },
+    "otel_service_name": {
+        "value": "stockify-backend",
+        "description": "OpenTelemetry service name",
+        "category": "monitoring",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    "otel_exporter_endpoint": {
+        "value": "",
+        "description": "OpenTelemetry OTLP exporter endpoint",
+        "category": "monitoring",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # SMTP - Email Configuration
+    # ═══════════════════════════════════════════════════════════════════
+    "smtp_host": {
+        "value": "smtp.gmail.com",
+        "description": "SMTP server hostname",
+        "category": "smtp",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    "smtp_port": {
+        "value": "587",
+        "description": "SMTP server port",
+        "category": "smtp",
+        "data_type": "int",
+        "requires_restart": True
+    },
+    "smtp_user": {
+        "value": "",
+        "description": "SMTP username/email",
+        "category": "smtp",
+        "data_type": "string",
+        "requires_restart": True,
+        "is_sensitive": True
+    },
+    "smtp_from_email": {
+        "value": "alerts@stockify.local",
+        "description": "Email sender address",
+        "category": "smtp",
+        "data_type": "string",
+        "requires_restart": False
+    },
+    "smtp_use_tls": {
+        "value": "true",
+        "description": "Use TLS for SMTP connection",
+        "category": "smtp",
+        "data_type": "bool",
+        "requires_restart": True
+    },
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # WebSocket - Connection Settings
+    # ═══════════════════════════════════════════════════════════════════
+    "ws_max_connections": {
+        "value": "50000",
+        "description": "Maximum total WebSocket connections",
+        "category": "websocket",
+        "data_type": "int",
+        "requires_restart": True
+    },
+    "ws_connections_per_user": {
+        "value": "10",
+        "description": "Maximum WebSocket connections per user",
+        "category": "websocket",
+        "data_type": "int",
+        "requires_restart": True
+    },
+    "ws_heartbeat_interval": {
+        "value": "30",
+        "description": "WebSocket heartbeat interval in seconds",
+        "category": "websocket",
+        "data_type": "int",
+        "requires_restart": False
+    },
+    "ws_broadcast_interval": {
+        "value": "0.25",
+        "description": "WebSocket broadcast interval in seconds",
+        "category": "websocket",
+        "data_type": "float",
+        "requires_restart": False
+    },
+    "ws_charts_broadcast_interval": {
+        "value": "0.25",
+        "description": "Charts WebSocket broadcast interval in seconds",
+        "category": "websocket",
+        "data_type": "float",
+        "requires_restart": False
+    },
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # HFT Integration - High Frequency Trading Engine
+    # ═══════════════════════════════════════════════════════════════════
+    "use_hft_data_source": {
+        "value": "false",
+        "description": "Use HFT Engine as primary data source",
+        "category": "hft",
+        "data_type": "bool",
+        "requires_restart": True
+    },
+    "hft_redis_url": {
+        "value": "redis://localhost:6379/0",
+        "description": "HFT Engine Redis URL",
+        "category": "hft",
+        "data_type": "string",
+        "requires_restart": True,
+        "is_sensitive": True
+    },
+    "hft_kafka_servers": {
+        "value": "localhost:9092",
+        "description": "HFT Engine Kafka bootstrap servers",
+        "category": "hft",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    "hft_use_greeks": {
+        "value": "true",
+        "description": "Fetch Greeks from HFT Engine",
+        "category": "hft",
+        "data_type": "bool",
+        "requires_restart": False
+    },
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # File Upload Settings
+    # ═══════════════════════════════════════════════════════════════════
+    "upload_dir": {
+        "value": "uploads",
+        "description": "Directory for file uploads",
+        "category": "file_upload",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    "max_upload_size_mb": {
+        "value": "16",
+        "description": "Maximum file upload size in MB",
+        "category": "file_upload",
+        "data_type": "int",
+        "requires_restart": False
+    },
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # Application Settings
+    # ═══════════════════════════════════════════════════════════════════
+    "app_environment": {
+        "value": "development",
+        "description": "Application environment (development/staging/production)",
+        "category": "application",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    "app_debug": {
+        "value": "false",
+        "description": "Enable debug mode",
+        "category": "application",
+        "data_type": "bool",
+        "requires_restart": True
+    },
+    "log_level": {
+        "value": "INFO",
+        "description": "Logging level (DEBUG/INFO/WARNING/ERROR)",
+        "category": "application",
+        "data_type": "string",
+        "requires_restart": False
+    },
+    "timezone": {
+        "value": "Asia/Kolkata",
+        "description": "Application timezone",
+        "category": "application",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # Dhan API Settings
+    # ═══════════════════════════════════════════════════════════════════
+    "dhan_api_base_url": {
+        "value": "https://scanx.dhan.co/scanx",
+        "description": "Dhan API base URL",
+        "category": "dhan_api",
+        "data_type": "string",
+        "requires_restart": True
+    },
+    "dhan_api_timeout": {
+        "value": "5",
+        "description": "Dhan API request timeout in seconds",
+        "category": "dhan_api",
+        "data_type": "int",
+        "requires_restart": False
+    },
+    "dhan_api_retry_count": {
+        "value": "1",
+        "description": "Dhan API retry count on failure",
+        "category": "dhan_api",
+        "data_type": "int",
+        "requires_restart": False
+    },
+    "dhan_api_retry_delay": {
+        "value": "0.2",
+        "description": "Dhan API retry delay in seconds",
+        "category": "dhan_api",
+        "data_type": "float",
+        "requires_restart": False
     }
 }
+
+
+@router.post("/test-connection/{service}")
+async def test_service_connection(
+    service: str,
+    admin = Depends(get_current_admin_user)
+):
+    """
+    Test connectivity to infrastructure services.
+    
+    Supported services: redis, database, kafka
+    Returns connection status, latency, and any error details.
+    """
+    import time
+    
+    result = {
+        "service": service,
+        "status": "unknown",
+        "latency_ms": None,
+        "details": None,
+        "error": None
+    }
+    
+    start_time = time.time()
+    
+    try:
+        if service == "redis":
+            # Test Redis connection
+            redis_client = await redis.from_url(settings.REDIS_URL)
+            pong = await redis_client.ping()
+            await redis_client.close()
+            
+            if pong:
+                result["status"] = "connected"
+                result["details"] = {"url": settings.REDIS_URL.split("@")[-1]}  # Hide password
+            else:
+                result["status"] = "failed"
+                result["error"] = "Redis ping failed"
+                
+        elif service == "database":
+            # Test Database connection
+            from core.database.pool import db_pool
+            from sqlalchemy import text
+            
+            async with db_pool.get_session() as session:
+                db_result = await session.execute(text("SELECT 1"))
+                db_result.scalar()
+                
+            result["status"] = "connected"
+            result["details"] = {
+                "pool_size": db_pool._pool_size if hasattr(db_pool, '_pool_size') else "N/A",
+                "url": settings.DATABASE_URL.split("@")[-1] if "@" in settings.DATABASE_URL else "N/A"
+            }
+            
+        elif service == "kafka":
+            # Test Kafka connection
+            from services.admin.services.kafka_manager import kafka_manager
+            
+            if kafka_manager._admin_client:
+                topics = await kafka_manager.list_topics()
+                result["status"] = "connected"
+                result["details"] = {"topics_count": len(topics)}
+            else:
+                # Try to connect
+                await kafka_manager.connect()
+                topics = await kafka_manager.list_topics()
+                result["status"] = "connected"
+                result["details"] = {"topics_count": len(topics)}
+                
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown service: {service}. Supported: redis, database, kafka"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        result["status"] = "failed"
+        result["error"] = str(e)
+        logger.error(f"Connection test failed for {service}: {e}")
+    
+    result["latency_ms"] = round((time.time() - start_time) * 1000, 2)
+    return result
 
 
 @router.get("", response_model=List[ConfigItem])

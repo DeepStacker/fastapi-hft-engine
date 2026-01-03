@@ -138,6 +138,8 @@ export const api = {
   deleteConfig: (key: string) => apiClient.delete(`/config/${key}`),
   initializeConfigs: () => apiClient.post('/config/initialize'),
   getConfigCategories: () => apiClient.get('/config/categories'),
+  testConnection: (service: 'redis' | 'database' | 'kafka') =>
+    apiClient.post(`/config/test-connection/${service}`),
 
   // Kafka
   getKafkaTopics: () => apiClient.get('/kafka/topics'),
@@ -205,8 +207,44 @@ export const api = {
     type?: string,
     target: 'all' | 'user',
     user_email?: string,
-    link?: string
+    link?: string,
+    template_id?: string
   }) => apiClient.post('/notifications/broadcast', data),
+
+  // Notification History
+  getNotificationHistory: (params?: { page?: number, limit?: number, type?: string, target?: string }) =>
+    apiClient.get('/notifications/history', { params }),
+  deleteHistoryEntry: (historyId: string) =>
+    apiClient.delete(`/notifications/history/${historyId}`),
+  bulkDeleteHistory: (ids: string[]) =>
+    apiClient.delete('/notifications/history/bulk', { data: { notification_ids: ids } }),
+
+  // Notification Templates
+  getNotificationTemplates: () => apiClient.get('/notifications/templates'),
+  createNotificationTemplate: (template: {
+    name: string,
+    title: string,
+    message: string,
+    type?: string,
+    link?: string
+  }) => apiClient.post('/notifications/templates', template),
+  updateNotificationTemplate: (id: string, template: {
+    name?: string,
+    title?: string,
+    message?: string,
+    type?: string,
+    link?: string
+  }) => apiClient.put(`/notifications/templates/${id}`, template),
+  deleteNotificationTemplate: (id: string) =>
+    apiClient.delete(`/notifications/templates/${id}`),
+
+  // Notification Analytics
+  getNotificationAnalytics: (days: number = 30) =>
+    apiClient.get('/notifications/analytics', { params: { days } }),
+
+  // Bulk Operations
+  bulkDeleteNotifications: (ids: string[]) =>
+    apiClient.delete('/notifications/bulk', { data: { notification_ids: ids } }),
 };
 
 // Export as both 'api' and 'adminAPI' for compatibility

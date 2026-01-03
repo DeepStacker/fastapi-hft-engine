@@ -98,6 +98,15 @@ async def startup():
         # Initialize Database Pool
         await db_pool.initialize()
         logger.info("Database pool initialized")
+        
+        # Seed default configurations
+        try:
+            from services.admin.services.seed_configs import seed_default_configs
+            result = await seed_default_configs()
+            if result["created"] > 0:
+                logger.info(f"Seeded {result['created']} default configurations")
+        except Exception as seed_error:
+            logger.warning(f"Configuration seeding failed: {seed_error}")
     except Exception as e:
         logger.error(f"Failed to initialize database pool: {e}")
         # Critical failure - let it crash or handle graceful degradation?
