@@ -10,7 +10,12 @@ import {
     PlusIcon,
     XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { selectIsAuthenticated } from '../context/selectors';
+import {
+    selectIsAuthenticated,
+    selectSid,
+    selectExpSid,
+    selectData
+} from '../context/selectors';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import { analyticsService } from '../services/analyticsService';
@@ -264,9 +269,10 @@ MiniOptionChain.displayName = 'MiniOptionChain';
 const SplitView = () => {
     const isAuthenticated = useSelector(selectIsAuthenticated);
     const navigate = useNavigate();
-    const selectedSymbol = useSelector((state) => state.optionChain.selectedSymbol) || 'NIFTY';
-    const selectedExpiry = useSelector((state) => state.optionChain.selectedExpiry);
-    const optionChainData = useSelector((state) => state.optionChain.data);
+    const selectedSymbol = useSelector(selectSid) || 'NIFTY';
+    const selectedExpiry = useSelector(selectExpSid);
+    const data = useSelector(selectData);
+    const optionChainData = data?.options?.data;
 
     // Chart panels state
     const [panels, setPanels] = useState([
