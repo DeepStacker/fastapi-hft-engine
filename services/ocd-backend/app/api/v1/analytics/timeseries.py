@@ -70,6 +70,79 @@ async def get_analytics_service(
     return OptionsService(dhan_client=dhan, cache=cache, db=db)
 
 
+    return OptionsService(dhan_client=dhan, cache=cache, db=db)
+
+
+def normalize_interval(interval_str: str) -> tuple[str, int]:
+    """
+    Normalize interval string to Postgres format and seconds.
+    Example: '5m' -> ('5 minutes', 300)
+             '30s' -> ('30 seconds', 30)
+    """
+    if not interval_str or interval_str == "auto":
+        return ("5 minutes", 300)
+        
+    unit_map = {"s": "seconds", "m": "minutes", "h": "hours", "d": "days"}
+    unit_char = interval_str[-1]
+    
+    if unit_char not in unit_map or not interval_str[:-1].isdigit():
+        # Fallback for old format or invalid
+        if interval_str.isdigit(): # Assumes minutes if just number
+             val = int(interval_str)
+             return (f"{val} minutes", val * 60)
+        return ("5 minutes", 300)
+        
+    value = int(interval_str[:-1])
+    unit = unit_map[unit_char]
+    
+    # Calculate seconds
+    seconds_map = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+    seconds = value * seconds_map[unit_char]
+    
+    return (f"{value} {unit}", seconds)
+
+
+def calculate_smart_interval(start_time: datetime, end_time: datetime) -> tuple[str, int]:
+    """
+    Calculate dynamic smart interval based on query duration.
+    Returns (postgres_interval_string, interval_seconds)
+    
+    Logic (ultra-granular for short durations):
+    < 3 mins    -> 1 sec   (up to 180 points)
+    < 5 mins    -> 2 sec   (up to 150 points)
+    < 10 mins   -> 5 sec   (up to 120 points)
+    < 30 mins   -> 15 sec  (up to 120 points)
+    < 1 hour    -> 30 sec  (up to 120 points)
+    < 3 hours   -> 1 min   (up to 180 points)
+    3 - 8 hours -> 3 min   (up to 100 points)
+    8 - 24 hours -> 5 min  (up to 192 points)
+    > 24 hours  -> 15 min
+    """
+    if not start_time or not end_time:
+        return ("5 minutes", 300)
+        
+    duration_seconds = (end_time - start_time).total_seconds()
+    
+    if duration_seconds <= 180:            # < 3 mins
+        return ("1 second", 1)
+    elif duration_seconds <= 300:          # < 5 mins
+        return ("2 seconds", 2)
+    elif duration_seconds <= 600:          # < 10 mins
+        return ("5 seconds", 5)
+    elif duration_seconds <= 1800:         # < 30 mins
+        return ("15 seconds", 15)
+    elif duration_seconds <= 3600:         # < 1 hour
+        return ("30 seconds", 30)
+    elif duration_seconds <= 3 * 3600:     # < 3 hours
+        return ("1 minute", 60)
+    elif duration_seconds <= 8 * 3600:     # < 8 hours
+        return ("3 minutes", 180)
+    elif duration_seconds <= 24 * 3600:    # < 24 hours
+        return ("5 minutes", 300)
+    else:                                  # > 24 hours
+        return ("15 minutes", 900)
+
+
 # ============== Endpoints ==============
 
 # NOTE: Spot endpoint MUST be defined before strike endpoint because FastAPI
@@ -79,7 +152,7 @@ async def get_analytics_service(
 @router.get("/timeseries/spot/{symbol}")
 async def get_spot_timeseries(
     symbol: str,
-    interval: str = Query("5m", regex="^(1m|5m|15m|1h|1d)$"),
+    interval: str = Query("auto", regex="^(auto|\d+[smhd])$"),
     limit: int = Query(100, ge=10, le=500),
     date: Optional[str] = Query(None, description="Trade date YYYY-MM-DD"),
     current_user: OptionalUser = None,
@@ -100,16 +173,45 @@ async def get_spot_timeseries(
     else:
         target_date = now.date()
         
-    # Approximation for interval parsing
-    minutes_map = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "1d": 1440}
-    interval_minutes = minutes_map.get(interval, 5)
+    start_time = None
+    end_time = now
+    
+    # Determine Time Range and Interval
+    pg_interval = "5 minutes"
+    interval_seconds = 300
     
     if date and target_date < now.date():
+        # Historical fixed date
         start_time = datetime.combine(target_date, dt_time.min)
         end_time = datetime.combine(target_date, dt_time.max)
     else:
-        start_time = now - timedelta(minutes=limit * interval_minutes)
+        # Live/Today relative
         end_time = now
+        # Will calculate start_time after knowing interval if not set
+
+    if interval == "auto":
+        # If we have fixed start/end (historical), calc based on that duration
+        if start_time:
+             pg_interval, interval_seconds = calculate_smart_interval(start_time, end_time)
+        else:
+             # For relative query (limit based), we need a default to calc start time OR just pick a default
+             # Default to 5m logic for initial window estimation? No, standard is limit*interval.
+             # Let's assume 5m for "auto" limit calc if no history, OR we can default to 1m?
+             # Better: Use 5m default for limit calc, then refine? 
+             # Actually, if auto and no date, we likely want "recent trend".
+             # Let's default to "5 minutes" (Last 500 mins) to capture enough data, then refine?
+             # No, if user just says "auto" with limit=100, they want 100 *optimal* points.
+             # This is circular. Let's default to 5m for limit base.
+             pg_interval, interval_seconds = ("5 minutes", 300)
+             start_time = now - timedelta(seconds=limit * interval_seconds)
+             # Now recalculate based on this duration?
+             pg_interval, interval_seconds = calculate_smart_interval(start_time, end_time)
+             # Recalc start time with new interval
+             start_time = now - timedelta(seconds=limit * interval_seconds)
+    else:
+        pg_interval, interval_seconds = normalize_interval(interval)
+        if not start_time:
+             start_time = now - timedelta(seconds=limit * interval_seconds)
     
     # Get symbol ID
     symbol_id = await repo.get_symbol_id(symbol)
@@ -126,7 +228,7 @@ async def get_spot_timeseries(
         symbol_id=symbol_id,
         start_time=start_time,
         end_time=end_time,
-        interval_minutes=interval_minutes
+        interval=pg_interval
     )
     
     # Fallback to current live price if history is empty (e.g. fresh deployment)
@@ -178,7 +280,7 @@ async def get_strike_timeseries(
     strike: float,
     option_type: str = Query("CE", regex="^(CE|PE)$"),
     field: str = Query("oi", regex="^(oi|oi_change|ltp|iv|volume|delta|theta|gamma|vega)$"),
-    interval: str = Query("5m", regex="^(1m|5m|15m|1h|1d)$"),
+    interval: str = Query("auto", regex="^(auto|\d+[smhd])$"),
     limit: int = Query(50, ge=10, le=500),
     expiry: str = Query(..., description="Expiry date YYYY-MM-DD"),
     date: Optional[str] = Query(None, description="Trade date YYYY-MM-DD"),
@@ -193,8 +295,6 @@ async def get_strike_timeseries(
     repo = get_historical_repository(db)
     
     # Calculate time range (Use naive IST to match DB)
-    minutes_map = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "1d": 1440}
-    interval_minutes = minutes_map.get(interval, 5)
     
     # DB timestamps are stored as naive IST (wall clock)
     now = get_ist_now().replace(tzinfo=None)
@@ -227,6 +327,14 @@ async def get_strike_timeseries(
         else:
             end_time = min(now, market_close)
 
+    # Determine interval (Smart or Fixed)
+    pg_interval = "5 minutes"
+    if interval == "auto":
+        pg_interval, interval_secs = calculate_smart_interval(start_time, end_time)
+        logger.info(f"Smart interval calculated: {pg_interval} for duration {(end_time-start_time)}")
+    else:
+        pg_interval, _ = normalize_interval(interval)
+
     # Get symbol ID
     symbol_id = await repo.get_symbol_id(symbol)
     if not symbol_id:
@@ -246,7 +354,7 @@ async def get_strike_timeseries(
         field=field,
         start_time=start_time,
         end_time=end_time,
-        interval_minutes=interval_minutes
+        interval=pg_interval
     )
 
     # Fallback: Check if expiry needs conversion (ISO -> Unix Timestamp)
@@ -255,12 +363,19 @@ async def get_strike_timeseries(
     # The DB often stores expiry as Unix timestamp string (e.g. "1767119400")
     if not timeseries and "-" in expiry:
         try:
-            # Convert YYYY-MM-DD to Noon IST Timestamp (matching get_expiry_dates)
+            # Convert YYYY-MM-DD to 15:30 IST Timestamp (matching storage service)
             dt = datetime.strptime(expiry, "%Y-%m-%d")
             
-            # Use 12:00 IST (Noon) to match keys in storage
-            dt_ist = datetime.combine(dt.date(), dt_time(12, 0)).replace(tzinfo=IST)
+            # Use 15:30 IST (Market Close) to match keys in storage
+            dt_naive = datetime.combine(dt.date(), dt_time(15, 30))
+            if hasattr(IST, "localize"):
+                dt_ist = IST.localize(dt_naive)
+            else:
+                dt_ist = dt_naive.replace(tzinfo=IST)
+                
             unix_expiry = str(int(dt_ist.timestamp()))
+            
+            logger.info(f"[Retry] Converted expiry {expiry} -> {unix_expiry}")
             
             timeseries = await repo.get_option_timeseries(
                 symbol_id=symbol_id,
@@ -270,7 +385,7 @@ async def get_strike_timeseries(
                 field=field,
                 start_time=start_time,
                 end_time=end_time,
-                interval_minutes=interval_minutes
+                interval=pg_interval
             )
         except Exception:
             pass  # Use original expiry
@@ -358,7 +473,7 @@ async def get_strike_multiview_timeseries(
     symbol: str,
     strike: float,
     field: str = Query("oi", regex="^(oi|oi_change|ltp|iv|volume|delta|theta|gamma|vega)$"),
-    interval: str = Query("5m", regex="^(1m|5m|15m|1h|1d)$"),
+    interval: str = Query("auto", regex="^(auto|\d+[smhd])$"),
     expiry: str = Query(..., description="Expiry date YYYY-MM-DD"),
     date: Optional[str] = Query(None, description="Trade date YYYY-MM-DD"),
     current_user: OptionalUser = None,
@@ -374,7 +489,6 @@ async def get_strike_multiview_timeseries(
     
     # Calculate time range
     minutes_map = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "1d": 1440}
-    interval_minutes = minutes_map.get(interval, 5)
     
     # Get current time in IST (timezone-aware)
     now_ist = get_ist_now()
@@ -391,18 +505,23 @@ async def get_strike_multiview_timeseries(
     is_commodity = symbol.upper() in COMMODITY_SYMBOLS
     
     # Create timezone-aware market open/close times in IST
-    market_open_ist = datetime.combine(target_date, datetime.strptime("09:15", "%H:%M").time()).replace(tzinfo=IST)
-    market_close_ist = datetime.combine(target_date, datetime.strptime("15:30", "%H:%M").time()).replace(tzinfo=IST)
+    market_open_naive = datetime.combine(target_date, datetime.strptime("09:15", "%H:%M").time())
+    market_close_naive = datetime.combine(target_date, datetime.strptime("15:30", "%H:%M").time())
+    
+    if hasattr(IST, "localize"):
+        market_open_ist = IST.localize(market_open_naive)
+        market_close_ist = IST.localize(market_close_naive)
+    else:
+        market_open_ist = market_open_naive.replace(tzinfo=IST)
+        market_close_ist = market_close_naive.replace(tzinfo=IST)
     
     # Start time: Market open (9:15 AM IST) for intraday data
     start_time_ist = market_open_ist
     
     # End time: Min(current time, market close) for today; Full day for historical
     if target_date < now_ist.date():
-        # Historical date - use full market hours
         end_time_ist = market_close_ist
     elif target_date == now_ist.date():
-        # Today - use current time capped at market close (or beyond for commodities)
         if is_commodity:
             end_time_ist = now_ist
         else:
@@ -411,10 +530,19 @@ async def get_strike_multiview_timeseries(
         # Future date - no data expected
         end_time_ist = market_close_ist
     
-    # Convert to UTC for database query (DB stores timestamps in UTC)
-    from datetime import timezone
-    start_time = start_time_ist.astimezone(timezone.utc).replace(tzinfo=None)
-    end_time = end_time_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    # Determine interval (Smart or Fixed)
+    pg_interval = "5 minutes"
+    if interval == "auto":
+        # For auto mode, use finest granularity (1 second) to maximize data points
+        # This ensures we get all available data regardless of query window size
+        pg_interval = "1 second"
+        logger.info(f"Auto interval: using 1 second resolution for MultiView")
+    else:
+        pg_interval, _ = normalize_interval(interval)
+    
+    # Use naive IST times for database query (DB stores timestamps as naive IST, not UTC)
+    start_time = start_time_ist.replace(tzinfo=None)
+    end_time = end_time_ist.replace(tzinfo=None)
     
     # Get symbol ID
     symbol_id = await repo.get_symbol_id(symbol)
@@ -444,41 +572,54 @@ async def get_strike_multiview_timeseries(
     
     # Convert expiry if needed
     query_expiry = expiry
-    # Normalize YYYY-MM-DD to Noon IST Timestamp if needed
+    # Normalize YYYY-MM-DD to 15:30 IST Timestamp if needed
     if "-" in expiry:
         try:
             dt = datetime.strptime(expiry, "%Y-%m-%d")
-            # Align to Noon IST
-            dt_ist = datetime.combine(dt.date(), dt_time(12, 0)).replace(tzinfo=IST)
+            # Align to 15:30 IST (Market Close)
+            dt_naive = datetime.combine(dt.date(), dt_time(15, 30))
+            
+            if hasattr(IST, "localize"):
+                dt_ist = IST.localize(dt_naive)
+            else:
+                dt_ist = dt_naive.replace(tzinfo=IST)
+                
             query_expiry = str(int(dt_ist.timestamp()))
-        except Exception:
+            logger.info(f"Normalized expiry {expiry} -> {query_expiry}")
+        except Exception as e:
+            logger.error(f"Error checking expiry format: {e}")
             pass  # Use original expiry
     
     # Smart expiry fallback: if requested expiry doesn't match DB, use first available
     if sample_expiries and str(query_expiry) not in [str(e) for e in sample_expiries]:
+        logger.warning(f"Expiry mismatch! Requested: {query_expiry}, Available: {sample_expiries}")
         try:
             requested_ts = int(query_expiry) if query_expiry.isdigit() else 0
             for db_expiry in sample_expiries:
-                if abs(db_expiry - requested_ts) < 86400:  # Within 24 hours
+                # Widen tolerance to 48 hours+ (since NIFTY Jan 6 vs Jan 8 bug exists)
+                if abs(db_expiry - requested_ts) < 180000:  # Within ~50 hours
                     query_expiry = str(db_expiry)
+                    logger.info(f"Fallback to nearby expiry: {query_expiry}")
                     break
             else:
                 # No close match, use first available
                 query_expiry = str(sample_expiries[0])
-        except Exception:
-            pass  # Continue with original expiry
+                logger.info(f"Fallback to first available expiry: {query_expiry}")
+        except Exception as e:
+             logger.error(f"Fallback logic error: {e}")
+             pass  # Continue with original expiry
     
     # Fetch CE and PE data
     ce_data = await repo.get_option_timeseries(
         symbol_id=symbol_id, strike=strike, option_type="CE",
         expiry=query_expiry, field=field, start_time=start_time,
-        end_time=end_time, interval_minutes=interval_minutes
+        end_time=end_time, interval=pg_interval
     )
     
     pe_data = await repo.get_option_timeseries(
         symbol_id=symbol_id, strike=strike, option_type="PE",
         expiry=query_expiry, field=field, start_time=start_time,
-        end_time=end_time, interval_minutes=interval_minutes
+        end_time=end_time, interval=pg_interval
     )
     
     # If no data and query_expiry was converted, try with original expiry string
@@ -486,12 +627,12 @@ async def get_strike_multiview_timeseries(
         ce_data = await repo.get_option_timeseries(
             symbol_id=symbol_id, strike=strike, option_type="CE",
             expiry=expiry, field=field, start_time=start_time,
-            end_time=end_time, interval_minutes=interval_minutes
+            end_time=end_time, interval=pg_interval
         )
         pe_data = await repo.get_option_timeseries(
             symbol_id=symbol_id, strike=strike, option_type="PE",
             expiry=expiry, field=field, start_time=start_time,
-            end_time=end_time, interval_minutes=interval_minutes
+            end_time=end_time, interval=pg_interval
         )
 
     

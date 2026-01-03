@@ -281,8 +281,9 @@ async def process_message(msg: dict, span=None):
         if isinstance(expiry_val, str) and "-" in expiry_val:
             try:
                 dt = datetime.strptime(expiry_val, "%Y-%m-%d")
-                # Normalize to 18:30 UTC / 00:00 IST for current expiry definition
-                dt_utc = dt.replace(hour=18, minute=30, tzinfo=timezone.utc)
+                # Store as IST 15:30 (market close) = UTC 10:00 same day
+                # This ensures correct date when converting back from timestamp to IST
+                dt_utc = dt.replace(hour=10, minute=0, tzinfo=timezone.utc)
                 expiry_val = int(dt_utc.timestamp())
             except ValueError:
                 pass
@@ -292,15 +293,10 @@ async def process_message(msg: dict, span=None):
             strike_key = f"{option.get('strike', 0)}_{option.get('option_type', 'CE')}"
             trade_date = timestamp.date()  # Derive trade_date from timestamp
             
-            # Use top-level expiry if option record lacks one
-            record_expiry = option.get("expiry") or expiry_val
-            if isinstance(record_expiry, str) and "-" in record_expiry:
-                try:
-                    dt = datetime.strptime(record_expiry, "%Y-%m-%d")
-                    dt_utc = dt.replace(hour=18, minute=30, tzinfo=timezone.utc)
-                    record_expiry = int(dt_utc.timestamp())
-                except ValueError:
-                    pass
+            # IMPORTANT: Always use top-level expiry from message (current expiry only)
+            # Individual option records may contain different expiries (weekly/monthly/far-month)
+            # but we only want to store data for the CURRENT expiry that was requested
+            record_expiry = expiry_val  # Use top-level expiry ONLY
 
             option_record = {
                 "timestamp": timestamp,

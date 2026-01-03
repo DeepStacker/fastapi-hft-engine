@@ -27,7 +27,7 @@ export const analyticsService = {
         expiry,
         optionType = 'CE',
         field = 'oi',
-        interval = '5m',
+        interval = 'auto',
         limit = 50,
         date = null,
     }) => {
@@ -61,7 +61,7 @@ export const analyticsService = {
         strike,
         expiry,
         field = 'oi',
-        interval = '5m',
+        interval = 'auto',
         date = null,
     }) => {
         const response = await apiClient.get(
@@ -85,7 +85,7 @@ export const analyticsService = {
      * @param {string} [params.interval='5m'] - Time interval
      * @param {number} [params.limit=100] - Number of data points
      */
-    getSpotTimeSeries: async ({ symbol, interval = '5m', limit = 100 }) => {
+    getSpotTimeSeries: async ({ symbol, interval = 'auto', limit = 100 }) => {
         const response = await apiClient.get(
             `${ANALYTICS_BASE}/timeseries/spot/${symbol}`,
             {

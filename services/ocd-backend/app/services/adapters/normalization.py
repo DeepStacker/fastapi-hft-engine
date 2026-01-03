@@ -161,7 +161,8 @@ def normalize_data(
     if requested_expiry:
         expiry = requested_expiry
     else:
-        raw_expiry = hft_data.get("expiry", "")
+        # Check both top-level and context for expiry
+        raw_expiry = hft_data.get("expiry") or context.get("expiry", "")
         expiry = format_expiry_date(raw_expiry, expiry_list)
     
     if futures_data:

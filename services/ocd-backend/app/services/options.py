@@ -237,12 +237,14 @@ class OptionsService:
             "_source": chain_data.get("_source", "dhan_api"),
         }
         
-        # Async Persistence
-        if self.repository:
-             try:
-                 await self.repository.save_snapshot(result_data)
-             except Exception as e:
-                 logger.error(f"Snapshot persistence warning: {e}")
+        # Async Persistence - DISABLED
+        # Data persistence is now handled exclusively by the Ingestion Service pipeline.
+        # Implicit persistence here causes duplicate data and writes from read-only API calls.
+        # if self.repository:
+        #      try:
+        #          await self.repository.save_snapshot(result_data)
+        #      except Exception as e:
+        #          logger.error(f"Snapshot persistence warning: {e}")
              
         return result_data
 

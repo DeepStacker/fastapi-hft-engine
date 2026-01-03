@@ -17,8 +17,9 @@ def get_time_diff_in_days(expiry_timestamp: int) -> int:
     Returns:
         Number of days to expiry (minimum 0)
     """
-    expiry_date = datetime.fromtimestamp(expiry_timestamp)
-    now = datetime.now()
+    ist = pytz.timezone("Asia/Kolkata")
+    expiry_date = datetime.fromtimestamp(expiry_timestamp, ist)
+    now = datetime.now(ist)
     diff = (expiry_date - now).days
     return max(0, diff)
 
@@ -37,8 +38,9 @@ def calculate_time_to_expiry(
     Returns:
         Tuple of (days, years)
     """
-    expiry_date = datetime.fromtimestamp(expiry_timestamp)
-    now = datetime.now()
+    ist = pytz.timezone("Asia/Kolkata")
+    expiry_date = datetime.fromtimestamp(expiry_timestamp, ist)
+    now = datetime.now(ist)
     diff = expiry_date - now
     
     days = diff.days
@@ -104,5 +106,6 @@ def format_expiry_date(timestamp: int) -> str:
     Returns:
         Formatted date string (e.g., "12-Dec-2024")
     """
-    dt = datetime.fromtimestamp(timestamp)
+    ist = pytz.timezone("Asia/Kolkata")
+    dt = datetime.fromtimestamp(timestamp, ist)
     return dt.strftime("%d-%b-%Y")

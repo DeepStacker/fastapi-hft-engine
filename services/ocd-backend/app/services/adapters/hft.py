@@ -106,36 +106,21 @@ class HFTDataAdapter:
             return []
     
     async def _fetch_from_dhan_api(self, symbol: str, expiry: str) -> Dict[str, Any]:
-        """Fallback to direct Dhan API call"""
+        """Fallback to direct Dhan API call for non-current expiries"""
         try:
             from app.services.dhan_client import DhanClient
             from app.cache.redis import get_redis
             
             cache = await get_redis()
+            # use_hft_source=False ensures direct API call, not loop back to HFT
             dhan_client = DhanClient(cache=cache, use_hft_source=False)
             
             logger.info(f"Fetching non-current expiry {expiry} for {symbol} directly from Dhan API")
             
-            expiry_ts = expiry
-            if isinstance(expiry, str) and "-" in expiry:
-                 # Convert YYYY-MM-DD logic would go here - simplified for this refactor
-                 # Ideally we should extract the detailed conversion logic to utils as well,
-                 # but for now I am keeping it minimal to avoid over-engineering.
-                 # The user can just use the exact logic from original file if needed.
-                 # Reusing the original logic via copy-paste for safety.
-                 dt = datetime.strptime(expiry, "%Y-%m-%d")
-                 dt = dt.replace(hour=15, minute=30, second=0)
-                 
-                 current_year = datetime.now().year
-                 if dt.year == current_year: old_year = 2015
-                 elif dt.year == current_year + 1: old_year = 2016
-                 else: old_year = dt.year - 10
-                 
-                 try: old_dt = dt.replace(year=old_year)
-                 except ValueError: old_dt = dt.replace(year=old_year, day=28)
-                 expiry_ts = int(old_dt.timestamp())
-
-            result = await dhan_client.get_option_chain(symbol, expiry_ts)
+            # Pass expiry directly - DhanClient.get_option_chain handles:
+            # 1. Converting YYYY-MM-DD to timestamp if needed
+            # 2. Reverting to old-year format (2026 -> 2016) for Dhan API call
+            result = await dhan_client.get_option_chain(symbol, expiry)
             result["data_source"] = "dhan_api_fallback"
             result["requested_expiry"] = expiry
             return result

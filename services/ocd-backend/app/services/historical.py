@@ -108,7 +108,13 @@ class HistoricalService:
             return []
         
         try:
+            # Get current timestamp to filter out future expiries
+            import time
+            current_ts = int(time.time())
+            
             # Query distinct expiries from option_contracts
+            # REMOVED: AND expiry <= :current_ts (This was hiding active contracts which have future expiry)
+            # We trust the DB to contain only relevant expiries now that ingestion is fixed.
             result = await self.db.execute(
                 text("""
                     SELECT DISTINCT expiry
@@ -116,6 +122,7 @@ class HistoricalService:
                     WHERE symbol_id = :symbol_id
                       AND expiry IS NOT NULL
                       AND expiry != 0
+                      AND expiry > 1000000
                     ORDER BY expiry DESC
                     LIMIT 20
                 """),
@@ -124,7 +131,10 @@ class HistoricalService:
             rows = result.fetchall()
             
             # Convert BigInt Timestamps to Date Strings (YYYY-MM-DD)
-            # Timestamps are 18:30 UTC (00:00 IST Next Day), so UTC date is correct
+            # Timestamps are stored at 10:00 UTC (15:30 IST), use IST for display
+            import pytz
+            ist = pytz.timezone("Asia/Kolkata")
+            
             expiries = []
             seen = set()
             for row in rows:
@@ -134,7 +144,7 @@ class HistoricalService:
                         ts = int(row[0])
                         if ts < 1000000: # Ignore logical 0/small ints
                             continue
-                        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+                        dt = datetime.fromtimestamp(ts, tz=ist)
                         date_str = dt.strftime('%Y-%m-%d')
                         if date_str not in seen:
                             expiries.append(date_str)
@@ -188,8 +198,8 @@ class HistoricalService:
                 if isinstance(expiry, str):
                     try:
                         dt = datetime.strptime(expiry, "%Y-%m-%d")
-                        # Set to 18:30 UTC (00:00 IST Next Day)
-                        dt_utc = dt.replace(hour=18, minute=30, tzinfo=timezone.utc)
+                        # Set to 10:00 UTC (15:30 IST) to preserve correct date when displayed
+                        dt_utc = dt.replace(hour=10, minute=0, tzinfo=timezone.utc)
                         expiry_ts = int(dt_utc.timestamp())
                     except ValueError:
                          pass
@@ -373,8 +383,8 @@ class HistoricalService:
             if isinstance(expiry, str) and len(expiry) == 10 and '-' in expiry:
                 try:
                     dt = datetime.strptime(expiry, "%Y-%m-%d")
-                    # Set to 18:30 UTC (00:00 IST Next Day) - Matches DB format
-                    dt_utc = dt.replace(hour=18, minute=30, tzinfo=timezone.utc)
+                    # Set to 10:00 UTC (15:30 IST) to preserve correct date when displayed
+                    dt_utc = dt.replace(hour=10, minute=0, tzinfo=timezone.utc)
                     expiry_val = int(dt_utc.timestamp())
                     logger.debug(f"Converted expiry date {expiry} to timestamp {expiry_val}")
                 except ValueError:

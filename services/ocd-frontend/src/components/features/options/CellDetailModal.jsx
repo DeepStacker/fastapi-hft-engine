@@ -914,7 +914,11 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData, symbol: propSymbol, e
     useEffect(() => {
         if (isOpen && propField) {
             const norm = getNormalizedField(propField);
-            if (norm !== selectedField) setSelectedField(norm);
+            if (norm !== selectedField) {
+                setSelectedField(norm);
+                // Reset timeSeriesData to prevent stale chart rendering
+                setTimeSeriesData(null);
+            }
         }
     }, [propField, isOpen]);
 
@@ -963,7 +967,7 @@ const CellDetailModal = memo(({ isOpen, onClose, cellData, symbol: propSymbol, e
                 strike: parseFloat(strike),
                 expiry, // This is the crucial expiry parameter
                 field: selectedField,
-                interval: '5m',
+                // Let the service use its default 'auto' interval for maximum granularity
                 date: queryDate, // Always pass a date (today for live, selected for historical)
             });
             console.log('[CellDetailModal] Multi-view API response:', data);

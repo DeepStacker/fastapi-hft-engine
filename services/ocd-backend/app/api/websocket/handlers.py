@@ -211,11 +211,12 @@ async def stream_hft_data(symbol: str):
                 # Success - reset error counter
                 consecutive_errors = 0
                 
-                # PERSISTENCE: Save snapshot every minute
-                current_time = datetime.now()
-                if (current_time - last_save_time).total_seconds() >= 60:
-                    asyncio.create_task(persist_snapshot(data))
-                    last_save_time = current_time
+                # PERSISTENCE: DISABLED - Data is persisted via ingestion pipeline only
+                # WebSocket persistence was causing duplicate writes and confusion
+                # current_time = datetime.now()
+                # if (current_time - last_save_time).total_seconds() >= 60:
+                #     asyncio.create_task(persist_snapshot(data))
+                #     last_save_time = current_time
                 
                 # Broadcast to all clients subscribed to this symbol
                 await broadcast_to_symbol(symbol, data)

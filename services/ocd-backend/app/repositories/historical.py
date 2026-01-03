@@ -65,7 +65,7 @@ class HistoricalDataRepository:
         field: str,
         start_time: datetime,
         end_time: datetime,
-        interval_minutes: int = 5,
+        interval: str = "5 minutes",
     ) -> List[TimeSeriesPoint]:
         """
         Get time-series data for a specific option contract.
@@ -78,7 +78,7 @@ class HistoricalDataRepository:
             field: Field to query (oi, ltp, iv, volume, delta, theta)
             start_time: Start of time range
             end_time: End of time range  
-            interval_minutes: Aggregation interval
+            interval: Aggregation interval (e.g. '5 minutes', '30 seconds')
             
         Returns:
             List of TimeSeriesPoint objects
@@ -102,7 +102,7 @@ class HistoricalDataRepository:
         query = (
             select(
                 func.time_bucket(
-                    text(f"'{interval_minutes} minutes'"),
+                    text(f"'{interval}'"),
                     OptionContractDB.timestamp
                 ).label("bucket"),
                 func.last(column, OptionContractDB.timestamp).label("value"),
@@ -131,14 +131,14 @@ class HistoricalDataRepository:
             
             for row in rows:
                 value = float(row.value) if row.value else 0.0
-                change = value - prev_value if prev_value is not None else None
-                change_pct = (change / prev_value * 100) if prev_value and prev_value != 0 else None
+                change = value - prev_value if prev_value is not None else 0.0
+                change_pct = (change / prev_value * 100) if prev_value and prev_value != 0 else 0.0
                 
                 points.append(TimeSeriesPoint(
                     timestamp=row.bucket,
                     value=value,
-                    change=round(change, 2) if change else None,
-                    change_percent=round(change_pct, 2) if change_pct else None,
+                    change=round(change, 2) if change is not None else 0.0,
+                    change_percent=round(change_pct, 2) if change_pct is not None else 0.0,
                 ))
                 prev_value = value
             
@@ -153,7 +153,7 @@ class HistoricalDataRepository:
         symbol_id: int,
         start_time: datetime,
         end_time: datetime,
-        interval_minutes: int = 5,
+        interval: str = "5 minutes",
     ) -> List[TimeSeriesPoint]:
         """
         Get spot price time-series from market snapshots.
@@ -163,7 +163,7 @@ class HistoricalDataRepository:
         query = (
             select(
                 func.time_bucket(
-                    text(f"'{interval_minutes} minutes'"),
+                    text(f"'{interval}'"),
                     MarketSnapshotDB.timestamp
                 ).label("bucket"),
                 func.first(MarketSnapshotDB.ltp, MarketSnapshotDB.timestamp).label("open"),
@@ -214,7 +214,7 @@ class HistoricalDataRepository:
         symbol_id: int,
         start_time: datetime,
         end_time: datetime,
-        interval_minutes: int = 5,
+        interval: str = "5 minutes",
     ) -> List[OHLCVPoint]:
         """
         Get OHLCV candlestick data for spot price.
@@ -222,7 +222,7 @@ class HistoricalDataRepository:
         query = (
             select(
                 func.time_bucket(
-                    text(f"'{interval_minutes} minutes'"),
+                    text(f"'{interval}'"),
                     MarketSnapshotDB.timestamp
                 ).label("bucket"),
                 func.first(MarketSnapshotDB.ltp, MarketSnapshotDB.timestamp).label("open"),
@@ -268,7 +268,7 @@ class HistoricalDataRepository:
         expiry: str,
         start_time: datetime,
         end_time: datetime,
-        interval_minutes: int = 5,
+        interval: str = "5 minutes",
     ) -> List[Dict[str, Any]]:
         """
         Get PCR history from PCRHistoryDB or calculate from option contracts.
@@ -277,7 +277,7 @@ class HistoricalDataRepository:
         query = (
             select(
                 func.time_bucket(
-                    text(f"'{interval_minutes} minutes'"),
+                    text(f"'{interval}'"),
                     PCRHistoryDB.timestamp
                 ).label("bucket"),
                 func.last(PCRHistoryDB.pcr_oi, PCRHistoryDB.timestamp).label("pcr_oi"),
@@ -407,7 +407,7 @@ class HistoricalDataRepository:
         self,
         symbol_id: int,
         date_str: str,
-        interval_minutes: int = 5,
+        interval: str = "5 minutes",
     ) -> List[str]:
         """
         Get available snapshot times for a specific date.
@@ -421,7 +421,7 @@ class HistoricalDataRepository:
             query = (
                 select(
                     func.time_bucket(
-                        text(f"'{interval_minutes} minutes'"),
+                        text(f"'{interval}'"),
                         MarketSnapshotDB.timestamp
                     ).label("bucket")
                 )

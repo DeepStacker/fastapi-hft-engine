@@ -3,6 +3,7 @@ HFT Adapter Utilities
 """
 from typing import List, Optional
 from datetime import datetime
+import pytz
 
 def format_expiry_date(expiry: str, expiry_list: List[int] = None) -> str:
     """
@@ -16,6 +17,8 @@ def format_expiry_date(expiry: str, expiry_list: List[int] = None) -> str:
     Returns:
         Formatted expiry string (YYYY-MM-DD)
     """
+    ist = pytz.timezone("Asia/Kolkata")
+    
     try:
         # If it looks like a date string already
         if expiry and len(str(expiry)) == 10 and '-' in str(expiry):
@@ -28,7 +31,7 @@ def format_expiry_date(expiry: str, expiry_list: List[int] = None) -> str:
         if expiry and str(expiry).isdigit():
             ts = int(expiry)
             if ts > 1700000000:  # Valid Unix timestamp (after 2023)
-                return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+                return datetime.fromtimestamp(ts, ist).strftime("%Y-%m-%d")
         
         # Use first expiry from list if available
         if expiry_list and len(expiry_list) > 0:
@@ -37,7 +40,7 @@ def format_expiry_date(expiry: str, expiry_list: List[int] = None) -> str:
             future_expiries = [e for e in expiry_list if e > now_ts]
             if future_expiries:
                 nearest = min(future_expiries)
-                return datetime.fromtimestamp(nearest).strftime("%Y-%m-%d")
+                return datetime.fromtimestamp(nearest, ist).strftime("%Y-%m-%d")
         
         # Return empty string if no valid expiry found
         return ""
