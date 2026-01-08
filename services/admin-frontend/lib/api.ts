@@ -262,6 +262,61 @@ export const api = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Community Moderation
+  // ═══════════════════════════════════════════════════════════════════
+
+  // Rooms
+  getCommunityRooms: () => apiClient.get('/community/rooms', { baseURL: 'http://localhost/api/v1' }),
+  getCommunityRoom: (slug: string) => apiClient.get(`/community/rooms/${slug}`, { baseURL: 'http://localhost/api/v1' }),
+  createCommunityRoom: (data: {
+    slug: string,
+    name: string,
+    description?: string,
+    room_type: string,
+    is_read_only?: boolean,
+    min_reputation_to_post?: number,
+    post_cooldown_seconds?: number,
+    allowed_roles?: string[],
+  }) => apiClient.post('/community/rooms', data, { baseURL: 'http://localhost/api/v1' }),
+  updateCommunityRoom: (roomId: number, data: any) =>
+    apiClient.patch(`/community/rooms/${roomId}`, data, { baseURL: 'http://localhost/api/v1' }),
+
+  // Posts
+  getCommunityPosts: (slug: string, params?: { page?: number, page_size?: number }) =>
+    apiClient.get(`/community/rooms/${slug}/posts`, { params, baseURL: 'http://localhost/api/v1' }),
+  getCommunityPost: (postId: number) =>
+    apiClient.get(`/community/posts/${postId}`, { baseURL: 'http://localhost/api/v1' }),
+  deleteCommunityPost: (postId: number) =>
+    apiClient.delete(`/community/posts/${postId}`, { baseURL: 'http://localhost/api/v1' }),
+  pinCommunityPost: (postId: number, isPinned: boolean) =>
+    apiClient.post(`/community/posts/${postId}/pin`, { is_pinned: isPinned }, { baseURL: 'http://localhost/api/v1' }),
+
+  // User Moderation
+  muteUser: (userId: string, durationHours: number, reason: string) =>
+    apiClient.post(`/community/users/${userId}/mute`, {
+      duration_hours: durationHours,
+      reason,
+    }, { baseURL: 'http://localhost/api/v1' }),
+  unmuteUser: (userId: string) =>
+    apiClient.post(`/community/users/${userId}/unmute`, {}, { baseURL: 'http://localhost/api/v1' }),
+  verifyTrader: (userId: string) =>
+    apiClient.post(`/community/users/${userId}/verify`, {}, { baseURL: 'http://localhost/api/v1' }),
+  getUserReputation: (userId: string) =>
+    apiClient.get(`/community/users/${userId}/reputation`, { baseURL: 'http://localhost/api/v1' }),
+
+  // Leaderboard
+  getCommunityLeaderboard: (limit: number = 50) =>
+    apiClient.get('/community/leaderboard', { params: { limit }, baseURL: 'http://localhost/api/v1' }),
+
+  // Feature Requests
+  getFeatureRequests: (params?: { page?: number, page_size?: number, status?: string }) =>
+    apiClient.get('/community/features', { params, baseURL: 'http://localhost/api/v1' }),
+  updateFeatureRequest: (featureId: number, data: {
+    status?: string,
+    admin_response?: string,
+  }) => apiClient.patch(`/community/features/${featureId}`, data, { baseURL: 'http://localhost/api/v1' }),
 };
 
 // Export as both 'api' and 'adminAPI' for compatibility

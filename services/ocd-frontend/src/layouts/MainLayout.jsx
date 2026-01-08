@@ -4,14 +4,24 @@ import { useSelector } from "react-redux";
 import Sidebar from "../components/layout/Sidebar";
 import Toast from "../components/common/Toast";
 import QuickSymbolSwitcher from "../components/common/QuickSymbolSwitcher";
+import CommandPalette from "../components/common/CommandPalette";
 import { motion } from "framer-motion";
 import { SidebarProvider, useSidebar } from "../context/SidebarContext";
+import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
 // Inner component that uses the sidebar context
 const MainContent = () => {
   const theme = useSelector((state) => state.theme.theme);
   const { sidebarWidth } = useSidebar();
   const [scrollY, setScrollY] = useState(0);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
+
+  // Initialize keyboard shortcuts
+  useKeyboardShortcuts({
+    onCommandPalette: () => setIsCommandPaletteOpen(true),
+    onHelp: () => setIsShortcutsHelpOpen(prev => !prev),
+  });
 
   // Scroll tracking
   useEffect(() => {
@@ -62,11 +72,10 @@ const MainContent = () => {
 
   return (
     <div
-      className={`min-h-screen relative bg-mesh-gradient transition-colors duration-500 ${
-        theme === "dark"
+      className={`min-h-screen relative bg-mesh-gradient transition-colors duration-500 ${theme === "dark"
           ? "text-white"
           : "text-gray-900"
-      }`}
+        }`}
     >
       {/* Background Pattern */}
       <BackgroundPattern />
@@ -102,6 +111,33 @@ const MainContent = () => {
       {/* Quick Symbol Switcher */}
       <QuickSymbolSwitcher />
 
+      {/* Command Palette - Global */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+      />
+
+      {/* Keyboard Shortcuts Help Tooltip */}
+      {isShortcutsHelpOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          className={`fixed bottom-4 right-4 p-4 rounded-xl shadow-2xl z-50 max-w-xs ${theme === 'dark' ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'
+            }`}
+        >
+          <h4 className="font-bold mb-3 text-sm">Keyboard Shortcuts</h4>
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between"><span className="text-gray-500">Command Palette</span><kbd className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 font-mono">⌘K</kbd></div>
+            <div className="flex justify-between"><span className="text-gray-500">Toggle Theme</span><kbd className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 font-mono">⌘D</kbd></div>
+            <div className="flex justify-between"><span className="text-gray-500">Dashboard</span><kbd className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 font-mono">1</kbd></div>
+            <div className="flex justify-between"><span className="text-gray-500">Option Chain</span><kbd className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 font-mono">2</kbd></div>
+            <div className="flex justify-between"><span className="text-gray-500">Analytics</span><kbd className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 font-mono">3</kbd></div>
+          </div>
+          <button onClick={() => setIsShortcutsHelpOpen(false)} className="mt-3 text-xs text-blue-500 hover:underline">Close (Esc)</button>
+        </motion.div>
+      )}
+
       {/* Scroll Progress Indicator */}
       <motion.div
         className="fixed top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transform-gpu z-[60]"
@@ -125,5 +161,3 @@ const MainLayout = () => {
 };
 
 export default MainLayout;
-
-

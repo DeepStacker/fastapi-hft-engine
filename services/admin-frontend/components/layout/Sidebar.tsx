@@ -20,7 +20,11 @@ import {
   Users,
   History,
   Bell,
-  HardDrive
+  HardDrive,
+  Sliders,
+  HeadphonesIcon,
+  Shield,
+  TrendingUp,
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,8 +35,13 @@ const navSections = [
     items: [
       { name: 'Dashboard', href: '/', icon: LayoutDashboard },
       { name: 'Traders', href: '/traders', icon: Users },
-      { name: 'Support', href: '/support', icon: MessageSquare },
-      { name: 'Notifications', href: '/notifications', icon: Bell },
+    ],
+  },
+  {
+    title: 'Community',
+    items: [
+      { name: 'Moderation', href: '/community', icon: Shield },
+      { name: 'Analytics', href: '/community/analytics', icon: TrendingUp },
     ],
   },
   {
@@ -45,7 +54,7 @@ const navSections = [
     ],
   },
   {
-    title: 'Management',
+    title: 'Infrastructure',
     items: [
       { name: 'Orchestration', href: '/orchestration', icon: Box },
       { name: 'Kafka', href: '/kafka', icon: MessageSquare },
@@ -54,11 +63,19 @@ const navSections = [
     ],
   },
   {
-    title: 'Settings',
+    title: 'Configuration',
     items: [
-      { name: 'Configuration', href: '/config', icon: Settings },
-      { name: 'Infrastructure', href: '/infrastructure', icon: HardDrive },
+      { name: 'App Settings', href: '/settings', icon: Sliders },
+      { name: 'System Config', href: '/config', icon: Settings },
+      { name: 'Infra Config', href: '/infrastructure', icon: HardDrive },
       { name: 'Dhan Tokens', href: '/dhan-tokens', icon: Key },
+    ],
+  },
+  {
+    title: 'Support',
+    items: [
+      { name: 'Tickets', href: '/support', icon: HeadphonesIcon },
+      { name: 'Notifications', href: '/notifications', icon: Bell },
     ],
   },
 ];

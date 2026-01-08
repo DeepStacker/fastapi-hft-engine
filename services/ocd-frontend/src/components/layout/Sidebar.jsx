@@ -25,6 +25,7 @@ import {
   BanknotesIcon,
   ArrowTrendingUpIcon,
   TicketIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import { BellIcon as BellIconSolid } from "@heroicons/react/24/solid";
 import { notificationService } from "../../services/notificationService";
@@ -90,6 +91,7 @@ const Sidebar = () => {
       title: "Trading",
       items: [
         { name: "Option Chain", path: "/option-chain", icon: TableCellsIcon, badge: "Live", badgeColor: "bg-green-500" },
+        { name: "Traders Hub", path: "/community", icon: UserGroupIcon, badge: "New", badgeColor: "bg-amber-500" },
         { name: "Analytics", path: "/analytics", icon: ChartPieIcon, badge: "Pro", badgeColor: "bg-purple-500" },
         { name: "Historical", path: "/historical", icon: ClockIcon, badge: null },
         { name: "Split View", path: "/split-view", icon: Squares2X2Icon, badge: null },

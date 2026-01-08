@@ -1,7 +1,13 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+/**
+ * Multi-Symbol Screeners Page
+ * Scans ALL symbols (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY) for trading signals
+ * Professional-grade screener with filters and symbol tabs
+ */
+import { useState, memo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
     BoltIcon,
     ChartBarIcon,
@@ -9,97 +15,122 @@ import {
     ArrowPathIcon,
     ArrowTrendingUpIcon,
     ArrowTrendingDownIcon,
+    FunnelIcon,
+    SparklesIcon,
 } from '@heroicons/react/24/outline';
-import { selectIsAuthenticated, selectSelectedSymbol, selectSelectedExpiry } from '../context/selectors';
+import { selectIsAuthenticated } from '../context/selectors';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
-import { screenerService } from '../services/screenerService';
+import useMultiSymbolScreener from '../hooks/useMultiSymbolScreener';
 
 /**
  * Signal Card Component - Individual screener signal
  */
 const SignalCard = memo(({ signal }) => {
+    const navigate = useNavigate();
     const isBuy = signal.signal === 'BUY';
+    const theme = useSelector((state) => state.theme.theme);
+    const isDark = theme === 'dark';
+
+    // Symbol colors
+    const symbolColors = {
+        NIFTY: 'from-blue-600 to-cyan-500',
+        BANKNIFTY: 'from-purple-600 to-fuchsia-500',
+        FINNIFTY: 'from-green-600 to-emerald-500',
+        MIDCPNIFTY: 'from-amber-600 to-orange-500',
+    };
 
     return (
-        <Card variant="glass" className="p-4 hover:shadow-lg transition-shadow">
-            <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${signal.option_type === 'CE'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ scale: 1.02 }}
+            onClick={() => navigate(`/option-chain?symbol=${signal.symbol}`)}
+            className="cursor-pointer"
+        >
+            <Card variant="glass" className="p-4 hover:shadow-lg transition-shadow">
+                <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        {/* Symbol Badge */}
+                        <span className={`px-2 py-1 rounded text-xs font-bold text-white bg-gradient-to-r ${symbolColors[signal.symbol] || 'from-gray-600 to-slate-600'}`}>
+                            {signal.symbol}
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${signal.option_type === 'CE'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                            }`}>
+                            {signal.option_type}
+                        </span>
+                        <span className="font-semibold text-gray-900 dark:text-white">
+                            {signal.strike}
+                        </span>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-sm font-bold ${isBuy
+                        ? 'bg-green-500 text-white'
+                        : 'bg-red-500 text-white'
                         }`}>
-                        {signal.option_type}
-                    </span>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                        {signal.strike}
-                    </span>
-                </div>
-                <div className={`px-3 py-1 rounded-full text-sm font-bold ${isBuy
-                    ? 'bg-green-500 text-white'
-                    : 'bg-red-500 text-white'
-                    }`}>
-                    {signal.signal}
-                </div>
-            </div>
-
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                {signal.reason}
-            </p>
-
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2">
-                    <div className="text-gray-500">Entry</div>
-                    <div className="font-semibold text-gray-900 dark:text-white">
-                        ₹{signal.entry_price.toFixed(2)}
+                        {signal.signal}
                     </div>
                 </div>
-                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
-                    <div className="text-green-600">Target</div>
-                    <div className="font-semibold text-green-700 dark:text-green-400">
-                        ₹{signal.target_price.toFixed(2)}
-                    </div>
-                </div>
-                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
-                    <div className="text-red-600">SL</div>
-                    <div className="font-semibold text-red-700 dark:text-red-400">
-                        ₹{signal.stop_loss.toFixed(2)}
-                    </div>
-                </div>
-            </div>
 
-            {/* Strength Indicator */}
-            <div className="mt-3">
-                <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-500">Signal Strength</span>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">
-                        {signal.strength.toFixed(0)}%
-                    </span>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    {signal.reason}
+                </p>
+
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2">
+                        <div className="text-gray-500">Entry</div>
+                        <div className="font-semibold text-gray-900 dark:text-white">
+                            ₹{signal.entry_price?.toFixed(2) || '--'}
+                        </div>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
+                        <div className="text-green-600">Target</div>
+                        <div className="font-semibold text-green-700 dark:text-green-400">
+                            ₹{signal.target_price?.toFixed(2) || '--'}
+                        </div>
+                    </div>
+                    <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
+                        <div className="text-red-600">SL</div>
+                        <div className="font-semibold text-red-700 dark:text-red-400">
+                            ₹{signal.stop_loss?.toFixed(2) || '--'}
+                        </div>
+                    </div>
                 </div>
-                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                        className={`h-full transition-all ${signal.strength > 70 ? 'bg-green-500' :
-                            signal.strength > 40 ? 'bg-yellow-500' : 'bg-red-500'
-                            }`}
-                        style={{ width: `${signal.strength}%` }}
-                    />
+
+                {/* Strength Indicator */}
+                <div className="mt-3">
+                    <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-500">Signal Strength</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                            {(signal.strength || 0).toFixed(0)}%
+                        </span>
+                    </div>
+                    <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                            className={`h-full transition-all ${(signal.strength || 0) > 70 ? 'bg-green-500' :
+                                (signal.strength || 0) > 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                }`}
+                            style={{ width: `${signal.strength || 0}%` }}
+                        />
+                    </div>
                 </div>
-            </div>
-        </Card>
+            </Card>
+        </motion.div>
     );
 });
 
 SignalCard.displayName = 'SignalCard';
 
 /**
- * Screener Tab Component
+ * Screener Tab Configuration
  */
 const SCREENER_TABS = [
     {
         id: 'scalp',
         label: 'Scalp',
         icon: BoltIcon,
-        description: 'Short-term trades (5-15 min)',
+        description: 'Short-term (5-15 min)',
         color: 'text-blue-500',
         bgColor: 'bg-blue-100 dark:bg-blue-900/30'
     },
@@ -115,74 +146,52 @@ const SCREENER_TABS = [
         id: 'sr',
         label: 'S/R OC',
         icon: ShieldCheckIcon,
-        description: 'Support/Resistance levels',
+        description: 'Support/Resistance',
         color: 'text-orange-500',
         bgColor: 'bg-orange-100 dark:bg-orange-900/30'
     },
 ];
 
 /**
- * Screeners Page - Scalp, Positional, and S/R OC
+ * Symbol Filter Chips
+ */
+const SYMBOLS = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY'];
+
+/**
+ * Multi-Symbol Screeners Page
  */
 const Screeners = () => {
     const isAuthenticated = useSelector(selectIsAuthenticated);
     const navigate = useNavigate();
-    const selectedSymbol = useSelector(selectSelectedSymbol);
-    const selectedExpiry = useSelector(selectSelectedExpiry);
+    const theme = useSelector((state) => state.theme.theme);
+    const isDark = theme === 'dark';
 
     const [activeTab, setActiveTab] = useState('scalp');
-    const [signals, setSignals] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [lastUpdate, setLastUpdate] = useState(null);
+    const [selectedSymbols, setSelectedSymbols] = useState(SYMBOLS); // All selected by default
+    const [minStrength, setMinStrength] = useState(0);
+    const [signalFilter, setSignalFilter] = useState('all'); // all, buy, sell
 
-    const fetchSignals = useCallback(async (screenerType) => {
-        if (!selectedExpiry) return;
+    // Use multi-symbol screener hook
+    const { allSignals, loading, error, lastUpdate, refresh, stats } = useMultiSymbolScreener(activeTab, SYMBOLS);
 
-        setLoading(true);
-        setError(null);
+    // Filter signals
+    const filteredSignals = allSignals.filter(signal => {
+        if (!selectedSymbols.includes(signal.symbol)) return false;
+        if ((signal.strength || 0) < minStrength) return false;
+        if (signalFilter === 'buy' && signal.signal !== 'BUY') return false;
+        if (signalFilter === 'sell' && signal.signal !== 'SELL') return false;
+        return true;
+    });
 
-        try {
-            let response;
-            switch (screenerType) {
-                case 'scalp':
-                    response = await screenerService.getScalpSignals({ symbol: selectedSymbol, expiry: selectedExpiry });
-                    break;
-                case 'positional':
-                    response = await screenerService.getPositionalSignals({ symbol: selectedSymbol, expiry: selectedExpiry });
-                    break;
-                case 'sr':
-                    response = await screenerService.getSRSignals({ symbol: selectedSymbol, expiry: selectedExpiry });
-                    break;
-                default:
-                    response = { signals: [] };
+    const toggleSymbol = (symbol) => {
+        if (selectedSymbols.includes(symbol)) {
+            if (selectedSymbols.length > 1) {
+                setSelectedSymbols(selectedSymbols.filter(s => s !== symbol));
             }
-            setSignals(response.signals || []);
-            setLastUpdate(new Date());
-        } catch (err) {
-            console.error('Failed to fetch signals:', err);
-            setError(err.message || 'Failed to load screener data');
-        } finally {
-            setLoading(false);
+        } else {
+            setSelectedSymbols([...selectedSymbols, symbol]);
         }
-    }, [selectedSymbol, selectedExpiry]);
-
-    useEffect(() => {
-        if (selectedExpiry) {
-            fetchSignals(activeTab);
-        }
-    }, [activeTab, selectedExpiry, fetchSignals]);
-
-    // Auto-refresh every 60 seconds
-    useEffect(() => {
-        if (!selectedExpiry) return;
-
-        const interval = setInterval(() => {
-            fetchSignals(activeTab);
-        }, 60000);
-
-        return () => clearInterval(interval);
-    }, [activeTab, selectedExpiry, fetchSignals]);
+    };
 
     if (!isAuthenticated) {
         return (
@@ -195,25 +204,24 @@ const Screeners = () => {
     }
 
     const currentTab = SCREENER_TABS.find(t => t.id === activeTab);
-    const buySignals = signals.filter(s => s.signal === 'BUY').length;
-    const sellSignals = signals.filter(s => s.signal === 'SELL').length;
 
     return (
         <>
             <Helmet>
-                <title>Screeners | Stockify</title>
-                <meta name="description" content="Option chain screeners for Scalp, Positional, and S/R trading" />
+                <title>Multi-Symbol Screeners | DeepStrike</title>
+                <meta name="description" content="Scan all indices for trading signals" />
             </Helmet>
 
             <div className="w-full px-4 py-4 space-y-4">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                            Screeners
+                        <h1 className={`text-2xl font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            <SparklesIcon className="w-6 h-6 text-amber-500" />
+                            Multi-Symbol Screener
                         </h1>
                         <p className="text-sm text-gray-500 mt-1">
-                            Find trading opportunities based on option chain analysis
+                            Scanning NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY simultaneously
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -223,23 +231,37 @@ const Screeners = () => {
                             </span>
                         )}
                         <button
-                            onClick={() => fetchSignals(activeTab)}
+                            onClick={refresh}
                             disabled={loading}
-                            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            className={`p-2 rounded-lg ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
                         >
-                            <ArrowPathIcon className={`w-5 h-5 text-gray-600 dark:text-gray-400 ${loading ? 'animate-spin' : ''}`} />
+                            <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
                         </button>
                     </div>
                 </div>
 
-                {/* Symbol/Expiry Info */}
-                <div className="flex items-center gap-4 text-sm">
-                    <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg font-medium">
-                        {selectedSymbol}
-                    </span>
-                    <span className="text-gray-500">
-                        Expiry: {selectedExpiry || 'Not selected'}
-                    </span>
+                {/* Symbol Filter Chips */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-gray-500 mr-2">Symbols:</span>
+                    {SYMBOLS.map((symbol) => {
+                        const isSelected = selectedSymbols.includes(symbol);
+                        const count = stats.bySymbol?.[symbol] || 0;
+                        return (
+                            <button
+                                key={symbol}
+                                onClick={() => toggleSymbol(symbol)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isSelected
+                                        ? 'bg-blue-600 text-white'
+                                        : isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+                                    }`}
+                            >
+                                {symbol}
+                                {count > 0 && (
+                                    <span className="ml-1 opacity-75">({count})</span>
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {/* Screener Tabs */}
@@ -254,7 +276,7 @@ const Screeners = () => {
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${isActive
                                     ? `${tab.bgColor} border-current ${tab.color}`
-                                    : 'border-transparent bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                    : `border-transparent ${isDark ? 'bg-gray-800 text-gray-500 hover:bg-gray-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`
                                     }`}
                             >
                                 <Icon className="w-6 h-6" />
@@ -265,25 +287,66 @@ const Screeners = () => {
                     })}
                 </div>
 
+                {/* Filters Row */}
+                <div className={`flex flex-wrap items-center gap-4 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                        <FunnelIcon className="w-4 h-4 text-gray-500" />
+                        <span className="text-xs text-gray-500">Filters:</span>
+                    </div>
+
+                    {/* Signal Type Filter */}
+                    <div className="flex gap-1">
+                        {['all', 'buy', 'sell'].map((type) => (
+                            <button
+                                key={type}
+                                onClick={() => setSignalFilter(type)}
+                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${signalFilter === type
+                                        ? type === 'buy' ? 'bg-green-500 text-white'
+                                            : type === 'sell' ? 'bg-red-500 text-white'
+                                                : 'bg-blue-500 text-white'
+                                        : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
+                                    }`}
+                            >
+                                {type.toUpperCase()}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Min Strength */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Min Strength:</span>
+                        <select
+                            value={minStrength}
+                            onChange={(e) => setMinStrength(Number(e.target.value))}
+                            className={`px-2 py-1 rounded-lg text-xs ${isDark ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'} border-0`}
+                        >
+                            <option value={0}>All</option>
+                            <option value={50}>50%+</option>
+                            <option value={70}>70%+</option>
+                            <option value={80}>80%+</option>
+                        </select>
+                    </div>
+                </div>
+
                 {/* Summary Stats */}
                 <div className="grid grid-cols-3 gap-4">
                     <Card variant="glass" className="p-4 text-center">
-                        <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                            {signals.length}
+                        <div className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {filteredSignals.length}
                         </div>
                         <div className="text-sm text-gray-500">Total Signals</div>
                     </Card>
                     <Card variant="glass" className="p-4 text-center bg-green-50 dark:bg-green-900/10">
                         <div className="text-3xl font-bold text-green-600 flex items-center justify-center gap-2">
                             <ArrowTrendingUpIcon className="w-6 h-6" />
-                            {buySignals}
+                            {filteredSignals.filter(s => s.signal === 'BUY').length}
                         </div>
                         <div className="text-sm text-green-600">Buy Signals</div>
                     </Card>
                     <Card variant="glass" className="p-4 text-center bg-red-50 dark:bg-red-900/10">
                         <div className="text-3xl font-bold text-red-600 flex items-center justify-center gap-2">
                             <ArrowTrendingDownIcon className="w-6 h-6" />
-                            {sellSignals}
+                            {filteredSignals.filter(s => s.signal === 'SELL').length}
                         </div>
                         <div className="text-sm text-red-600">Sell Signals</div>
                     </Card>
@@ -297,33 +360,33 @@ const Screeners = () => {
                 )}
 
                 {/* Loading State */}
-                {loading && (
+                {loading && allSignals.length === 0 && (
                     <div className="flex items-center justify-center py-12">
                         <ArrowPathIcon className="w-8 h-8 animate-spin text-blue-500" />
-                        <span className="ml-2 text-gray-500">Scanning for signals...</span>
+                        <span className="ml-2 text-gray-500">Scanning all indices...</span>
                     </div>
                 )}
 
                 {/* Signals Grid */}
-                {!loading && signals.length > 0 && (
+                {filteredSignals.length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {signals.map((signal, index) => (
-                            <SignalCard key={`${signal.strike}-${signal.option_type}-${index}`} signal={signal} />
+                        {filteredSignals.map((signal, index) => (
+                            <SignalCard key={`${signal.symbol}-${signal.strike}-${signal.option_type}-${index}`} signal={signal} />
                         ))}
                     </div>
                 )}
 
                 {/* Empty State */}
-                {!loading && signals.length === 0 && !error && (
+                {!loading && filteredSignals.length === 0 && !error && (
                     <Card variant="glass" className="p-12 text-center">
-                        <currentTab.icon className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        {currentTab && <currentTab.icon className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />}
+                        <h3 className={`text-lg font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                             No Signals Found
                         </h3>
                         <p className="text-gray-500">
-                            No {currentTab?.label} trading signals detected at this time.
+                            No {currentTab?.label} trading signals detected across selected indices.
                             <br />
-                            Signals refresh automatically every minute.
+                            Try adjusting filters or wait for market conditions to change.
                         </p>
                     </Card>
                 )}

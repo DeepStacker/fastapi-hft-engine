@@ -15,6 +15,9 @@ const navItems = [
   { name: 'Instruments', href: '/instruments' },
   { name: 'Database', href: '/database' },
   { name: 'Dhan Tokens', href: '/dhan-tokens' },
+  { name: 'Community', href: '/community' },
+  { name: 'Support', href: '/support' },
+  { name: 'Traders', href: '/traders' },
 ];
 
 export default function Navigation() {

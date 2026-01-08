@@ -3,7 +3,7 @@ API v1 Router - Aggregates all API endpoints
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, users, options, health, charts, monitoring, historical, screeners, calculators, notifications, profile, sse, symbols, support
+from app.api.v1 import auth, users, options, health, charts, monitoring, historical, screeners, calculators, notifications, profile, sse, symbols, support, community
 from app.api.v1.analytics import router as analytics_router  # Use split analytics package
 
 api_router = APIRouter()
@@ -100,4 +100,9 @@ api_router.include_router(
     support.router,
     prefix="/support",
     tags=["Support"]
+)
+
+api_router.include_router(
+    community.router,
+    tags=["Community"]
 )

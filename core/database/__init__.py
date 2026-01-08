@@ -10,6 +10,22 @@ from .models import (
     AuditLogDB,
     TradingSessionDB
 )
+from .community_models import (
+    CommunityRoomDB,
+    CommunityPostDB,
+    CommunityReactionDB,
+    UserReputationDB,
+    SignalThreadDB,
+    FeatureRequestDB,
+    FeatureVoteDB,
+    RoomType,
+    ReactionType,
+    TradeType,
+    TradeReason,
+    SignalOutcome,
+    FeatureStatus,
+    CommunityRole,
+)
 
 __all__ = [
     "Base",
@@ -23,5 +39,21 @@ __all__ = [
     "UserDB",
     "APIKeyDB",
     "AuditLogDB",
-    "TradingSessionDB"
+    "TradingSessionDB",
+    # Community models
+    "CommunityRoomDB",
+    "CommunityPostDB",
+    "CommunityReactionDB",
+    "UserReputationDB",
+    "SignalThreadDB",
+    "FeatureRequestDB",
+    "FeatureVoteDB",
+    # Community enums
+    "RoomType",
+    "ReactionType",
+    "TradeType",
+    "TradeReason",
+    "SignalOutcome",
+    "FeatureStatus",
+    "CommunityRole",
 ]

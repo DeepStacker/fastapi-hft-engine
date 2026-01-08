@@ -5,9 +5,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Helmet } from 'react-helmet-async';
-import { 
-    selectSelectedSymbol, 
-    selectSelectedExpiry, 
+import {
+    selectSelectedSymbol,
+    selectSelectedExpiry,
     selectSpotPrice,
     selectDaysToExpiry,
     selectDataLoading,
@@ -15,9 +15,9 @@ import {
     selectDataSymbol
 } from '../context/selectors';
 import { fetchLiveData } from '../context/dataSlice';
-import { 
-    ArrowPathIcon, 
-    ChartBarIcon, 
+import {
+    ArrowPathIcon,
+    ChartBarIcon,
     BeakerIcon,
     ScaleIcon,
     CubeIcon,
@@ -33,12 +33,18 @@ import GreeksAnalysis from '../components/analytics/GreeksAnalysis';
 import StraddleAnalysis from '../components/analytics/StraddleAnalysis';
 import MultiStrikeAnalysis from '../components/analytics/MultiStrikeAnalysis';
 import StrategyBuilder from '../components/analytics/StrategyBuilder';
+import PCRTrendChart from '../components/analytics/PCRTrendChart';
+import GreeksHeatmap from '../components/analytics/GreeksHeatmap';
+import IVSkewChart from '../components/analytics/IVSkewChart';
 
 const tabs = [
     { id: 'oi', label: 'OI Analysis', icon: ChartBarIcon, component: OIAnalysis },
     { id: 'volume', label: 'Volume', icon: PresentationChartBarIcon, component: VolumeAnalysis },
     { id: 'greeks', label: 'Greeks', icon: BeakerIcon, component: GreeksAnalysis },
+    { id: 'heatmap', label: 'Heatmap', icon: BeakerIcon, component: GreeksHeatmap },
     { id: 'straddle', label: 'Straddle', icon: ScaleIcon, component: StraddleAnalysis },
+    { id: 'pcr', label: 'PCR Trend', icon: ScaleIcon, component: PCRTrendChart },
+    { id: 'ivskew', label: 'IV Skew', icon: ChartPieIcon, component: IVSkewChart },
     { id: 'multistrike', label: 'Multi-Strike', icon: ChartPieIcon, component: MultiStrikeAnalysis },
     { id: 'strategy', label: 'Strategy', icon: CubeIcon, component: StrategyBuilder },
 ];
@@ -52,10 +58,10 @@ const Analytics = () => {
     const daysToExpiry = useSelector(selectDaysToExpiry);
     const isLoading = useSelector(selectDataLoading);
     const optionChain = useSelector(selectOptionChain);
-    
+
     // Use dataSymbol if available, otherwise fall back to selected symbol
     const displaySymbol = dataSymbol || symbol || 'NIFTY';
-    
+
     const [activeTab, setActiveTab] = useState('oi');
     const [lastUpdate, setLastUpdate] = useState(new Date());
 
@@ -93,8 +99,8 @@ const Analytics = () => {
                         <p className="text-gray-500 dark:text-gray-400 mb-4">
                             Please visit the Option Chain page first to load market data.
                         </p>
-                        <a 
-                            href="/option-chain" 
+                        <a
+                            href="/option-chain"
                             className="inline-block px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
                         >
                             Go to Option Chain
@@ -158,11 +164,10 @@ const Analytics = () => {
                                     <button
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id)}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-200 ${
-                                            isActive 
-                                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25' 
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-200 ${isActive
+                                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25'
                                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                        }`}
+                                            }`}
                                     >
                                         <Icon className="w-4 h-4" />
                                         {tab.label}

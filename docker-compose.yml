@@ -550,7 +550,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "gunicorn --config services/ocd-backend/gunicorn.conf.py app.main:app"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --workers 1
     networks:
       - stockify-network
     healthcheck:

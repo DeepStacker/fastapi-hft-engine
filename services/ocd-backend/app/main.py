@@ -2,7 +2,10 @@
 Stockify Trading Platform - FastAPI Application
 Main entry point for the application
 """
+
+# HMR Check: Trigger reload
 import logging
+
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
