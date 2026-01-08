@@ -9,19 +9,23 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import numpy as np
 
-from app.services.dhan_client import DhanClient
+from fastapi import Depends
+from app.services.dhan_client import DhanClient, get_dhan_client
+from app.cache.redis import RedisCache, get_redis
+from app.config.database import get_db, AsyncSession
+
+from app.repositories.options import OptionsRepository
 from app.services.bsm import BSMService
 from app.services.greeks import GreeksService
 from app.services.reversal import ReversalService
 from app.services.profile_service import profile_service
 from app.services.options_transformer import OptionsTransformer
 from app.services.historical import HistoricalService, HistoricalSnapshot
-from app.repositories.options import OptionsRepository
-from app.cache.redis import RedisCache
 from app.config.settings import settings
 from app.config.symbols import get_instrument_type
 from app.utils.timezone import get_ist_isoformat
-from sqlalchemy.ext.asyncio import AsyncSession
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -237,16 +241,42 @@ class OptionsService:
             "_source": chain_data.get("_source", "dhan_api"),
         }
         
-        # Async Persistence - DISABLED
-        # Data persistence is now handled exclusively by the Ingestion Service pipeline.
-        # Implicit persistence here causes duplicate data and writes from read-only API calls.
-        # if self.repository:
-        #      try:
-        #          await self.repository.save_snapshot(result_data)
-        #      except Exception as e:
-        #          logger.error(f"Snapshot persistence warning: {e}")
-             
         return result_data
+
+    async def get_batch_live_data(
+        self,
+        symbols: List[str],
+        include_greeks: bool = True,
+        include_reversal: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Get live data for multiple symbols in parallel (Batch API).
+        """
+        import asyncio
+        
+        results = {}
+        tasks = []
+        
+        for symbol in symbols:
+            tasks.append(self.get_live_data(
+                symbol=symbol,
+                expiry=None,  # Auto-fetch nearest expiry
+                include_greeks=include_greeks,
+                include_reversal=include_reversal,
+                include_profiles=False # Disable profiles for weight reduction in batch mode
+            ))
+            
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for i, symbol in enumerate(symbols):
+            resp = responses[i]
+            if isinstance(resp, Exception):
+                logger.error(f"Batch fetch failed for {symbol}: {resp}")
+                results[symbol] = {"error": str(resp)}
+            else:
+                results[symbol] = resp
+                
+        return results
 
     def _calculate_metadata(self, confidence_scores: List[float], atmiv: float) -> Dict[str, Any]:
         """Calculate smart auto-detection metadata"""
@@ -416,9 +446,10 @@ class OptionsService:
 
 
 # Factory function
+# Factory function
 async def get_options_service(
-    dhan_client: DhanClient,
-    cache: Optional[RedisCache] = None,
-    db: Optional[AsyncSession] = None
+    dhan_client: DhanClient = Depends(get_dhan_client),
+    cache: RedisCache = Depends(get_redis),
+    db: AsyncSession = Depends(get_db)
 ) -> OptionsService:
     return OptionsService(dhan_client=dhan_client, cache=cache, db=db)

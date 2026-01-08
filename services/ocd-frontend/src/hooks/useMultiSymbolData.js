@@ -127,66 +127,79 @@ export const useMultiSymbolData = (symbols = DEFAULT_SYMBOLS, autoRefresh = true
         try {
             setError(null);
 
-            // Fetch data for all symbols in parallel
-            const results = await Promise.allSettled(
-                symbols.map(async (symbol) => {
-                    try {
-                        // Get expiry first
-                        const expiryResponse = await optionsService.getExpiryDates(symbol);
-                        const expiries = expiryResponse?.data?.expiry_dates || expiryResponse?.expiry_dates || [];
+            // Fetch data for all symbols in a single batch request
+            const batchResponse = await optionsService.getBatchLiveOptions(symbols);
 
-                        if (expiries.length === 0) {
-                            return { symbol, data: null, error: 'No expiries' };
-                        }
+            // Process batch results
+            const results = Object.keys(batchResponse).map(symbol => {
+                const liveData = batchResponse[symbol];
 
-                        const nearestExpiry = expiries[0];
+                if (!liveData || liveData.error) {
+                    // Silently handle API errors
+                    return {
+                        symbol,
+                        data: null,
+                        error: liveData?.error || 'API unavailable',
+                        status: 'rejected'
+                    };
+                }
 
-                        // Get live data
-                        const liveData = await optionsService.getLiveData(symbol, nearestExpiry);
+                try {
+                    // Calculate metrics
+                    const optionChain = liveData.oc || liveData.options?.data?.oc || {};
+                    const spot = liveData.spot?.ltp || liveData.spot_price || liveData.spot;
+                    const metrics = calculateMetrics(optionChain, spot);
 
-                        if (!liveData) {
-                            return { symbol, data: null, error: 'No data' };
-                        }
-
-                        // Calculate metrics
-                        const optionChain = liveData.oc || liveData.options?.data?.oc || {};
-                        const spot = liveData.spot?.ltp || liveData.spot_price || liveData.spot;
-                        const metrics = calculateMetrics(optionChain, spot);
-
-                        return {
-                            symbol,
-                            data: {
-                                spot,
-                                spotChange: liveData.spot?.change || 0,
-                                spotChangePercent: liveData.spot?.change_percent || 0,
-                                expiry: nearestExpiry,
-                                atmStrike: liveData.atm_strike,
-                                atmIV: liveData.atmiv || liveData.atm_iv,
-                                daysToExpiry: liveData.days_to_expiry || liveData.dte,
-                                metrics,
-                                rawData: liveData,
-                            },
-                            error: null,
-                        };
-                    } catch (err) {
-                        // Silently handle API errors - don't spam console
-                        return { symbol, data: null, error: 'API unavailable' };
-                    }
-                })
-            );
-
-            // Process results
-            const newData = {};
-            results.forEach((result) => {
-                if (result.status === 'fulfilled') {
-                    const { symbol, data: symbolData, error: symbolError } = result.value;
-                    newData[symbol] = {
-                        ...symbolData,
-                        error: symbolError,
-                        loading: false,
+                    return {
+                        symbol,
+                        data: {
+                            spot,
+                            spotChange: liveData.spot?.change || 0,
+                            spotChangePercent: liveData.spot?.change_percent || 0,
+                            expiry: liveData.expiry,
+                            atmStrike: liveData.atm_strike,
+                            atmIV: liveData.atmiv || liveData.atm_iv,
+                            daysToExpiry: liveData.days_to_expiry || liveData.dte,
+                            metrics,
+                            rawData: liveData,
+                        },
+                        error: null,
+                        status: 'fulfilled'
+                    };
+                } catch (err) {
+                    return {
+                        symbol,
+                        data: null,
+                        error: 'Processing error',
+                        status: 'rejected'
                     };
                 }
             });
+
+            // Map to Promise.allSettled format for compatibility
+            // (Simulating the structure the rest of the hook expects)
+            const simulatedResults = results.map(r => ({
+                status: r.status === 'fulfilled' ? 'fulfilled' : 'rejected',
+                value: r
+            }));
+
+            // Process results (using minimal changes to existing logic)
+            const newData = {};
+            results.forEach((result) => {
+                const { symbol, data: symbolData, error: symbolError } = result;
+                newData[symbol] = {
+                    ...symbolData,
+                    error: symbolError,
+                    loading: false,
+                };
+            });
+
+            setData(newData);
+            setLastUpdate(new Date());
+            setLoading(false);
+
+            // Process results (using minimal changes to existing logic)
+            // (Already handled in the block above)
 
             setData(newData);
             setLastUpdate(new Date());

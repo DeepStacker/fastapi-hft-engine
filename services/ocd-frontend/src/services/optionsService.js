@@ -54,6 +54,16 @@ export const optionsService = {
     },
 
     /**
+     * Get live options data for multiple symbols in one request
+     * @param {string[]} symbols - Array of symbols to fetch
+     */
+    getBatchLiveOptions: async (symbols) => {
+        // No caching for batch requests (complex key invalidation)
+        const response = await apiClient.post('/options/batch', { symbols });
+        return response.data;
+    },
+
+    /**
      * Get expiry dates for a symbol
      */
     getExpiryDates: async (symbol) => {

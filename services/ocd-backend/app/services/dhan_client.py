@@ -16,7 +16,8 @@ from app.config.symbols import (
     get_instrument_type, is_valid_symbol
 )
 from app.core.exceptions import ExternalAPIException, ValidationException
-from app.cache.redis import RedisCache, CacheKeys
+from fastapi import Depends
+from app.cache.redis import RedisCache, get_redis
 from app.utils.data_processing import (
     modify_oc_keys, filter_oc_strikes, fetch_percentage, filter_expiry_data
 )
@@ -642,6 +643,6 @@ class DhanClient(BaseDhanClient):
 
 
 # Factory function for dependency injection
-async def get_dhan_client(cache: Optional[RedisCache] = None) -> DhanClient:
+async def get_dhan_client(cache: RedisCache = Depends(get_redis)) -> DhanClient:
     """Get Dhan client instance with optional cache"""
     return DhanClient(cache=cache, auth_token=settings.DHAN_AUTH_TOKEN)
