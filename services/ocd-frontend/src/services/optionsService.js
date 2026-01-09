@@ -64,6 +64,17 @@ export const optionsService = {
     },
 
     /**
+     * Get available symbols from the database
+     * @param {boolean} activeOnly - If true, return only active symbols (default: true)
+     */
+    getSymbols: async (activeOnly = true) => {
+        const response = await apiClient.get('/symbols/simple', {
+            params: { active_only: activeOnly }
+        });
+        return response.data;
+    },
+
+    /**
      * Get expiry dates for a symbol
      */
     getExpiryDates: async (symbol) => {

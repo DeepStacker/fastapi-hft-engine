@@ -64,18 +64,41 @@ const MultiSymbolOverview = () => {
         MIDCPNIFTY: { name: 'MIDCAP', gradient: 'from-amber-600 to-orange-500' },
     };
 
+    // Filter valid symbols
+    const validSymbols = symbols.filter(symbol => {
+        const d = data[symbol];
+        return d && !d.loading && !d.error && d.spot > 0;
+    });
+
+    const marqueeSymbols = [...validSymbols, ...validSymbols]; // Duplicate for seamless loop
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className={`p-6 rounded-3xl border ${isDark
+            className={`p-6 rounded-3xl border overflow-hidden ${isDark
                 ? 'bg-gradient-to-br from-slate-900/90 via-slate-800/90 to-slate-900/90 border-slate-700'
                 : 'bg-gradient-to-br from-slate-50 via-white to-slate-50 border-slate-200'
                 }`}
         >
+            <style>
+                {`
+                @keyframes marquee {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-50%); }
+                }
+                .animate-marquee {
+                    animation: marquee 120s linear infinite;
+                }
+                .animate-marquee:hover {
+                    animation-play-state: paused;
+                }
+                `}
+            </style>
+
             {/* Header */}
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-5 px-2">
                 <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-xl ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
                         <ChartBarSquareIcon className="w-6 h-6 text-blue-500" />
@@ -85,7 +108,7 @@ const MultiSymbolOverview = () => {
                             Market Overview
                         </h3>
                         <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            All Indices • Real-time
+                            Live Options Chain Data
                         </p>
                     </div>
                 </div>
@@ -127,24 +150,24 @@ const MultiSymbolOverview = () => {
                 </div>
             )}
 
-            {/* Symbols Grid */}
-            {!loading || Object.keys(data).length > 0 ? (
-                <div className="space-y-4">
-                    {/* Main Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {symbols.map((symbol) => {
+            {/* Scrolling Marquee Container */}
+            {!loading && validSymbols.length > 0 && (
+                <div className="relative w-full overflow-hidden mask-linear-fade">
+                    <div className="flex gap-4 animate-marquee w-fit py-2">
+                        {marqueeSymbols.map((symbol, index) => {
+                            // Use index in key to handle duplicates
                             const symbolData = data[symbol];
                             const config = symbolConfig[symbol] || { name: symbol, gradient: 'from-gray-600 to-slate-600' };
                             const metrics = symbolData?.metrics;
                             const trend = metrics?.trend || 'NEUTRAL';
                             const TrendIcon = getTrendIcon(trend);
+                            const rawData = symbolData?.rawData || {};
+                            const ivChange = rawData.atmiv_change || 0;
 
                             return (
                                 <motion.div
-                                    key={symbol}
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className={`relative p-4 rounded-2xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] ${isDark
+                                    key={`${symbol}-${index}`}
+                                    className={`relative flex-shrink-0 w-72 p-4 rounded-2xl border cursor-pointer hover:scale-[1.02] transition-transform ${isDark
                                         ? 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
                                         : 'bg-white/80 border-slate-200 hover:border-slate-300'
                                         }`}
@@ -154,7 +177,7 @@ const MultiSymbolOverview = () => {
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-2">
                                             <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${config.gradient}`} />
-                                            <span className={`text-xs font-bold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            <span className={`text-sm font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                                                 {config.name}
                                             </span>
                                         </div>
@@ -163,90 +186,69 @@ const MultiSymbolOverview = () => {
                                         </div>
                                     </div>
 
-                                    {/* Spot Price */}
-                                    <div className="mb-3">
-                                        <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                            {symbolData?.spot
-                                                ? `₹${symbolData.spot.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
-                                                : '--'
-                                            }
-                                        </span>
-                                        {symbolData?.spotChangePercent !== undefined && (
-                                            <span className={`ml-2 text-xs font-medium ${symbolData.spotChangePercent >= 0 ? 'text-green-500' : 'text-red-500'
-                                                }`}>
-                                                {symbolData.spotChangePercent >= 0 ? '+' : ''}
-                                                {symbolData.spotChangePercent?.toFixed(2)}%
+                                    {/* Spot Price & Change */}
+                                    <div className="flex items-baseline justify-between mb-4">
+                                        <div className="flex items-baseline gap-2">
+                                            <span className={`text-2xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {symbolData?.spot?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                                             </span>
-                                        )}
+                                        </div>
+                                        <span className={`text-sm font-medium ${symbolData.spotChangePercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                            {symbolData.spotChangePercent >= 0 ? '+' : ''}{symbolData.spotChangePercent?.toFixed(2)}%
+                                        </span>
                                     </div>
 
-                                    {/* Metrics Grid */}
-                                    {metrics ? (
-                                        <div className="grid grid-cols-3 gap-2 text-center">
-                                            <div className={`p-1.5 rounded-lg ${isDark ? 'bg-gray-900/50' : 'bg-gray-100'}`}>
-                                                <div className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>PCR</div>
-                                                <div className={`text-xs font-bold ${metrics.pcrSignal === 'BULLISH' ? 'text-green-500' :
-                                                        metrics.pcrSignal === 'BEARISH' ? 'text-red-500' :
-                                                            isDark ? 'text-white' : 'text-gray-900'
+                                    {/* Enhanced Metrics Grid */}
+                                    {metrics && (
+                                        <div className="grid grid-cols-2 gap-2 text-center text-xs">
+
+                                            {/* Top Row: IV & IV Change */}
+                                            <div className={`p-2 rounded-lg col-span-2 flex justify-between items-center ${isDark ? 'bg-slate-900/50' : 'bg-gray-100'}`}>
+                                                <span className={`${isDark ? 'text-gray-400' : 'text-gray-500'}`}>ATM IV</span>
+                                                <div className="flex gap-2">
+                                                    <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                        {symbolData.atmIV?.toFixed(1)}%
+                                                    </span>
+                                                    <span className={`font-medium ${ivChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                        ({ivChange >= 0 ? '+' : ''}{ivChange.toFixed(1)}%)
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Max Pain */}
+                                            <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-900/50' : 'bg-gray-100'}`}>
+                                                <div className={`mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Max Pain</div>
+                                                <div className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {metrics.maxPain ? metrics.maxPain : '--'}
+                                                </div>
+                                            </div>
+
+                                            {/* PCR */}
+                                            <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-900/50' : 'bg-gray-100'}`}>
+                                                <div className={`mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>PCR</div>
+                                                <div className={`font-bold ${metrics.pcrSignal === 'BULLISH' ? 'text-green-500' :
+                                                    metrics.pcrSignal === 'BEARISH' ? 'text-red-500' :
+                                                        isDark ? 'text-white' : 'text-gray-900'
                                                     }`}>
                                                     {metrics.pcr?.toFixed(2)}
                                                 </div>
                                             </div>
-                                            <div className={`p-1.5 rounded-lg ${isDark ? 'bg-gray-900/50' : 'bg-gray-100'}`}>
-                                                <div className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Max Pain</div>
-                                                <div className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {metrics.maxPain ? (metrics.maxPain / 1000).toFixed(1) + 'k' : '--'}
-                                                </div>
-                                            </div>
-                                            <div className={`p-1.5 rounded-lg ${isDark ? 'bg-gray-900/50' : 'bg-gray-100'}`}>
-                                                <div className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>OI Δ</div>
-                                                <div className={`text-xs font-bold ${(metrics.totalPECOI - metrics.totalCECOI) > 0 ? 'text-green-500' : 'text-red-500'
-                                                    }`}>
-                                                    {formatLakhs(metrics.totalPECOI - metrics.totalCECOI)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className={`text-xs text-center ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                                            {symbolData?.error || 'Loading...'}
+
                                         </div>
                                     )}
                                 </motion.div>
                             );
                         })}
                     </div>
-
-                    {/* Aggregate Summary */}
-                    <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800/30' : 'bg-gray-50'}`}>
-                        <div className="flex flex-wrap items-center justify-between gap-4">
-                            <div className="flex items-center gap-6">
-                                <div className="text-center">
-                                    <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Total CE OI Δ</div>
-                                    <div className={`text-sm font-bold ${aggregate.totalCECOI >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                        {formatLakhs(aggregate.totalCECOI)}
-                                    </div>
-                                </div>
-                                <div className="text-center">
-                                    <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Total PE OI Δ</div>
-                                    <div className={`text-sm font-bold ${aggregate.totalPECOI >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                        {formatLakhs(aggregate.totalPECOI)}
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 text-center">
-                                    <span className="text-green-500 text-sm font-bold">{aggregate.bullishCount} 🟢</span>
-                                    <span className="text-gray-500 text-sm font-bold">{aggregate.neutralCount} ⚪</span>
-                                    <span className="text-red-500 text-sm font-bold">{aggregate.bearishCount} 🔴</span>
-                                </div>
-                            </div>
-                            {lastUpdate && (
-                                <div className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                                    Updated {lastUpdate.toLocaleTimeString()}
-                                </div>
-                            )}
-                        </div>
-                    </div>
                 </div>
-            ) : null}
+            )}
+
+            {/* Empty State */}
+            {!loading && validSymbols.length === 0 && (
+                <div className={`text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    No active market data available.
+                </div>
+            )}
         </motion.div>
     );
 };

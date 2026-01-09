@@ -21,6 +21,11 @@
       "type": "string"
     },
     {
+      "name": "trade_date",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
       "name": "processing_timestamp",
       "type": "string"
     },
@@ -33,14 +38,46 @@
           {"name": "symbol", "type": "string"},
           {"name": "symbol_id", "type": "int"},
           {"name": "spot_price", "type": "double"},
+          {"name": "spot_change", "type": ["null", "double"], "default": null},
+          {"name": "spot_change_pct", "type": ["null", "double"], "default": null},
           {"name": "total_call_oi", "type": "long"},
           {"name": "total_put_oi", "type": "long"},
           {"name": "pcr_ratio", "type": "double"},
           {"name": "atm_iv", "type": ["null", "double"], "default": null},
+          {"name": "atm_iv_change", "type": ["null", "double"], "default": null},
           {"name": "days_to_expiry", "type": "int"},
-          {"name": "lot_size", "type": "int"}
+          {"name": "lot_size", "type": "int"},
+          {"name": "tick_size", "type": ["null", "double"], "default": null},
+          {"name": "max_pain_strike", "type": ["null", "double"], "default": null},
+          {"name": "exchange", "type": ["null", "string"], "default": null},
+          {"name": "segment", "type": ["null", "string"], "default": null},
+          {"name": "timestamp", "type": ["null", "string"], "default": null}
         ]
       }
+    },
+    {
+      "name": "futures",
+      "type": ["null", {
+        "type": "record",
+        "name": "FuturesData",
+        "fields": [
+          {"name": "symbol", "type": "string"},
+          {"name": "ltp", "type": "double"},
+          {"name": "prev_close", "type": ["null", "double"], "default": null},
+          {"name": "price_change", "type": ["null", "double"], "default": null},
+          {"name": "price_change_pct", "type": ["null", "double"], "default": null},
+          {"name": "volume", "type": ["null", "long"], "default": null},
+          {"name": "prev_volume", "type": ["null", "long"], "default": null},
+          {"name": "volume_change", "type": ["null", "long"], "default": null},
+          {"name": "volume_change_pct", "type": ["null", "double"], "default": null},
+          {"name": "oi", "type": ["null", "long"], "default": null},
+          {"name": "oi_change", "type": ["null", "long"], "default": null},
+          {"name": "oi_change_pct", "type": ["null", "double"], "default": null},
+          {"name": "lot_size", "type": ["null", "int"], "default": null},
+          {"name": "tick_size", "type": ["null", "double"], "default": null}
+        ]
+      }],
+      "default": null
     },
     {
       "name": "options",
@@ -53,15 +90,43 @@
             {"name": "strike", "type": "double"},
             {"name": "option_type", "type": "string"},
             {"name": "ltp", "type": "double"},
+            {"name": "bid", "type": ["null", "double"], "default": null},
+            {"name": "ask", "type": ["null", "double"], "default": null},
+            {"name": "mid_price", "type": ["null", "double"], "default": null},
+            {"name": "bid_qty", "type": ["null", "int"], "default": null},
+            {"name": "ask_qty", "type": ["null", "int"], "default": null},
+            {"name": "prev_close", "type": ["null", "double"], "default": null},
+            {"name": "price_change", "type": ["null", "double"], "default": null},
+            {"name": "price_change_pct", "type": ["null", "double"], "default": null},
+            {"name": "avg_traded_price", "type": ["null", "double"], "default": null},
             {"name": "volume", "type": "long"},
+            {"name": "prev_volume", "type": ["null", "long"], "default": null},
+            {"name": "volume_change", "type": ["null", "long"], "default": null},
+            {"name": "volume_change_pct", "type": ["null", "double"], "default": null},
             {"name": "oi", "type": "long"},
+            {"name": "prev_oi", "type": ["null", "long"], "default": null},
             {"name": "change_oi", "type": "long"},
+            {"name": "oi_change_pct", "type": ["null", "double"], "default": null},
             {"name": "iv", "type": ["null", "double"], "default": null},
             {"name": "delta", "type": ["null", "double"], "default": null},
             {"name": "gamma", "type": ["null", "double"], "default": null},
             {"name": "theta", "type": ["null", "double"], "default": null},
             {"name": "vega", "type": ["null", "double"], "default": null},
+            {"name": "rho", "type": ["null", "double"], "default": null},
+            {"name": "theoretical_price", "type": ["null", "double"], "default": null},
             {"name": "bsm_price", "type": ["null", "double"], "default": null},
+            {"name": "intrinsic_value", "type": ["null", "double"], "default": null},
+            {"name": "time_value", "type": ["null", "double"], "default": null},
+            {"name": "moneyness", "type": ["null", "double"], "default": null},
+            {"name": "moneyness_type", "type": ["null", "string"], "default": null},
+            {"name": "buildup_type", "type": ["null", "string"], "default": null},
+            {"name": "buildup_name", "type": ["null", "string"], "default": null},
+            {"name": "reversal_price", "type": ["null", "double"], "default": null},
+            {"name": "support_price", "type": ["null", "double"], "default": null},
+            {"name": "resistance_price", "type": ["null", "double"], "default": null},
+            {"name": "resistance_range_price", "type": ["null", "double"], "default": null},
+            {"name": "weekly_reversal_price", "type": ["null", "double"], "default": null},
+            {"name": "future_reversal_price", "type": ["null", "double"], "default": null},
             {"name": "is_liquid", "type": "boolean"},
             {"name": "is_valid", "type": "boolean"}
           ]

@@ -565,12 +565,24 @@ class DhanClient(BaseDhanClient):
         # Preserve raw data for access in options.py
         result["data"] = raw
         
-        # Extract spot data - Dhan uses SChng/SPerChng (case-sensitive!)
-        if "sltp" in raw:
+        # Extract spot data
+        sltp = raw.get("sltp", raw.get("Ltp", 0))
+        if sltp > 0:
+            # multiple possible keys for change
+            change = raw.get("SChng", raw.get("schng", raw.get("net_change", raw.get("change", raw.get("ch", 0)))))
+            change_percent = raw.get("SPerChng", raw.get("spchng", raw.get("sperchng", raw.get("change_percent", raw.get("p_ch", 0)))))
+            
+            # Fallback to calculation if change is 0 but we have prev close
+            if change == 0:
+                prev_close = raw.get("pc", raw.get("prev_close", raw.get("previous_close", 0)))
+                if prev_close > 0:
+                    change = sltp - prev_close
+                    change_percent = (change / prev_close) * 100
+            
             result["spot"] = {
-                "ltp": raw.get("sltp", 0),
-                "change": raw.get("SChng", raw.get("schng", 0)),  # Handle both cases
-                "change_percent": raw.get("SPerChng", raw.get("spchng", 0)),
+                "ltp": sltp,
+                "change": float(change),
+                "change_percent": float(change_percent)
             }
         
         # Extract option chain

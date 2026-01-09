@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Helmet } from 'react-helmet-async';
@@ -11,8 +10,11 @@ import { selectIsAuthenticated } from '../context/selectors';
 import { ColumnConfigProvider } from '../context/ColumnConfigContext';
 import { TableSettingsProvider } from '../context/TableSettingsContext';
 import { Button, Card } from '../components/common';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import useOptionsChain from '../hooks/useOptionsChain';
+import { useDispatch } from 'react-redux';
+import { setSidAndFetchData } from '../context/dataSlice';
+import { useEffect } from 'react';
 
 /**
  * Option Chain Page - Live data view with integrated chart toggle
@@ -23,7 +25,18 @@ const OptionChain = () => {
   const [showChart, setShowChart] = useState(false);
 
   // Get spot/futures data for SpotBar when in chart mode
-  const { spotData, futuresData, data: fullData } = useOptionsChain();
+  const { spotData, futuresData, data: fullData, symbol: currentSymbol } = useOptionsChain();
+  const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
+
+  // Sync URL symbol with Redux state
+  useEffect(() => {
+    const urlSymbol = searchParams.get('symbol');
+    if (urlSymbol && urlSymbol !== currentSymbol) {
+      dispatch(setSidAndFetchData({ newSid: urlSymbol }));
+    }
+  }, [searchParams, currentSymbol, dispatch]);
+
   const pcr = fullData?.pcr;
   const maxPain = fullData?.max_pain_strike;
   const atmiv = fullData?.atmiv;

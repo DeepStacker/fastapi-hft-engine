@@ -7,7 +7,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { optionsService } from '../services/optionsService';
 
 // Default symbols to track
-const DEFAULT_SYMBOLS = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY'];
+// Default symbols as fallback only
+const DEFAULT_SYMBOLS = ['NIFTY', 'BANKNIFTY'];
 
 // Refresh interval in milliseconds
 const REFRESH_INTERVAL = 30000; // 30 seconds
@@ -109,19 +110,42 @@ const calculateMetrics = (optionChain, spot) => {
 
 /**
  * Hook to fetch data for multiple symbols
- * @param {string[]} symbols - Array of symbols to track
+ * @param {string[]} initialSymbols - Optional initial symbols (if empty, fetches all active from server)
  * @param {boolean} autoRefresh - Whether to auto-refresh
  * @returns {Object} Multi-symbol data and loading states
  */
-export const useMultiSymbolData = (symbols = DEFAULT_SYMBOLS, autoRefresh = true) => {
+export const useMultiSymbolData = (initialSymbols = null, autoRefresh = true) => {
+    const [symbols, setSymbols] = useState(initialSymbols || []);
     const [data, setData] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [lastUpdate, setLastUpdate] = useState(null);
     const fetchingRef = useRef(false);
 
+    // Fetch active symbols if not provided
+    useEffect(() => {
+        if (initialSymbols && initialSymbols.length > 0) return;
+
+        const fetchSymbols = async () => {
+            try {
+                const activeSymbols = await optionsService.getSymbols(true);
+                if (activeSymbols && activeSymbols.length > 0) {
+                    setSymbols(activeSymbols);
+                } else {
+                    // Fallback
+                    setSymbols(DEFAULT_SYMBOLS);
+                }
+            } catch (err) {
+                console.error('Failed to fetch symbols list:', err);
+                setSymbols(DEFAULT_SYMBOLS);
+            }
+        };
+
+        fetchSymbols();
+    }, [initialSymbols]);
+
     const fetchAllSymbols = useCallback(async () => {
-        if (fetchingRef.current) return;
+        if (fetchingRef.current || symbols.length === 0) return;
         fetchingRef.current = true;
 
         try {

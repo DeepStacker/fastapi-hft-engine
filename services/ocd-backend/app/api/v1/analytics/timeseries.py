@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.utils.timezone import get_ist_now, IST
+from app.utils.timezone import get_ist_now, IST, ist_to_utc
 
 from app.core.dependencies import OptionalUser
 from app.config.database import get_db
@@ -163,55 +163,58 @@ async def get_spot_timeseries(
     symbol = symbol.upper()
     repo = get_historical_repository(db)
     
-    # Calculate time range
-    now = get_ist_now().replace(tzinfo=None)
+    # Calculate time range using IST
+    now_ist = get_ist_now()
     if date:
         try:
             target_date = datetime.strptime(date, "%Y-%m-%d").date()
         except:
-            target_date = now.date()
+            target_date = now_ist.date()
     else:
-        target_date = now.date()
+        target_date = now_ist.date()
         
-    start_time = None
-    end_time = now
+    start_time_ist = None
+    end_time_ist = now_ist
     
     # Determine Time Range and Interval
     pg_interval = "5 minutes"
     interval_seconds = 300
     
-    if date and target_date < now.date():
-        # Historical fixed date
-        start_time = datetime.combine(target_date, dt_time.min)
-        end_time = datetime.combine(target_date, dt_time.max)
+    if date and target_date < now_ist.date():
+        # Historical fixed date - create IST-aware times
+        start_naive = datetime.combine(target_date, dt_time.min)
+        end_naive = datetime.combine(target_date, dt_time.max)
+        if hasattr(IST, "localize"):
+            start_time_ist = IST.localize(start_naive)
+            end_time_ist = IST.localize(end_naive)
+        else:
+            start_time_ist = start_naive.replace(tzinfo=IST)
+            end_time_ist = end_naive.replace(tzinfo=IST)
     else:
         # Live/Today relative
-        end_time = now
-        # Will calculate start_time after knowing interval if not set
+        end_time_ist = now_ist
 
     if interval == "auto":
-        # If we have fixed start/end (historical), calc based on that duration
-        if start_time:
-             pg_interval, interval_seconds = calculate_smart_interval(start_time, end_time)
+        if start_time_ist:
+            start_naive = start_time_ist.replace(tzinfo=None)
+            end_naive = end_time_ist.replace(tzinfo=None)
+            pg_interval, interval_seconds = calculate_smart_interval(start_naive, end_naive)
         else:
-             # For relative query (limit based), we need a default to calc start time OR just pick a default
-             # Default to 5m logic for initial window estimation? No, standard is limit*interval.
-             # Let's assume 5m for "auto" limit calc if no history, OR we can default to 1m?
-             # Better: Use 5m default for limit calc, then refine? 
-             # Actually, if auto and no date, we likely want "recent trend".
-             # Let's default to "5 minutes" (Last 500 mins) to capture enough data, then refine?
-             # No, if user just says "auto" with limit=100, they want 100 *optimal* points.
-             # This is circular. Let's default to 5m for limit base.
-             pg_interval, interval_seconds = ("5 minutes", 300)
-             start_time = now - timedelta(seconds=limit * interval_seconds)
-             # Now recalculate based on this duration?
-             pg_interval, interval_seconds = calculate_smart_interval(start_time, end_time)
-             # Recalc start time with new interval
-             start_time = now - timedelta(seconds=limit * interval_seconds)
+            pg_interval, interval_seconds = ("5 minutes", 300)
+            start_time_ist = now_ist - timedelta(seconds=limit * interval_seconds)
+            start_naive = start_time_ist.replace(tzinfo=None)
+            end_naive = end_time_ist.replace(tzinfo=None)
+            pg_interval, interval_seconds = calculate_smart_interval(start_naive, end_naive)
+            start_time_ist = now_ist - timedelta(seconds=limit * interval_seconds)
     else:
         pg_interval, interval_seconds = normalize_interval(interval)
-        if not start_time:
-             start_time = now - timedelta(seconds=limit * interval_seconds)
+        if not start_time_ist:
+            start_time_ist = now_ist - timedelta(seconds=limit * interval_seconds)
+    
+    # IMPORTANT: Convert IST to UTC for database query
+    # Database stores timestamps as naive UTC
+    start_time = ist_to_utc(start_time_ist)
+    end_time = ist_to_utc(end_time_ist)
     
     # Get symbol ID
     symbol_id = await repo.get_symbol_id(symbol)
@@ -294,46 +297,60 @@ async def get_strike_timeseries(
     symbol = symbol.upper()
     repo = get_historical_repository(db)
     
-    # Calculate time range (Use naive IST to match DB)
-    
-    # DB timestamps are stored as naive IST (wall clock)
-    now = get_ist_now().replace(tzinfo=None)
+    # Calculate time range using IST
+    now_ist = get_ist_now()
     if date:
         try:
             target_date = datetime.strptime(date, "%Y-%m-%d").date()
         except:
-            target_date = now.date()
+            target_date = now_ist.date()
     else:
-        target_date = now.date()
+        target_date = now_ist.date()
     
     # Commodity symbols have extended trading hours (no 3:30 PM cap)
     COMMODITY_SYMBOLS = {"CRUDEOIL", "NATURALGAS", "GOLD", "SILVER", "COPPER", "ALUMINIUM", "ZINC", "LEAD", "NICKEL"}
     is_commodity = symbol.upper() in COMMODITY_SYMBOLS
     
     # Market hours: 9:15 AM to 3:30 PM for equity indices
-    market_open = datetime.combine(target_date, datetime.strptime("09:15", "%H:%M").time())
-    market_close = datetime.combine(target_date, datetime.strptime("15:30", "%H:%M").time())
+    market_open_naive = datetime.combine(target_date, datetime.strptime("09:15", "%H:%M").time())
+    market_close_naive = datetime.combine(target_date, datetime.strptime("15:30", "%H:%M").time())
     
-    # Start time: Use Midnight to capture pre-market/simulation data
-    start_time = datetime.combine(target_date, dt_time.min)
+    # Make times IST-aware
+    if hasattr(IST, "localize"):
+        market_open_ist = IST.localize(market_open_naive)
+        market_close_ist = IST.localize(market_close_naive)
+    else:
+        market_open_ist = market_open_naive.replace(tzinfo=IST)
+        market_close_ist = market_close_naive.replace(tzinfo=IST)
+    
+    # Start time: Market open for intraday data
+    start_time_ist = market_open_ist
     
     # End time: current time, but capped at 3:30 PM for non-commodity symbols
-    if target_date < now.date():
-        # Historical date: use full day
-        end_time = datetime.combine(target_date, dt_time.max)
+    if target_date < now_ist.date():
+        # Historical date: use full market hours
+        end_time_ist = market_close_ist
     else:
         if is_commodity:
-            end_time = now
+            end_time_ist = now_ist
         else:
-            end_time = min(now, market_close)
+            end_time_ist = min(now_ist, market_close_ist)
 
     # Determine interval (Smart or Fixed)
     pg_interval = "5 minutes"
+    start_naive = start_time_ist.replace(tzinfo=None)
+    end_naive = end_time_ist.replace(tzinfo=None)
+    
     if interval == "auto":
-        pg_interval, interval_secs = calculate_smart_interval(start_time, end_time)
-        logger.info(f"Smart interval calculated: {pg_interval} for duration {(end_time-start_time)}")
+        pg_interval, interval_secs = calculate_smart_interval(start_naive, end_naive)
+        logger.info(f"Smart interval calculated: {pg_interval} for duration {(end_naive-start_naive)}")
     else:
         pg_interval, _ = normalize_interval(interval)
+
+    # IMPORTANT: Convert IST to UTC for database query
+    # Database stores timestamps as naive UTC
+    start_time = ist_to_utc(start_time_ist)
+    end_time = ist_to_utc(end_time_ist)
 
     # Get symbol ID
     symbol_id = await repo.get_symbol_id(symbol)
@@ -532,17 +549,20 @@ async def get_strike_multiview_timeseries(
     
     # Determine interval (Smart or Fixed)
     pg_interval = "5 minutes"
+    start_naive = start_time_ist.replace(tzinfo=None)
+    end_naive = end_time_ist.replace(tzinfo=None)
+    
     if interval == "auto":
-        # For auto mode, use finest granularity (1 second) to maximize data points
-        # This ensures we get all available data regardless of query window size
-        pg_interval = "1 second"
-        logger.info(f"Auto interval: using 1 second resolution for MultiView")
+        # Use smart interval to get ~50-150 data points for smooth charts
+        pg_interval, _ = calculate_smart_interval(start_naive, end_naive)
+        logger.info(f"Auto interval: {pg_interval} for MultiView (duration: {(end_naive-start_naive)})")
     else:
         pg_interval, _ = normalize_interval(interval)
     
-    # Use naive IST times for database query (DB stores timestamps as naive IST, not UTC)
-    start_time = start_time_ist.replace(tzinfo=None)
-    end_time = end_time_ist.replace(tzinfo=None)
+    # IMPORTANT: Database stores timestamps as NAIVE UTC (not IST!)
+    # Convert IST times to UTC for correct query results
+    start_time = ist_to_utc(start_time_ist)
+    end_time = ist_to_utc(end_time_ist)
     
     # Get symbol ID
     symbol_id = await repo.get_symbol_id(symbol)

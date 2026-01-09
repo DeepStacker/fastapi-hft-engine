@@ -319,7 +319,8 @@ async def process_message(msg: dict, span=None):
                 "volume_change_pct": float(option.get("volume_change_pct", 0)),
                 "oi": int(option.get("oi", 0)),
                 "prev_oi": int(option.get("prev_oi", 0)),
-                "oi_change": int(option.get("oi_change", 0)),
+                # Processor renames oi_change -> change_oi for Avro schema, handle both
+                "oi_change": int(option.get("change_oi", 0) or option.get("oi_change", 0)),
                 "oi_change_pct": float(option.get("oi_change_pct", 0)),
                 "delta": float(option.get("delta", 0)),
                 "gamma": float(option.get("gamma", 0)),

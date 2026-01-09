@@ -237,14 +237,45 @@ def normalize_data(
     if strikes and spot_price > 0:
         atm_strike = min(strikes, key=lambda x: abs(float(x) - spot_price))
     
+    # Spot Data Extraction
+    sltp = context.get("spot_price", 0) or hft_data.get("sltp", 0) or hft_data.get("Ltp", 0)
+    
+    # Try multiple sources for change
+    change = (
+        context.get("spot_change", 0) or 
+        hft_data.get("SChng", 0) or 
+        hft_data.get("schng", 0) or 
+        hft_data.get("change", 0) or
+        hft_data.get("net_change", 0)
+    )
+    
+    change_percent = (
+        context.get("spot_change_pct", 0) or 
+        hft_data.get("SPerChng", 0) or 
+        hft_data.get("spchng", 0) or 
+        hft_data.get("change_percent", 0) or
+        hft_data.get("p_ch", 0)
+    )
+    
+    # Fallback to calculation if change is 0
+    if change == 0 and sltp > 0:
+        prev_close = (
+            context.get("prev_close", 0) or 
+            hft_data.get("pc", 0) or 
+            hft_data.get("prev_close", 0)
+        )
+        if prev_close > 0:
+            change = sltp - prev_close
+            change_percent = (change / prev_close) * 100
+
     return {
         "symbol": symbol.upper(),
         "expiry": expiry,
         "timestamp": hft_data.get("timestamp", get_ist_isoformat()),
         "spot": {
-            "ltp": context.get("spot_price", 0),
-            "change": context.get("spot_change", 0),
-            "change_percent": context.get("spot_change_pct", 0),
+            "ltp": sltp,
+            "change": float(change),
+            "change_percent": float(change_percent),
         },
         "future": future_dict,
         "fl": future_dict,
