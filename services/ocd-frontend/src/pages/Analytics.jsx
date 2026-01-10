@@ -23,7 +23,8 @@ import {
     CubeIcon,
     ChartPieIcon,
     PresentationChartBarIcon,
-    ClockIcon
+    ClockIcon,
+    ArrowsPointingOutIcon
 } from '@heroicons/react/24/outline';
 
 // Import all analysis modules
@@ -37,15 +38,23 @@ import PCRTrendChart from '../components/analytics/PCRTrendChart';
 import GreeksHeatmap from '../components/analytics/GreeksHeatmap';
 import IVSkewChart from '../components/analytics/IVSkewChart';
 
+// Pro Components
+import OIHeatmapPro from '../components/analytics/OIHeatmapPro';
+import BuildupAnalysisPro from '../components/analytics/BuildupAnalysisPro';
+import COIBarsPro from '../components/analytics/COIBarsPro';
+import MaxPainChartPro from '../components/analytics/MaxPainChartPro';
+import ReversalLevelsPro from '../components/analytics/ReversalLevelsPro';
+
 const tabs = [
+    { id: 'heatmap', label: 'OI Heatmap', icon: ChartBarIcon, component: OIHeatmapPro, isPro: true },
+    { id: 'coi', label: 'COI Bars', icon: ChartBarIcon, component: COIBarsPro, isPro: true },
+    { id: 'buildup', label: 'Buildup', icon: PresentationChartBarIcon, component: BuildupAnalysisPro, isPro: true },
+    { id: 'maxpain', label: 'Max Pain', icon: ScaleIcon, component: MaxPainChartPro, isPro: true },
+    { id: 'reversal', label: 'Reversal Levels', icon: ArrowsPointingOutIcon, component: ReversalLevelsPro, isPro: true },
     { id: 'oi', label: 'OI Analysis', icon: ChartBarIcon, component: OIAnalysis },
-    { id: 'volume', label: 'Volume', icon: PresentationChartBarIcon, component: VolumeAnalysis },
     { id: 'greeks', label: 'Greeks', icon: BeakerIcon, component: GreeksAnalysis },
-    { id: 'heatmap', label: 'Heatmap', icon: BeakerIcon, component: GreeksHeatmap },
-    { id: 'straddle', label: 'Straddle', icon: ScaleIcon, component: StraddleAnalysis },
-    { id: 'pcr', label: 'PCR Trend', icon: ScaleIcon, component: PCRTrendChart },
     { id: 'ivskew', label: 'IV Skew', icon: ChartPieIcon, component: IVSkewChart },
-    { id: 'multistrike', label: 'Multi-Strike', icon: ChartPieIcon, component: MultiStrikeAnalysis },
+    { id: 'pcr', label: 'PCR Trend', icon: ScaleIcon, component: PCRTrendChart },
     { id: 'strategy', label: 'Strategy', icon: CubeIcon, component: StrategyBuilder },
 ];
 
@@ -62,7 +71,7 @@ const Analytics = () => {
     // Use dataSymbol if available, otherwise fall back to selected symbol
     const displaySymbol = dataSymbol || symbol || 'NIFTY';
 
-    const [activeTab, setActiveTab] = useState('oi');
+    const [activeTab, setActiveTab] = useState('heatmap'); // Default to Pro Heatmap
     const [lastUpdate, setLastUpdate] = useState(new Date());
 
     // Refresh data
@@ -165,8 +174,8 @@ const Analytics = () => {
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id)}
                                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-200 ${isActive
-                                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25'
-                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                                             }`}
                                     >
                                         <Icon className="w-4 h-4" />

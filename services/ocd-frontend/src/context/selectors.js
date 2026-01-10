@@ -12,6 +12,7 @@ const EMPTY_ARRAY = [];
 // ============================================
 
 export const selectOptionsData = (state) => state.data.data?.options?.data;
+export const selectLiveDataSnapshot = (state) => state.data.data?.options?.data;
 export const selectOptionChain = (state) => state.data.data?.options?.data?.oc;
 export const selectSpotData = (state) => state.data.data?.spot?.data;
 export const selectSpotPrice = (state) => state.data.data?.spot?.data?.ltp || state.data.data?.options?.data?.sltp || 0;

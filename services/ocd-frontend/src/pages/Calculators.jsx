@@ -8,6 +8,7 @@ import {
     BanknotesIcon,
     ArrowPathIcon,
     CurrencyDollarIcon,
+    ScaleIcon,
 } from '@heroicons/react/24/outline';
 import { selectIsAuthenticated } from '../context/selectors';
 import Card from '../components/common/Card';
@@ -19,6 +20,7 @@ import { calculatorService } from '../services/calculatorService';
  */
 const CALCULATOR_TABS = [
     { id: 'option', label: 'Option Pricing', icon: ChartBarIcon },
+    { id: 'margin', label: 'Margin', icon: ScaleIcon },
     { id: 'sip', label: 'SIP', icon: BanknotesIcon },
     { id: 'lumpsum', label: 'Lumpsum', icon: CurrencyDollarIcon },
     { id: 'swp', label: 'SWP', icon: CalculatorIcon },
@@ -311,6 +313,84 @@ const SWPCalculator = () => {
 };
 
 /**
+ * Margin Calculator
+ */
+const MarginCalculator = () => {
+    const [inputs, setInputs] = useState({
+        spot: 24500,
+        strike: 24500,
+        optionType: 'CE',
+        premium: 200,
+        lotSize: 75,
+        isBuy: true,
+    });
+    const [result, setResult] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    const handleCalculate = async () => {
+        setLoading(true);
+        try {
+            const res = await calculatorService.calculateMargin(inputs);
+            setResult(res);
+        } catch (err) {
+            console.error('Calculation error:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const updateInput = (key, value) => {
+        setInputs(prev => ({ ...prev, [key]: value }));
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <InputField label="Spot Price" value={inputs.spot} onChange={(v) => updateInput('spot', v)} />
+                <InputField label="Strike Price" value={inputs.strike} onChange={(v) => updateInput('strike', v)} />
+                <InputField label="Premium" value={inputs.premium} onChange={(v) => updateInput('premium', v)} />
+                <InputField label="Lot Size" value={inputs.lotSize} onChange={(v) => updateInput('lotSize', v)} />
+                <div>
+                    <label className="block text-xs text-gray-500 mb-1">Option Type</label>
+                    <select
+                        value={inputs.optionType}
+                        onChange={(e) => updateInput('optionType', e.target.value)}
+                        className="w-full bg-gray-100 dark:bg-gray-800 border-0 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="CE">Call (CE)</option>
+                        <option value="PE">Put (PE)</option>
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-xs text-gray-500 mb-1">Position</label>
+                    <select
+                        value={inputs.isBuy ? 'buy' : 'sell'}
+                        onChange={(e) => updateInput('isBuy', e.target.value === 'buy')}
+                        className="w-full bg-gray-100 dark:bg-gray-800 border-0 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="buy">Buy (Long)</option>
+                        <option value="sell">Sell (Short)</option>
+                    </select>
+                </div>
+            </div>
+
+            <Button onClick={handleCalculate} disabled={loading} className="w-full">
+                {loading ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : 'Calculate Margin'}
+            </Button>
+
+            {result && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <ResultCard label="Margin Required" value={`₹${result.margin_required?.toLocaleString() || 0}`} color="red" />
+                    <ResultCard label="Premium Value" value={`₹${result.premium_value?.toLocaleString() || 0}`} color="blue" />
+                    <ResultCard label="Total Investment" value={`₹${result.total_investment?.toLocaleString() || 0}`} color="purple" />
+                    <ResultCard label="Max Loss" value={`₹${result.max_loss?.toLocaleString() || 'Unlimited'}`} color="red" />
+                </div>
+            )}
+        </div>
+    );
+};
+
+/**
  * Calculators Page
  */
 const Calculators = () => {
@@ -338,6 +418,8 @@ const Calculators = () => {
                 return <LumpsumCalculator />;
             case 'swp':
                 return <SWPCalculator />;
+            case 'margin':
+                return <MarginCalculator />;
             default:
                 return <OptionCalculator />;
         }

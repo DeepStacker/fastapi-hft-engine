@@ -179,6 +179,8 @@ export const normalizeBackendData = (raw) => {
         total_pe_oi: raw.total_pe_oi || 0,
         pcr: raw.pcr || 0,
         expiry_list: raw.expiry_list || [],
+        // HFT Engine analyses for Dashboard widgets (GEX, MarketPulse, IVSkew)
+        analyses: raw.hft_analyses || raw.analyses || {},
       }
     },
     spot: {

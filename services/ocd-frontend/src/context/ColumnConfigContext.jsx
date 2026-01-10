@@ -17,14 +17,14 @@ export const AVAILABLE_COLUMNS = {
   ce_oichng: { id: 'ce_oichng', label: 'OI Chg', side: 'ce', category: 'oi', defaultVisible: true, width: 'w-20' },
   ce_iv: { id: 'ce_iv', label: 'IV', side: 'ce', category: 'greeks', defaultVisible: true, width: 'w-16' },
   ce_delta: { id: 'ce_delta', label: 'Delta', side: 'ce', category: 'greeks', defaultVisible: true, width: 'w-16' },
-  ce_gamma: { id: 'ce_gamma', label: 'Gamma', side: 'ce', category: 'greeks', defaultVisible: false, width: 'w-16' },
+  ce_gamma: { id: 'ce_gamma', label: 'Gamma', side: 'ce', category: 'greeks', defaultVisible: true, width: 'w-16' },
   ce_theta: { id: 'ce_theta', label: 'Theta', side: 'ce', category: 'greeks', defaultVisible: false, width: 'w-16' },
-  ce_vega: { id: 'ce_vega', label: 'Vega', side: 'ce', category: 'greeks', defaultVisible: false, width: 'w-16' },
-  ce_buildup: { id: 'ce_buildup', label: 'Buildup', side: 'ce', category: 'analysis', defaultVisible: false, width: 'w-16' },
+  ce_vega: { id: 'ce_vega', label: 'Vega', side: 'ce', category: 'greeks', defaultVisible: true, width: 'w-16' },
+  ce_buildup: { id: 'ce_buildup', label: 'Buildup', side: 'ce', category: 'analysis', defaultVisible: true, width: 'w-16' },
   ce_bid: { id: 'ce_bid', label: 'Bid', side: 'ce', category: 'depth', defaultVisible: false, width: 'w-16' },
   ce_ask: { id: 'ce_ask', label: 'Ask', side: 'ce', category: 'depth', defaultVisible: false, width: 'w-16' },
   ce_pcr: { id: 'ce_pcr', label: 'PCR', side: 'ce', category: 'analysis', defaultVisible: false, width: 'w-16' },
-  
+
   // Put columns (right side) - mirror of CE
   pe_ltp: { id: 'pe_ltp', label: 'LTP', side: 'pe', category: 'price', defaultVisible: true, width: 'w-20' },
   pe_chng: { id: 'pe_chng', label: 'Chg', side: 'pe', category: 'price', defaultVisible: false, width: 'w-16' },
@@ -33,14 +33,14 @@ export const AVAILABLE_COLUMNS = {
   pe_oichng: { id: 'pe_oichng', label: 'OI Chg', side: 'pe', category: 'oi', defaultVisible: true, width: 'w-20' },
   pe_iv: { id: 'pe_iv', label: 'IV', side: 'pe', category: 'greeks', defaultVisible: true, width: 'w-16' },
   pe_delta: { id: 'pe_delta', label: 'Delta', side: 'pe', category: 'greeks', defaultVisible: true, width: 'w-16' },
-  pe_gamma: { id: 'pe_gamma', label: 'Gamma', side: 'pe', category: 'greeks', defaultVisible: false, width: 'w-16' },
+  pe_gamma: { id: 'pe_gamma', label: 'Gamma', side: 'pe', category: 'greeks', defaultVisible: true, width: 'w-16' },
   pe_theta: { id: 'pe_theta', label: 'Theta', side: 'pe', category: 'greeks', defaultVisible: false, width: 'w-16' },
-  pe_vega: { id: 'pe_vega', label: 'Vega', side: 'pe', category: 'greeks', defaultVisible: false, width: 'w-16' },
-  pe_buildup: { id: 'pe_buildup', label: 'Buildup', side: 'pe', category: 'analysis', defaultVisible: false, width: 'w-16' },
+  pe_vega: { id: 'pe_vega', label: 'Vega', side: 'pe', category: 'greeks', defaultVisible: true, width: 'w-16' },
+  pe_buildup: { id: 'pe_buildup', label: 'Buildup', side: 'pe', category: 'analysis', defaultVisible: true, width: 'w-16' },
   pe_bid: { id: 'pe_bid', label: 'Bid', side: 'pe', category: 'depth', defaultVisible: false, width: 'w-16' },
   pe_ask: { id: 'pe_ask', label: 'Ask', side: 'pe', category: 'depth', defaultVisible: false, width: 'w-16' },
   pe_pcr: { id: 'pe_pcr', label: 'PCR', side: 'pe', category: 'analysis', defaultVisible: false, width: 'w-16' },
-  
+
   // Strike-level data
   strike_reversal: { id: 'strike_reversal', label: 'Reversal', side: 'strike', category: 'signals', defaultVisible: false, width: 'w-20' },
   strike_signals: { id: 'strike_signals', label: 'Signals', side: 'strike', category: 'signals', defaultVisible: false, width: 'w-24' },
@@ -76,13 +76,13 @@ export function ColumnConfigProvider({ children }) {
     } catch (e) {
       console.warn('Failed to load column config:', e);
     }
-    
+
     // Default visibility based on column definitions
     const defaultVisibility = {};
     Object.values(AVAILABLE_COLUMNS).forEach(col => {
       defaultVisibility[col.id] = col.defaultVisible;
     });
-    
+
     return {
       visibility: defaultVisibility,
       ceOrder: DEFAULT_CE_ORDER,
@@ -126,7 +126,7 @@ export function ColumnConfigProvider({ children }) {
     Object.values(AVAILABLE_COLUMNS).forEach(col => {
       defaultVisibility[col.id] = col.defaultVisible;
     });
-    
+
     const newConfig = {
       visibility: defaultVisibility,
       ceOrder: DEFAULT_CE_ORDER,

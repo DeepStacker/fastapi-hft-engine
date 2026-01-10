@@ -93,6 +93,7 @@ const Sidebar = () => {
         { name: "Option Chain", path: "/option-chain", icon: TableCellsIcon, badge: "Live", badgeColor: "bg-green-500" },
         { name: "Traders Hub", path: "/community", icon: UserGroupIcon, badge: "New", badgeColor: "bg-amber-500" },
         { name: "Analytics", path: "/analytics", icon: ChartPieIcon, badge: "Pro", badgeColor: "bg-purple-500" },
+        { name: "Futures", path: "/futures", icon: ArrowTrendingUpIcon, badge: "New", badgeColor: "bg-blue-500" },
         { name: "Historical", path: "/historical", icon: ClockIcon, badge: null },
         { name: "Split View", path: "/split-view", icon: Squares2X2Icon, badge: null },
       ]
@@ -105,6 +106,13 @@ const Sidebar = () => {
         { name: "Position Sizing", path: "/position-sizing", icon: ScaleIcon, badge: null },
         { name: "TCA", path: "/tca", icon: BanknotesIcon, badge: null },
       ]
+    },
+    {
+      title: "Admin",
+      items: [
+        { name: "Monitoring", path: "/admin/monitoring", icon: CogIcon, badge: null },
+      ],
+      adminOnly: true,
     },
   ];
 
@@ -186,61 +194,63 @@ const Sidebar = () => {
 
         {/* Navigation Links with Sections */}
         <nav className="flex-1 overflow-y-auto py-2 px-2">
-          {navigationSections.map((section, sectionIdx) => (
-            <div key={section.title} className={sectionIdx > 0 ? "mt-4" : ""}>
-              {/* Section Header */}
-              {!isCollapsed && (
-                <div className="px-3 py-1.5 mb-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                    {section.title}
-                  </span>
-                </div>
-              )}
+          {navigationSections
+            .filter(section => !section.adminOnly || (user?.role === 'admin' || user?.is_admin))
+            .map((section, sectionIdx) => (
+              <div key={section.title} className={sectionIdx > 0 ? "mt-4" : ""}>
+                {/* Section Header */}
+                {!isCollapsed && (
+                  <div className="px-3 py-1.5 mb-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                      {section.title}
+                    </span>
+                  </div>
+                )}
 
-              {/* Section Items */}
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.path;
+                {/* Section Items */}
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.path;
 
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2.5 mb-0.5 rounded-xl transition-all duration-200 group relative ${isActive
-                      ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-600 dark:text-blue-400 shadow-sm"
-                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white"
-                      }`}
-                    title={isCollapsed ? item.name : ""}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeNav"
-                        className="absolute left-0 w-1 h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-r-full"
-                      />
-                    )}
-                    <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-blue-600 dark:text-blue-400" : ""}`} />
-                    <AnimatePresence>
-                      {!isCollapsed && (
-                        <motion.span
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -10 }}
-                          className="font-medium text-sm whitespace-nowrap"
-                        >
-                          {item.name}
-                        </motion.span>
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`flex items-center gap-3 px-3 py-2.5 mb-0.5 rounded-xl transition-all duration-200 group relative ${isActive
+                        ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white"
+                        }`}
+                      title={isCollapsed ? item.name : ""}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="activeNav"
+                          className="absolute left-0 w-1 h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-r-full"
+                        />
                       )}
-                    </AnimatePresence>
-                    {!isCollapsed && item.badge && (
-                      <span className={`ml-auto px-1.5 py-0.5 text-[9px] font-bold text-white rounded-full ${item.badgeColor || 'bg-green-500'}`}>
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
+                      <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-blue-600 dark:text-blue-400" : ""}`} />
+                      <AnimatePresence>
+                        {!isCollapsed && (
+                          <motion.span
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -10 }}
+                            className="font-medium text-sm whitespace-nowrap"
+                          >
+                            {item.name}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                      {!isCollapsed && item.badge && (
+                        <span className={`ml-auto px-1.5 py-0.5 text-[9px] font-bold text-white rounded-full ${item.badgeColor || 'bg-green-500'}`}>
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
         </nav>
 
 

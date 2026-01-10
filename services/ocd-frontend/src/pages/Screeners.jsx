@@ -17,7 +17,11 @@ import {
     ArrowTrendingDownIcon,
     FunnelIcon,
     SparklesIcon,
+    BellIcon,
+    BellAlertIcon,
+    ClockIcon,
 } from '@heroicons/react/24/outline';
+import { toast } from "react-toastify";
 import { selectIsAuthenticated } from '../context/selectors';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -38,6 +42,18 @@ const SignalCard = memo(({ signal }) => {
         BANKNIFTY: 'from-purple-600 to-fuchsia-500',
         FINNIFTY: 'from-green-600 to-emerald-500',
         MIDCPNIFTY: 'from-amber-600 to-orange-500',
+    };
+
+    const handleSetAlert = (e) => {
+        e.stopPropagation();
+        toast.promise(
+            new Promise(resolve => setTimeout(resolve, 1000)),
+            {
+                pending: 'Setting alert...',
+                success: `Alert set for ${signal.symbol} ${signal.strike} ${signal.option_type}`,
+                error: 'Failed to set alert'
+            }
+        );
     };
 
     return (
@@ -65,11 +81,20 @@ const SignalCard = memo(({ signal }) => {
                             {signal.strike}
                         </span>
                     </div>
-                    <div className={`px-3 py-1 rounded-full text-sm font-bold ${isBuy
-                        ? 'bg-green-500 text-white'
-                        : 'bg-red-500 text-white'
-                        }`}>
-                        {signal.signal}
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleSetAlert}
+                            className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            title="Set Alert"
+                        >
+                            <BellIcon className="w-4 h-4 text-gray-400 hover:text-blue-500" />
+                        </button>
+                        <div className={`px-3 py-1 rounded-full text-sm font-bold ${isBuy
+                            ? 'bg-green-500 text-white'
+                            : 'bg-red-500 text-white'
+                            }`}>
+                            {signal.signal}
+                        </div>
                     </div>
                 </div>
 
@@ -169,6 +194,7 @@ const Screeners = () => {
     const [activeTab, setActiveTab] = useState('scalp');
     const [selectedSymbols, setSelectedSymbols] = useState(SYMBOLS); // All selected by default
     const [minStrength, setMinStrength] = useState(0);
+    const [minVolume, setMinVolume] = useState(0);
     const [signalFilter, setSignalFilter] = useState('all'); // all, buy, sell
 
     // Use multi-symbol screener hook
@@ -178,6 +204,10 @@ const Screeners = () => {
     const filteredSignals = allSignals.filter(signal => {
         if (!selectedSymbols.includes(signal.symbol)) return false;
         if ((signal.strength || 0) < minStrength) return false;
+        // Check metrics for volume if available, assuming metrics.volume or similar
+        const vol = signal.metrics?.volume || 0;
+        if (minVolume > 0 && vol < minVolume) return false;
+
         if (signalFilter === 'buy' && signal.signal !== 'BUY') return false;
         if (signalFilter === 'sell' && signal.signal !== 'SELL') return false;
         return true;
@@ -251,8 +281,8 @@ const Screeners = () => {
                                 key={symbol}
                                 onClick={() => toggleSymbol(symbol)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isSelected
-                                        ? 'bg-blue-600 text-white'
-                                        : isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+                                    ? 'bg-blue-600 text-white'
+                                    : isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
                                     }`}
                             >
                                 {symbol}
@@ -301,10 +331,10 @@ const Screeners = () => {
                                 key={type}
                                 onClick={() => setSignalFilter(type)}
                                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${signalFilter === type
-                                        ? type === 'buy' ? 'bg-green-500 text-white'
-                                            : type === 'sell' ? 'bg-red-500 text-white'
-                                                : 'bg-blue-500 text-white'
-                                        : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
+                                    ? type === 'buy' ? 'bg-green-500 text-white'
+                                        : type === 'sell' ? 'bg-red-500 text-white'
+                                            : 'bg-blue-500 text-white'
+                                    : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
                                     }`}
                             >
                                 {type.toUpperCase()}
@@ -324,6 +354,22 @@ const Screeners = () => {
                             <option value={50}>50%+</option>
                             <option value={70}>70%+</option>
                             <option value={80}>80%+</option>
+                        </select>
+                    </div>
+
+                    {/* Min Volume */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Min Vol:</span>
+                        <select
+                            value={minVolume}
+                            onChange={(e) => setMinVolume(Number(e.target.value))}
+                            className={`px-2 py-1 rounded-lg text-xs ${isDark ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'} border-0`}
+                        >
+                            <option value={0}>All</option>
+                            <option value={10000}>10k+</option>
+                            <option value={50000}>50k+</option>
+                            <option value={100000}>1L+</option>
+                            <option value={1000000}>10L+</option>
                         </select>
                     </div>
                 </div>

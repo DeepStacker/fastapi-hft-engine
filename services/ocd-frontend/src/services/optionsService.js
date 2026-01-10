@@ -214,6 +214,27 @@ export const optionsService = {
     clearCache: () => {
         cache.clear();
     },
+    /**
+     * Get future price data for analysis
+     * @param {string} symbol - Trading symbol
+     * @param {string} expiry - Expiry timestamp
+     */
+    getFutureData: async (symbol, expiry) => {
+        const response = await apiClient.post('/options/future', {
+            symbol,
+            expiry
+        });
+        return response.data;
+    },
+
+    /**
+     * Get futures summary from analytics endpoint
+     * @param {string} symbol - Trading symbol
+     */
+    getFuturesSummary: async (symbol) => {
+        const response = await apiClient.get(`/analytics/futures/${symbol}`);
+        return response.data;
+    },
 };
 
 export default optionsService;

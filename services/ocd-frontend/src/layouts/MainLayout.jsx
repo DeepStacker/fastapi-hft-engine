@@ -9,6 +9,9 @@ import { motion } from "framer-motion";
 import { SidebarProvider, useSidebar } from "../context/SidebarContext";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
+// HUD Integration
+import LiveAnalysisHUD from "../components/dashboard/LiveAnalysisHUD";
+
 // Inner component that uses the sidebar context
 const MainContent = () => {
   const theme = useSelector((state) => state.theme.theme);
@@ -73,8 +76,8 @@ const MainContent = () => {
   return (
     <div
       className={`min-h-screen relative bg-mesh-gradient transition-colors duration-500 ${theme === "dark"
-          ? "text-white"
-          : "text-gray-900"
+        ? "text-white"
+        : "text-gray-900"
         }`}
     >
       {/* Background Pattern */}
@@ -105,6 +108,9 @@ const MainContent = () => {
           >
             <Outlet />
           </motion.div>
+
+          {/* Live Analysis HUD Overlay */}
+          <LiveAnalysisHUD />
         </main>
       </motion.div>
 

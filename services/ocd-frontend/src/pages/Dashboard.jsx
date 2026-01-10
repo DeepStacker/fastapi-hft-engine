@@ -24,6 +24,11 @@ import MaxPainWidget from '../components/dashboard/MaxPainWidget';
 import OIBuildupWidget from '../components/dashboard/OIBuildupWidget';
 import LiveMarketSummaryWidget from '../components/dashboard/LiveMarketSummaryWidget';
 import MultiSymbolOverview from '../components/dashboard/MultiSymbolOverview';
+// Institutional-Grade Widgets
+import GEXWidget from '../components/dashboard/GEXWidget';
+import FuturesBasisWidget from '../components/dashboard/FuturesBasisWidget';
+import IVSkewWidget from '../components/dashboard/IVSkewWidget';
+import MarketPulseWidget from '../components/dashboard/MarketPulseWidget';
 
 /**
  * Premium Dashboard - Trading Command Center
@@ -147,6 +152,28 @@ const Dashboard = () => {
           <MarketStatusWidget />
           <VIXWidget />
           <ExpiryCountdownWidget />
+        </div>
+
+        {/* Pro Analytics Row - Institutional Grade */}
+        <div className="mb-2">
+          <div className="flex items-center gap-2">
+            <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              🔥 Pro Analytics
+            </h2>
+            <span className="px-2 py-0.5 text-xs font-medium bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-full">
+              LIVE
+            </span>
+          </div>
+        </div>
+
+        {/* Market Pulse (Full Width) */}
+        <MarketPulseWidget />
+
+        {/* Institutional Widgets Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <GEXWidget />
+          <FuturesBasisWidget />
+          <IVSkewWidget />
         </div>
 
         {/* Live OI Analysis Row */}

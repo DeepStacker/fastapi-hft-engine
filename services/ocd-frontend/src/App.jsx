@@ -41,6 +41,8 @@ const Calculators = lazy(() => import("./pages/Calculators"));
 const Community = lazy(() => import("./pages/Community"));
 const CommunityRoom = lazy(() => import("./pages/CommunityRoom"));
 const CommunityPost = lazy(() => import("./pages/CommunityPost"));
+const FuturesDashboard = lazy(() => import("./pages/FuturesDashboard"));
+const AdminMonitoring = lazy(() => import("./pages/AdminMonitoring"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 
@@ -157,9 +159,11 @@ function App() {
                       <Route path="/calculators" element={<Calculators />} />
                       <Route path="/position-sizing" element={<PositionSizing />} />
                       <Route path="/tca" element={<Tca />} />
+                      <Route path="/futures" element={<FuturesDashboard />} />
                       <Route path="/community" element={<Community />} />
                       <Route path="/community/:slug" element={<CommunityRoom />} />
                       <Route path="/community/posts/:id" element={<CommunityPost />} />
+                      <Route path="/admin/monitoring" element={<AdminMonitoring />} />
 
                     </Route>
                   </Route>

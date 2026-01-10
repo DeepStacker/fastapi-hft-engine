@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { BUILDUP_TYPES } from '../../../constants';
 import { useColumnConfig } from '../../../context/ColumnConfigContext';
 import { useTableSettings } from '../../../context/TableSettingsContext';
-import { XMarkIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, ChartBarIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 /**
  * Format number as K/M/B/T
@@ -348,6 +348,14 @@ const StrikeRow = memo(({ data, strike, atmStrike, spotPrice, onCellClick, onStr
   const [hoveredGreeks, setHoveredGreeks] = useState(null);
   const [showStrikePopup, setShowStrikePopup] = useState(false);
 
+  // Use the passed onStrikeSelect callback
+  const handleExpandClick = useCallback((e) => {
+    e.stopPropagation();
+    if (_onStrikeSelect) {
+      _onStrikeSelect(data);
+    }
+  }, [_onStrikeSelect, data]);
+
   // ATM Calculation: Strict equality (with epsilon for floats) to highlight ONLY the exact ATM strike
   const isATM = Math.abs(strike - atmStrike) < 0.01;
   const isITM_CE = ce.mness === 'I';
@@ -565,6 +573,15 @@ const StrikeRow = memo(({ data, strike, atmStrike, spotPrice, onCellClick, onStr
             <span className={isATM ? 'font-bold' : ''}>{strike}</span>
             {!isCompact && isATM && <span className="text-[10px] text-blue-500 font-medium px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 rounded">ATM</span>}
             <PCRDisplay oiPcr={oiPcr} oiChngPcr={oiChngPcr} volPcr={volPcr} compact={isCompact} />
+
+            {/* Expand Button for Depth Panel */}
+            <button
+              onClick={handleExpandClick}
+              className="mt-0.5 p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+              title="Expand Analysis Panel"
+            >
+              <ChevronDownIcon className="w-3 h-3 text-gray-500 hover:text-blue-500" />
+            </button>
           </div>
         </td>
 
