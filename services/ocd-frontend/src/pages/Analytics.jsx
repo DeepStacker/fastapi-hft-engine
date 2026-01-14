@@ -44,7 +44,8 @@ import {
     BookOpenIcon,
     ArrowTrendingUpIcon,
     ArrowTrendingDownIcon,
-    FireIcon
+    FireIcon,
+    ChartBarSquareIcon
 } from '@heroicons/react/24/outline';
 
 // Import all analysis modules
@@ -74,6 +75,7 @@ import OIConcentrationAnalysis from '../components/analytics/OIConcentrationAnal
 import StraddleExpectedMove from '../components/analytics/StraddleExpectedMove';
 import OptionsFlowDashboard from '../components/analytics/OptionsFlowDashboard';
 import MarketMakerPositioning from '../components/analytics/MarketMakerPositioning';
+import ChartOfAccuracy from '../components/analytics/ChartOfAccuracy';
 
 // Tab configurations with trader guidance
 const tabCategories = [
@@ -82,6 +84,16 @@ const tabCategories = [
         name: '📊 Market Overview',
         description: 'Start here to get the big picture of market sentiment',
         tabs: [
+            {
+                id: 'coa',
+                label: 'Chart of Accuracy',
+                icon: ChartBarSquareIcon,
+                component: ChartOfAccuracy,
+                difficulty: 'beginner',
+                purpose: '9-scenario framework to identify market tops and bottoms',
+                howToUse: 'Check the scenario (1.0-1.8). See if Support/Resistance is Strong, WTT, or WTB. Trade only at indicated levels.',
+                tradingTip: 'Only take trades at EOS when Support is Strong. Only trade EOR when Resistance is Strong.',
+            },
             {
                 id: 'flow',
                 label: 'Options Flow',
@@ -470,10 +482,10 @@ const Analytics = () => {
                             {marketSnapshot && (
                                 <div className="hidden md:flex items-center gap-3">
                                     <div className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 ${marketSnapshot.sentiment === 'bullish'
-                                            ? 'bg-green-100 text-green-700'
-                                            : marketSnapshot.sentiment === 'bearish'
-                                                ? 'bg-red-100 text-red-700'
-                                                : 'bg-gray-100 text-gray-700'
+                                        ? 'bg-green-100 text-green-700'
+                                        : marketSnapshot.sentiment === 'bearish'
+                                            ? 'bg-red-100 text-red-700'
+                                            : 'bg-gray-100 text-gray-700'
                                         }`}>
                                         {marketSnapshot.sentiment === 'bullish' ? <ArrowTrendingUpIcon className="w-3.5 h-3.5" /> :
                                             marketSnapshot.sentiment === 'bearish' ? <ArrowTrendingDownIcon className="w-3.5 h-3.5" /> : null}
@@ -578,8 +590,8 @@ const Analytics = () => {
                                     <button
                                         onClick={() => setExpandedCategory(expandedCategory === category.id ? null : category.id)}
                                         className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${expandedCategory === category.id
-                                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                                : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+                                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                            : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
                                             }`}
                                     >
                                         <div className="flex items-center justify-between">
@@ -598,8 +610,8 @@ const Analytics = () => {
                                                         key={tab.id}
                                                         onClick={() => setActiveTab(tab.id)}
                                                         className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${isActive
-                                                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow'
-                                                                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow'
+                                                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                                                             }`}
                                                     >
                                                         <Icon className="w-4 h-4" />
@@ -628,8 +640,8 @@ const Analytics = () => {
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id)}
                                         className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-[10px] font-medium transition-all min-w-[60px] ${isActive
-                                                ? 'bg-blue-600 text-white'
-                                                : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                            ? 'bg-blue-600 text-white'
+                                            : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
                                             }`}
                                     >
                                         <Icon className="w-5 h-5" />
