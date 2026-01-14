@@ -8,7 +8,7 @@ import logging
 
 from app.core.exceptions import ExternalAPIException, NotFoundException
 from app.services.options import get_options_service, OptionsService
-from app.api.v1 import auth, users, options, health, charts, monitoring, historical, screeners, calculators, notifications, profile, sse, symbols, support, community
+from app.api.v1 import auth, users, options, health, charts, monitoring, historical, screeners, calculators, notifications, profile, sse, symbols, support, community, strategy_simulation
 from app.api.v1.analytics import router as analytics_router  # Use split analytics package
 
 api_router = APIRouter()
@@ -168,3 +168,11 @@ api_router.include_router(
     community.router,
     tags=["Community"]
 )
+
+api_router.include_router(
+    strategy_simulation.router,
+    prefix="/strategy-simulation",
+    tags=["Strategy Simulation"]
+)
+
+logger = logging.getLogger(__name__)
