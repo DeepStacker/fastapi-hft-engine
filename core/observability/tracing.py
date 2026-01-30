@@ -273,5 +273,10 @@ def extract_trace_from_kafka_headers(headers: list) -> Optional[dict]:
     if not headers:
         return None
     
-    carrier = {k.decode(): v.decode() for k, v in headers}
+    carrier = {}
+    for k, v in headers:
+        key = k.decode() if isinstance(k, bytes) else k
+        val = v.decode() if isinstance(v, bytes) else v
+        carrier[key] = val
+        
     return distributed_tracer.extract_context(carrier)

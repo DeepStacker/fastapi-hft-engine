@@ -137,6 +137,8 @@ class DataCleaner:
             exchange=gc.get('exchange', 'NSE'),
             segment=gc.get('segment', 'D'),
             
+            probe_id=gc.get('probe_id'),
+            
             timestamp=datetime.now(timezone.utc)
         )
     

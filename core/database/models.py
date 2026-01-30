@@ -203,6 +203,13 @@ class OptionContractDB(Base):
     smart_money_analysis = Column(JSON, nullable=True)
     liquidity_analysis = Column(JSON, nullable=True)
     
+    # Percentage-based analysis (for Chart of Accuracy)
+    # Calculated per snapshot: value / max_valid_value * 100
+    oi_pct = Column(Float, nullable=True)        # OI as % of max valid OI
+    volume_pct = Column(Float, nullable=True)    # Volume as % of max
+    oichng_pct = Column(Float, nullable=True)    # Positive OI CHG as % of max
+    oi_rank = Column(Integer, nullable=True)     # Rank (1 = highest)
+    
     # Relationships
     instrument = relationship("InstrumentDB", back_populates="options")
     
@@ -859,3 +866,118 @@ class UserActivityLogDB(Base):
     
     def __repr__(self):
         return f"<UserActivityLog {self.activity_type} for {self.user_id}>"
+
+
+class COAHistoryDB(Base):
+    """
+    Chart of Accuracy History (TimescaleDB hypertable)
+    
+    Stores COA scenario snapshots over time for historical analysis.
+    Enables tracking of support/resistance strength changes.
+    """
+    __tablename__ = "coa_history"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True)
+    trade_date = Column(DateTime, nullable=True, index=True)
+    symbol_id = Column(Integer, ForeignKey('instruments.symbol_id', ondelete='CASCADE'), nullable=False, index=True)
+    expiry = Column(String(20), nullable=True, index=True)
+    
+    # Scenario
+    scenario_id = Column(String(10), nullable=False)  # 1.0 - 1.8
+    scenario_name = Column(String(50), nullable=True)
+    scenario_bias = Column(String(20), nullable=True)  # neutral, bullish, bearish, unclear
+    
+    # Support (PE side)
+    support_strength = Column(String(10), nullable=False)  # Strong, WTT, WTB
+    support_strike = Column(Float, nullable=True)
+    support_strike2nd = Column(Float, nullable=True)
+    support_oi = Column(BigInteger, nullable=True)
+    support_oi_change = Column(BigInteger, nullable=True)
+    support_oi_pct = Column(Float, nullable=True)
+    
+    # Resistance (CE side)
+    resistance_strength = Column(String(10), nullable=False)  # Strong, WTT, WTB
+    resistance_strike = Column(Float, nullable=True)
+    resistance_strike2nd = Column(Float, nullable=True)
+    resistance_oi = Column(BigInteger, nullable=True)
+    resistance_oi_change = Column(BigInteger, nullable=True)
+    resistance_oi_pct = Column(Float, nullable=True)
+    
+    # Trading Levels
+    eos = Column(Float, nullable=True)  # Extension of Support
+    eor = Column(Float, nullable=True)  # Extension of Resistance
+    spot_price = Column(Float, nullable=True)
+    atm_strike = Column(Float, nullable=True)
+    
+    # Flags
+    trade_at_eos = Column(Boolean, default=False)
+    trade_at_eor = Column(Boolean, default=False)
+    
+    # Relationships
+    instrument = relationship("InstrumentDB", backref="coa_history")
+    
+    # Indexes for efficient time-series queries
+    __table_args__ = (
+        Index('idx_coa_symbol_time', 'symbol_id', 'timestamp'),
+        Index('idx_coa_time_symbol', 'timestamp', 'symbol_id'),
+        Index('idx_coa_scenario', 'symbol_id', 'scenario_id'),
+    )
+    
+    def __repr__(self):
+        return f"<COAHistory {self.scenario_id} @ {self.timestamp}>"
+
+
+class COAAlertSubscriptionDB(Base):
+    """
+    COA Alert Subscriptions
+    
+    Allows users to subscribe to scenario change alerts for specific symbols.
+    """
+    __tablename__ = "coa_alert_subscriptions"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('app_users.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True
+    )
+    symbol_id = Column(Integer, ForeignKey('instruments.symbol_id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Alert settings
+    enabled = Column(Boolean, default=True, nullable=False)
+    alert_on_scenario_change = Column(Boolean, default=True)  # Alert when scenario changes (e.g., 1.0 → 1.5)
+    alert_on_strength_change = Column(Boolean, default=False)  # Alert when strength changes (e.g., Strong → WTT)
+    alert_on_eos_eor_breach = Column(Boolean, default=False)  # Alert when spot crosses EOS/EOR
+    
+    # Thresholds
+    min_scenario_change = Column(Float, default=0.1)  # Minimum scenario ID change to trigger alert
+    
+    # Notification preferences (can override user defaults)
+    notify_in_app = Column(Boolean, default=True)
+    notify_push = Column(Boolean, default=True)
+    notify_email = Column(Boolean, default=False)
+    
+    # Tracking
+    last_scenario = Column(String(10), nullable=True)  # Last known scenario for comparison
+    last_alert_at = Column(DateTime, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("AppUserDB", backref="coa_subscriptions")
+    instrument = relationship("InstrumentDB", backref="coa_subscribers")
+    
+    # Constraints
+    __table_args__ = (
+        Index('idx_coa_sub_user_symbol', 'user_id', 'symbol_id', unique=True),
+        Index('idx_coa_sub_enabled', 'enabled', 'symbol_id'),
+    )
+    
+    def __repr__(self):
+        return f"<COAAlertSubscription user={self.user_id} symbol={self.symbol_id}>"
+
+

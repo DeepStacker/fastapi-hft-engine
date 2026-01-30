@@ -85,6 +85,7 @@ async def flush_buffers():
                         :raw_data, :gex_analysis, :iv_skew_analysis,
                         :pcr_analysis, :market_wide_analysis
                     )
+                    ON CONFLICT DO NOTHING
                 """)
                 
                 # Convert dicts to JSON strings for JSONB columns
@@ -120,7 +121,8 @@ async def flush_buffers():
                         reversal_price, support_price, resistance_price, resistance_range_price,
                         weekly_reversal_price, future_reversal_price,
                         is_liquid, is_valid,
-                        order_flow_analysis, smart_money_analysis, liquidity_analysis
+                        order_flow_analysis, smart_money_analysis, liquidity_analysis,
+                        oi_pct, volume_pct, oichng_pct, oi_rank
                     ) VALUES (
                         :timestamp, :trade_date, :symbol_id, :expiry, :strike_price, :option_type,
                         :ltp, :bid, :ask, :mid_price, :prev_close, :price_change, :price_change_pct, :avg_traded_price,
@@ -133,8 +135,10 @@ async def flush_buffers():
                         :reversal_price, :support_price, :resistance_price, :resistance_range_price,
                         :weekly_reversal_price, :future_reversal_price,
                         :is_liquid, :is_valid,
-                        :order_flow_analysis, :smart_money_analysis, :liquidity_analysis
+                        :order_flow_analysis, :smart_money_analysis, :liquidity_analysis,
+                        :oi_pct, :volume_pct, :oichng_pct, :oi_rank
                     )
+                    ON CONFLICT DO NOTHING
                 """)
                 
                 # Convert JSON columns
@@ -347,7 +351,12 @@ async def process_message(msg: dict, span=None):
                 "is_valid": option.get("is_valid", True),
                 "order_flow_analysis": _extract_order_flow(analyses, strike_key),
                 "smart_money_analysis": None,  # Aggregate only
-                "liquidity_analysis": None  # Aggregate only
+                "liquidity_analysis": None,  # Aggregate only
+                # Percentage fields for COA (Chart of Accuracy)
+                "oi_pct": float(option.get("oi_pct")) if option.get("oi_pct") else None,
+                "volume_pct": float(option.get("volume_pct")) if option.get("volume_pct") else None,
+                "oichng_pct": float(option.get("oichng_pct")) if option.get("oichng_pct") else None,
+                "oi_rank": int(option.get("oi_rank")) if option.get("oi_rank") else None,
             }
             option_buffer.append(option_record)
         

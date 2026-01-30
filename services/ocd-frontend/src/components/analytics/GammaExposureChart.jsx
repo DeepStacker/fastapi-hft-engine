@@ -1,347 +1,563 @@
 /**
  * Gamma Exposure (GEX) Chart Component
- * Shows gamma exposure levels to identify market maker hedging zones
- * Positive GEX = Price stabilization, Negative GEX = Price acceleration
+ * Professional-grade analytics for Market Maker positioning
+ * Features:
+ * - Real-time GEX visualization
+ * - "What-If" Market Simulation
+ * - Dealer Hedging Flow Estimation
+ * - Market Regime Classification
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
+import {
+    ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+    ReferenceLine, ResponsiveContainer, Cell, Area, Scatter
+} from 'recharts';
 import { selectOptionChain, selectSpotPrice, selectATMStrike, selectLotSize } from '../../context/selectors';
+import { useGreeksWorker } from '../../hooks/useGreeksWorker';
 import {
     BoltIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
-    InformationCircleIcon, ChartBarIcon
+    InformationCircleIcon, ChartBarIcon, BeakerIcon,
+    CurrencyRupeeIcon, ShieldCheckIcon
 } from '@heroicons/react/24/outline';
 
 const GammaExposureChart = () => {
+    const theme = useSelector((state) => state.theme.theme);
+    const isDark = theme === 'dark';
     const optionChain = useSelector(selectOptionChain);
     const spotPrice = useSelector(selectSpotPrice);
     const atmStrike = useSelector(selectATMStrike);
     const lotSize = useSelector(selectLotSize) || 50;
 
+    const [viewMode, setViewMode] = useState('net'); // 'net', 'split', 'cumulative'
     const [showInfo, setShowInfo] = useState(false);
+    const [simulationMode, setSimulationMode] = useState(false);
+    const [simulatedSpot, setSimulatedSpot] = useState(spotPrice);
+    const [simulatedData, setSimulatedData] = useState(null);
+    const [isCalculating, setIsCalculating] = useState(false);
 
-    // Calculate GEX for each strike
-    const gexData = useMemo(() => {
-        if (!optionChain || !spotPrice) return { strikes: [], totalGEX: 0, flipLevel: null };
+    const { calculateBatch, isReady: workerReady } = useGreeksWorker();
 
-        const strikes = [];
-        let totalCallGEX = 0;
-        let totalPutGEX = 0;
+    // Reset simulation when actual spot updates significantly (unless dragging)
+    useEffect(() => {
+        if (!simulationMode && spotPrice) {
+            setSimulatedSpot(spotPrice);
+        }
+    }, [spotPrice, simulationMode]);
 
-        // GEX formula: gamma × OI × spot² × 0.01 × contract_multiplier
-        // For calls: positive gamma (MM buys as price rises)
-        // For puts: negative gamma (MM sells as price rises)
-        Object.entries(optionChain).forEach(([strikeKey, data]) => {
-            const strike = parseFloat(strikeKey);
-            const ceGamma = data.ce?.optgeeks?.gamma || data.ce?.gamma || 0;
-            const peGamma = data.pe?.optgeeks?.gamma || data.pe?.gamma || 0;
-            const ceOI = data.ce?.oi || data.ce?.OI || 0;
-            const peOI = data.pe?.oi || data.pe?.OI || 0;
+    // Initial / Base GEX Calculation
+    const baseGEXData = useMemo(() => {
+        if (!optionChain || !spotPrice) return { data: [], totalGEX: 0, flipLevel: null, stats: {} };
+        return calculateGEXProfile(optionChain, spotPrice, lotSize, atmStrike);
+    }, [optionChain, spotPrice, lotSize, atmStrike]);
 
-            // Calculate GEX in crores for readability
-            const multiplier = spotPrice * spotPrice * 0.01 * lotSize / 10000000; // Convert to Cr
-            const callGEX = ceGamma * ceOI * multiplier;
-            const putGEX = -peGamma * peOI * multiplier; // Negative for puts
-
-            totalCallGEX += callGEX;
-            totalPutGEX += putGEX;
-
-            strikes.push({
-                strike,
-                callGEX,
-                putGEX,
-                netGEX: callGEX + putGEX,
-                callOI: ceOI,
-                putOI: peOI,
-                callGamma: ceGamma,
-                putGamma: peGamma
-            });
-        });
-
-        strikes.sort((a, b) => a.strike - b.strike);
-
-        // Find gamma flip level (where cumulative GEX crosses zero)
-        let cumulativeGEX = 0;
-        let flipLevel = null;
-        for (let i = 0; i < strikes.length; i++) {
-            const prevCumulative = cumulativeGEX;
-            cumulativeGEX += strikes[i].netGEX;
-            if (prevCumulative < 0 && cumulativeGEX >= 0) {
-                flipLevel = strikes[i].strike;
-                break;
-            }
-            if (prevCumulative > 0 && cumulativeGEX <= 0) {
-                flipLevel = strikes[i].strike;
-                break;
-            }
+    // Effect to trigger Simulation Calculation
+    useEffect(() => {
+        if (!simulationMode || !workerReady || !optionChain) {
+            setSimulatedData(null);
+            return;
         }
 
-        const totalGEX = totalCallGEX + totalPutGEX;
+        const runSimulation = async () => {
+            setIsCalculating(true);
+            try {
+                // Prepare options for worker
+                // We need to pass the options data structure expected by the worker
+                const optionsList = Object.entries(optionChain).flatMap(([k, data]) => {
+                    const strike = parseFloat(k);
+                    const expiry = data.ce?.expiryDate || data.ce?.expiry_date; // Handle different casing
+                    // Estimate days to expiry (simplified) or pass actual if available
+                    // For now, let's assume valid data exists
+                    const validCE = data.ce && (data.ce.iv > 0 || data.ce.ltp > 0);
+                    const validPE = data.pe && (data.pe.iv > 0 || data.pe.ltp > 0);
+                    const res = [];
+                    // Helper to calc DTE
+                    const getDTE = (exp) => {
+                        if (!exp) return 1;
+                        const diff = new Date(exp) - new Date();
+                        return Math.max(diff / (1000 * 60 * 60 * 24), 0.1);
+                    }
 
-        return { strikes, totalGEX, totalCallGEX, totalPutGEX, flipLevel };
-    }, [optionChain, spotPrice, lotSize]);
+                    if (validCE) {
+                        res.push({
+                            strike, type: 'CE',
+                            qt: data.ce, // Pass full object if needed, but worker needs specific fields
+                            iv: data.ce.iv || 0,
+                            daysToExpiry: getDTE(expiry),
+                            oi: data.ce.oi || data.ce.OI || 0
+                        });
+                    }
+                    if (validPE) {
+                        res.push({
+                            strike, type: 'PE',
+                            qt: data.pe,
+                            iv: data.pe.iv || 0,
+                            daysToExpiry: getDTE(expiry),
+                            oi: data.pe.oi || data.pe.OI || 0
+                        });
+                    }
+                    return res;
+                });
 
-    const maxGEX = useMemo(() => {
-        return Math.max(...gexData.strikes.map(s => Math.abs(s.netGEX)), 0.01);
-    }, [gexData.strikes]);
+                // Batch Calculator in Worker
+                // This recalculates Greeks (Gamma, Delta) for the NEW spot price
+                const recalculatedGreeks = await calculateBatch(optionsList, simulatedSpot);
 
-    // Filter strikes around ATM
-    const visibleStrikes = useMemo(() => {
-        const atmIdx = gexData.strikes.findIndex(s => s.strike >= atmStrike);
-        const start = Math.max(0, atmIdx - 10);
-        const end = Math.min(gexData.strikes.length, atmIdx + 11);
-        return gexData.strikes.slice(start, end);
-    }, [gexData.strikes, atmStrike]);
+                // Construct a "Fake" Option Chain with updated Greeks to reuse calculateGEXProfile
+                const simOptionChain = {};
+                recalculatedGreeks.forEach(opt => {
+                    if (!simOptionChain[opt.strike]) simOptionChain[opt.strike] = { ce: {}, pe: {} };
+                    const target = opt.type === 'CE' ? simOptionChain[opt.strike].ce : simOptionChain[opt.strike].pe;
 
-    // Determine market regime
-    const regime = useMemo(() => {
-        if (gexData.totalGEX > 0.5) return { type: 'positive', label: 'Stabilizing', color: 'emerald', desc: 'MMs buy dips, sell rallies' };
-        if (gexData.totalGEX < -0.5) return { type: 'negative', label: 'Volatile', color: 'red', desc: 'MMs amplify moves' };
-        return { type: 'neutral', label: 'Neutral', color: 'amber', desc: 'Mixed positioning' };
-    }, [gexData.totalGEX]);
+                    // Update Gamma/Delta
+                    target.optgeeks = { gamma: opt.gamma, delta: opt.delta };
+                    target.gamma = opt.gamma; // Fallback
+                    target.delta = opt.delta;
+                    target.oi = opt.oi; // Preserve OI
+                    target.OI = opt.oi;
+                });
 
-    if (!optionChain) {
-        return (
-            <div className="p-8 text-center text-gray-400">
-                <BoltIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Load Option Chain data to view GEX</p>
-            </div>
-        );
+                const result = calculateGEXProfile(simOptionChain, simulatedSpot, lotSize, atmStrike);
+                setSimulatedData(result);
+
+            } catch (err) {
+                console.error("Simulation failed", err);
+            } finally {
+                setIsCalculating(false);
+            }
+        };
+
+        const timer = setTimeout(runSimulation, 300); // Debounce
+        return () => clearTimeout(timer);
+
+    }, [simulationMode, simulatedSpot, optionChain, workerReady, lotSize, atmStrike, calculateBatch]);
+
+
+    // Determine which data to display
+    const activeData = simulationMode && simulatedData ? simulatedData : baseGEXData;
+    const regime = useMemo(() => getRegime(activeData.totalGEX), [activeData.totalGEX]);
+
+    // Calculate Hedging Flow (Delta Difference)
+    // How much DO Dealers have to buy/sell to stay neutral if we move from Spot -> SimSpot?
+    const hedgingFlow = useMemo(() => {
+        if (!simulationMode || !simulatedData) return null;
+        // Simplified prox: Change in Total GEX * Change in Price?
+        // Better: Sum of (NewDelta - OldDelta) * OI * Multiplier
+        // But we don't have row-by-row delta diff easily here without iterating.
+        // Let's use the GEX approximation: Gamma is change in Delta.
+        // Approx Delta Change = Average Gamma * (SimSpot - Spot)
+        // Flow = Delta Change * Spot * LotSize (Rough Notional)
+        // Let's use the TOTAL GEX number to estimate force.
+        // Total GEX is "Gamma per 1% move" in Crores.
+        // Move % = (SimSpot - Spot) / Spot * 100
+        // Expected Flow ~ Total GEX * Move%
+        const movePct = ((simulatedSpot - spotPrice) / spotPrice) * 100;
+        const estimatedFlowCr = baseGEXData.totalGEX * movePct;
+        return estimatedFlowCr; // Positive = Dealers must BUY, Negative = Dealers must SELL
+    }, [simulationMode, simulatedData, simulatedSpot, spotPrice, baseGEXData]);
+
+
+    if (!optionChain) return <div className="text-center p-10 text-gray-500">No Data Available</div>;
+
+    // Custom Tooltip
+    const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            const data = payload[0].payload;
+            return (
+                <div className={`p-3 rounded-lg shadow-xl border backdrop-blur-md ${isDark ? 'bg-gray-900/90 border-gray-700' : 'bg-white/90 border-gray-200'}`}>
+                    <div className="font-bold border-b border-gray-700 pb-1 mb-2 flex justify-between gap-4">
+                        <span>Strike: {label}</span>
+                        {/* Display differently if Simulating */}
+                        {simulationMode && (
+                            <span className="text-amber-400 text-xs">Simulated</span>
+                        )}
+                        {data.strike === atmStrike && <span className="text-blue-400 text-xs px-1.5 py-0.5 bg-blue-500/10 rounded">ATM</span>}
+                    </div>
+                    <div className="space-y-1 text-xs">
+                        <div className="flex justify-between gap-4 text-emerald-500">
+                            <span>Call GEX:</span>
+                            <span className="font-mono">+{data.callGEX.toFixed(2)} Cr</span>
+                        </div>
+                        <div className="flex justify-between gap-4 text-red-500">
+                            <span>Put GEX:</span>
+                            <span className="font-mono">{data.putGEX.toFixed(2)} Cr</span>
+                        </div>
+                        <div className="border-t border-gray-700 pt-1 mt-1 flex justify-between gap-4 font-bold">
+                            <span>Net GEX:</span>
+                            <span className={`font-mono ${data.netGEX >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {data.netGEX > 0 ? '+' : ''}{data.netGEX.toFixed(2)} Cr
+                            </span>
+                        </div>
+                        {viewMode === 'cumulative' && (
+                            <div className="flex justify-between gap-4 text-purple-400">
+                                <span>Cum. GEX:</span>
+                                <span className="font-mono">{data.cumulativeGEX.toFixed(2)} Cr</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )
+        }
+        return null;
     }
 
-    const width = 700;
-    const height = 280;
-    const padding = { left: 60, right: 30, top: 30, bottom: 40 };
-    const chartW = width - padding.left - padding.right;
-    const chartH = height - padding.top - padding.bottom;
-
-    const xScale = (i) => padding.left + (i / (visibleStrikes.length - 1)) * chartW;
-    const yScale = (gex) => padding.top + ((maxGEX - gex) / (maxGEX * 2)) * chartH;
-    const zeroY = yScale(0);
 
     return (
-        <div className="space-y-4">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-4 gap-3">
-                {/* Total GEX */}
-                <div className={`relative overflow-hidden rounded-xl p-4 bg-gradient-to-br ${regime.type === 'positive' ? 'from-emerald-500 to-teal-600' :
-                        regime.type === 'negative' ? 'from-red-500 to-rose-600' :
-                            'from-amber-500 to-orange-600'
-                    } text-white shadow-lg`}>
-                    <div className="absolute -right-4 -top-4 w-16 h-16 bg-white/10 rounded-full blur-xl" />
-                    <div className="relative">
-                        <div className="flex items-center gap-1 text-[10px] opacity-80 mb-1">
-                            <BoltIcon className="w-3 h-3" />
-                            Net GEX
+        <div className="space-y-4 font-sans text-gray-200">
+            {/* 1. Simulation Controls */}
+            <div className={`rounded-xl p-4 border transition-all duration-300 ${simulationMode
+                ? 'bg-amber-900/20 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                : 'bg-gray-800/20 border-gray-700/50'
+                }`}>
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <BeakerIcon className={`w-5 h-5 ${simulationMode ? 'text-amber-400' : 'text-gray-400'}`} />
+                        <span className={`font-semibold ${simulationMode ? 'text-amber-100' : 'text-gray-400'}`}>
+                            Market Simulator
+                        </span>
+                        {simulationMode && isCalculating && (
+                            <span className="text-xs text-amber-400 animate-pulse ml-2">Calculating...</span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label className="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" checked={simulationMode} onChange={() => setSimulationMode(!simulationMode)} />
+                            <div className="relative w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                            <span className="ms-3 text-sm font-medium text-gray-300">Enable</span>
+                        </label>
+                    </div>
+                </div>
+
+                {simulationMode && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                        <div>
+                            <div className="flex justify-between text-xs mb-1">
+                                <span className="text-gray-400">Current Spot: <span className="text-blue-400">{spotPrice}</span></span>
+                                <span className="text-amber-400 font-bold">Simulated Spot: {simulatedSpot.toFixed(0)}</span>
+                                <span className="text-gray-400">Change: <span className={`${simulatedSpot >= spotPrice ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {((simulatedSpot - spotPrice) / spotPrice * 100).toFixed(2)}%
+                                </span></span>
+                            </div>
+                            <input
+                                type="range"
+                                min={spotPrice * 0.95}
+                                max={spotPrice * 1.05}
+                                step={spotPrice * 0.001}
+                                value={simulatedSpot}
+                                onChange={(e) => setSimulatedSpot(parseFloat(e.target.value))}
+                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                            <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+                                <span>-5%</span>
+                                <span>0%</span>
+                                <span>+5%</span>
+                            </div>
                         </div>
-                        <div className="text-2xl font-bold">{gexData.totalGEX.toFixed(2)} Cr</div>
-                        <div className="text-xs opacity-80">{regime.label}</div>
-                    </div>
-                </div>
 
-                {/* Call GEX */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-                    <div className="text-[10px] text-emerald-600 font-medium mb-1">Call GEX</div>
-                    <div className="text-xl font-bold text-emerald-600">+{gexData.totalCallGEX.toFixed(2)} Cr</div>
-                    <div className="text-[9px] text-gray-400">Stabilizing force</div>
-                </div>
-
-                {/* Put GEX */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-                    <div className="text-[10px] text-red-600 font-medium mb-1">Put GEX</div>
-                    <div className="text-xl font-bold text-red-600">{gexData.totalPutGEX.toFixed(2)} Cr</div>
-                    <div className="text-[9px] text-gray-400">Volatile force</div>
-                </div>
-
-                {/* Gamma Flip */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-                    <div className="text-[10px] text-purple-600 font-medium mb-1">Gamma Flip Level</div>
-                    <div className="text-xl font-bold text-purple-600">
-                        {gexData.flipLevel ? gexData.flipLevel : 'N/A'}
+                        {/* Hedging Flow Estimator */}
+                        {hedgingFlow !== null && (
+                            <div className="flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-white/5">
+                                <CurrencyRupeeIcon className="w-5 h-5 text-gray-400" />
+                                <div className="flex-1">
+                                    <div className="text-[10px] text-gray-400 uppercase tracking-wider">Estimated Dealer Hedging Flow</div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className={`text-lg font-bold ${hedgingFlow > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            {hedgingFlow > 0 ? 'BUY' : 'SELL'} ₹{Math.abs(hedgingFlow).toFixed(1)} Cr
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                            to remain delta neutral
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="text-right text-[10px] text-gray-500 max-w-[150px]">
+                                    {hedgingFlow > 0
+                                        ? "Dealers buying creates support / pushes price up."
+                                        : "Dealers selling creates resistance / pushes price down."}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                    <div className="text-[9px] text-gray-400">
-                        {gexData.flipLevel ? `${((gexData.flipLevel - spotPrice) / spotPrice * 100).toFixed(1)}% from spot` : 'No flip detected'}
-                    </div>
-                </div>
+                )}
             </div>
 
-            {/* Info Toggle */}
-            <button
-                onClick={() => setShowInfo(!showInfo)}
-                className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700"
-            >
-                <InformationCircleIcon className="w-4 h-4" />
-                {showInfo ? 'Hide' : 'What is GEX?'}
-            </button>
+            {/* 2. Metric Cards (Updated with Active Data) */}
+            <div className="grid grid-cols-4 gap-3">
+                <MetricCard
+                    title="Net Exposure"
+                    value={activeData.totalGEX}
+                    icon={BoltIcon}
+                    subValue={regime.label}
+                    isGood={activeData.totalGEX > 0}
+                    theme={isDark}
+                />
+                <MetricCard
+                    title="Call Exposure"
+                    value={activeData.callGEX}
+                    icon={ArrowTrendingUpIcon}
+                    subValue="Stabilizing"
+                    isGood={true}
+                    theme={isDark}
+                    colorClass="text-emerald-500"
+                />
+                <MetricCard
+                    title="Put Exposure"
+                    value={activeData.putGEX}
+                    icon={ArrowTrendingDownIcon}
+                    subValue="Volatile"
+                    isGood={false}
+                    theme={isDark}
+                    colorClass="text-red-500"
+                />
+                <MetricCard
+                    title="Gamma Flip"
+                    value={activeData.flipLevel || 'N/A'}
+                    icon={ShieldCheckIcon}
+                    subValue={activeData.flipLevel ? `${((activeData.flipLevel - (simulationMode ? simulatedSpot : spotPrice)) / (simulationMode ? simulatedSpot : spotPrice) * 100).toFixed(2)}% away` : 'None'}
+                    isGood={true}
+                    theme={isDark}
+                    colorClass="text-purple-400"
+                    isTextValue={false}
+                />
+            </div>
 
+            {/* 3. Controls & Chart */}
+            <div className="flex items-center justify-between">
+                <div className="flex gap-1 p-1 bg-gray-800/50 rounded-lg border border-gray-700">
+                    {['net', 'split', 'cumulative'].map(mode => (
+                        <button
+                            key={mode}
+                            onClick={() => setViewMode(mode)}
+                            className={`px-3 py-1 text-xs font-medium rounded transition-all ${viewMode === mode
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                                }`}
+                        >
+                            {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                        </button>
+                    ))}
+                </div>
+                <button
+                    onClick={() => setShowInfo(!showInfo)}
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-400 transition-colors"
+                >
+                    <InformationCircleIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Guide</span>
+                </button>
+            </div>
+
+            {/* 3. Info Panel */}
             {showInfo && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-sm space-y-2">
-                    <p><strong>Gamma Exposure (GEX)</strong> measures how market makers must hedge their positions as price moves.</p>
-                    <div className="grid grid-cols-2 gap-4 text-xs">
-                        <div className="flex items-start gap-2">
-                            <span className="w-3 h-3 bg-emerald-500 rounded mt-0.5"></span>
-                            <div>
-                                <strong>Positive GEX:</strong> MMs buy dips and sell rallies, creating price stability and mean reversion.
-                            </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                            <span className="w-3 h-3 bg-red-500 rounded mt-0.5"></span>
-                            <div>
-                                <strong>Negative GEX:</strong> MMs sell into declines and buy into rallies, amplifying price moves.
-                            </div>
-                        </div>
-                    </div>
+                <div className="bg-blue-900/20 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-200/80 leading-relaxed">
+                    <p className="mb-2"><strong className="text-blue-200">Gamma Exposure (GEX)</strong> reveals Market Maker hedging needs.</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                        <li><span className="text-emerald-400 font-semibold">Positive GEX:</span> MMs buy dips/sell rips (Stabilizing). Expect ranges.</li>
+                        <li><span className="text-red-400 font-semibold">Negative GEX:</span> MMs sell dips/buy rips (Volatile). Expect trends/squeezes.</li>
+                        <li><span className="text-purple-400 font-semibold">Flip Level:</span> Where regime shifts. Volatility often spikes here.</li>
+                    </ul>
                 </div>
             )}
 
-            {/* Main Chart */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className={`px-4 py-2.5 bg-gradient-to-r ${regime.type === 'positive' ? 'from-emerald-500 to-teal-500' :
-                        regime.type === 'negative' ? 'from-red-500 to-rose-500' :
-                            'from-amber-500 to-orange-500'
-                    } text-white flex items-center justify-between`}>
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                        <ChartBarIcon className="w-4 h-4" />
-                        GEX by Strike
-                    </h3>
-                    <span className="text-xs opacity-80">{regime.desc}</span>
-                </div>
+            {/* 4. Chart Area */}
+            <div className={`h-[350px] w-full rounded-xl border p-4 relative ${isDark ? 'bg-gray-800/30 border-gray-800' : 'bg-white border-gray-200'}`}>
+                {/* Visual indicator for Simulator being active */}
+                {simulationMode && (
+                    <div className="absolute top-2 right-2 px-2 py-1 bg-amber-500/20 text-amber-500 text-[10px] font-bold rounded border border-amber-500/30">
+                        SIMULATION ACTIVE
+                    </div>
+                )}
 
-                <div className="p-4">
-                    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
-                        {/* Grid */}
-                        <line x1={padding.left} y1={zeroY} x2={width - padding.right} y2={zeroY}
-                            stroke="#9CA3AF" strokeWidth="1.5" />
+                <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={activeData.data} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
+                        <XAxis
+                            dataKey="strike"
+                            stroke={isDark ? "#6B7280" : "#9CA3AF"}
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                            interval="preserveStartEnd"
+                        />
+                        <YAxis
+                            stroke={isDark ? "#6B7280" : "#9CA3AF"}
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={(val) => `${val}Cr`}
+                        />
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
 
-                        {/* Positive zone label */}
-                        <text x={padding.left - 5} y={padding.top + 20} textAnchor="end" className="fill-emerald-600 text-[9px]">
-                            Stabilizing ↑
-                        </text>
+                        {/* Reference Lines */}
+                        <ReferenceLine
+                            x={simulationMode ? simulatedSpot : spotPrice}
+                            stroke={simulationMode ? "#F59E0B" : "#3B82F6"}
+                            strokeDasharray={simulationMode ? "0" : "3 3"}
+                            strokeWidth={simulationMode ? 2 : 1}
+                            label={{
+                                position: 'top',
+                                value: simulationMode ? 'Sim Spot' : 'Spot',
+                                fill: simulationMode ? '#F59E0B' : '#3B82F6',
+                                fontSize: 10
+                            }}
+                        />
 
-                        {/* Negative zone label */}
-                        <text x={padding.left - 5} y={height - padding.bottom - 10} textAnchor="end" className="fill-red-600 text-[9px]">
-                            Volatile ↓
-                        </text>
-
-                        {/* Bars */}
-                        {visibleStrikes.map((s, i) => {
-                            const barWidth = Math.max(8, chartW / visibleStrikes.length * 0.6);
-                            const x = xScale(i) - barWidth / 2;
-                            const barHeight = Math.abs(s.netGEX) / maxGEX * (chartH / 2);
-                            const isPositive = s.netGEX >= 0;
-                            const isATM = s.strike === atmStrike;
-                            const isFlip = s.strike === gexData.flipLevel;
-
-                            return (
-                                <g key={i}>
-                                    <rect
-                                        x={x}
-                                        y={isPositive ? zeroY - barHeight : zeroY}
-                                        width={barWidth}
-                                        height={barHeight}
-                                        fill={isPositive ? '#10B981' : '#EF4444'}
-                                        opacity={isATM ? 1 : 0.7}
-                                        rx="2"
-                                    />
-                                    {isFlip && (
-                                        <line x1={xScale(i)} y1={padding.top} x2={xScale(i)} y2={height - padding.bottom}
-                                            stroke="#8B5CF6" strokeWidth="2" strokeDasharray="4" />
-                                    )}
-                                </g>
-                            );
-                        })}
-
-                        {/* Spot price marker */}
-                        {visibleStrikes.findIndex(s => s.strike >= spotPrice) >= 0 && (
-                            <g>
-                                <line
-                                    x1={xScale(visibleStrikes.findIndex(s => s.strike >= spotPrice))}
-                                    y1={padding.top}
-                                    x2={xScale(visibleStrikes.findIndex(s => s.strike >= spotPrice))}
-                                    y2={height - padding.bottom}
-                                    stroke="#3B82F6" strokeWidth="2" strokeDasharray="6,3"
-                                />
-                                <text
-                                    x={xScale(visibleStrikes.findIndex(s => s.strike >= spotPrice))}
-                                    y={padding.top - 8}
-                                    textAnchor="middle"
-                                    className="fill-blue-600 text-[9px] font-bold"
-                                >
-                                    Spot
-                                </text>
-                            </g>
+                        {/* Ghost Spot if Simulating */}
+                        {simulationMode && (
+                            <ReferenceLine
+                                x={spotPrice}
+                                stroke="#4B5563"
+                                strokeDasharray="3 3"
+                                label={{ position: 'top', value: 'Actual', fill: '#6B7280', fontSize: 9 }}
+                            />
                         )}
 
-                        {/* X-axis labels */}
-                        {visibleStrikes.filter((_, i) => i % 2 === 0).map((s, i) => (
-                            <text key={i} x={xScale(i * 2)} y={height - padding.bottom + 15} textAnchor="middle"
-                                className={`text-[9px] ${s.strike === atmStrike ? 'fill-blue-600 font-bold' : 'fill-gray-500'}`}>
-                                {s.strike}
-                            </text>
-                        ))}
+                        {activeData.flipLevel && (
+                            <ReferenceLine x={activeData.flipLevel} stroke="#A855F7" strokeDasharray="4 4" label={{ position: 'top', value: 'Flip', fill: '#A855F7', fontSize: 10 }} />
+                        )}
+                        <ReferenceLine y={0} stroke="#4B5563" strokeOpacity={0.5} />
 
-                        {/* Y-axis labels */}
-                        <text x={padding.left - 8} y={padding.top + 5} textAnchor="end" className="fill-emerald-600 text-[10px]">
-                            +{maxGEX.toFixed(1)}
-                        </text>
-                        <text x={padding.left - 8} y={height - padding.bottom} textAnchor="end" className="fill-red-600 text-[10px]">
-                            -{maxGEX.toFixed(1)}
-                        </text>
-                    </svg>
+                        {/* Chart Layers */}
+                        {viewMode === 'net' && (
+                            <Bar dataKey="netGEX" radius={[2, 2, 0, 0]} maxBarSize={40}>
+                                {activeData.data.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.netGEX >= 0 ? '#10B981' : '#EF4444'} fillOpacity={0.9} />
+                                ))}
+                            </Bar>
+                        )}
 
-                    {/* Legend */}
-                    <div className="flex items-center justify-center gap-6 mt-3 text-[10px]">
-                        <span className="flex items-center gap-1.5">
-                            <span className="w-3 h-3 rounded bg-emerald-500"></span>
-                            Positive GEX (Calls)
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                            <span className="w-3 h-3 rounded bg-red-500"></span>
-                            Negative GEX (Puts)
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                            <span className="w-4 h-0.5 bg-blue-500"></span>
-                            Spot Price
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                            <span className="w-4 h-0.5 bg-purple-500" style={{ borderStyle: 'dashed' }}></span>
-                            Gamma Flip
-                        </span>
-                    </div>
-                </div>
-            </div>
+                        {viewMode === 'split' && (
+                            <>
+                                <Bar dataKey="callGEX" fill="#10B981" fillOpacity={0.6} radius={[2, 2, 0, 0]} maxBarSize={20} />
+                                <Bar dataKey="putGEX" fill="#EF4444" fillOpacity={0.6} radius={[0, 0, 2, 2]} maxBarSize={20} />
+                            </>
+                        )}
 
-            {/* Interpretation */}
-            <div className={`rounded-xl p-4 ${regime.type === 'positive' ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800' :
-                    regime.type === 'negative' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' :
-                        'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
-                }`}>
-                <div className="flex items-start gap-3">
-                    {regime.type === 'positive' ? (
-                        <ArrowTrendingUpIcon className="w-5 h-5 text-emerald-600 mt-0.5" />
-                    ) : regime.type === 'negative' ? (
-                        <ArrowTrendingDownIcon className="w-5 h-5 text-red-600 mt-0.5" />
-                    ) : (
-                        <BoltIcon className="w-5 h-5 text-amber-600 mt-0.5" />
-                    )}
-                    <div>
-                        <div className={`font-semibold text-sm ${regime.type === 'positive' ? 'text-emerald-700' :
-                                regime.type === 'negative' ? 'text-red-700' : 'text-amber-700'
-                            }`}>
-                            {regime.type === 'positive' ? 'Mean Reversion Likely' :
-                                regime.type === 'negative' ? 'Trend Continuation Likely' : 'Watch for Breakout'}
-                        </div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                            {regime.type === 'positive'
-                                ? 'With positive GEX, expect price to consolidate and revert to mean. Sell volatility strategies may work well.'
-                                : regime.type === 'negative'
-                                    ? 'With negative GEX, expect trending moves and higher volatility. Breakout strategies may be favorable.'
-                                    : 'Mixed GEX suggests uncertainty. Wait for clearer positioning before directional bets.'}
-                        </div>
-                    </div>
-                </div>
+                        {viewMode === 'cumulative' && (
+                            <>
+                                <defs>
+                                    <linearGradient id="splitColor" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#8884d8" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <Area type="monotone" dataKey="cumulativeGEX" stroke="#8B5CF6" fill="url(#splitColor)" strokeWidth={2} />
+                                <Bar dataKey="netGEX" radius={[2, 2, 0, 0]} maxBarSize={40} opacity={0.3}>
+                                    {activeData.data.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.netGEX >= 0 ? '#10B981' : '#EF4444'} />
+                                    ))}
+                                </Bar>
+                            </>
+                        )}
+                    </ComposedChart>
+                </ResponsiveContainer>
             </div>
         </div>
     );
 };
+
+// --- Helper Functions & Subcomponents ---
+
+// Calculation Logic extracted for reuse
+const calculateGEXProfile = (optionChain, spot, lotSize, atmStrike) => {
+    const strikes = [];
+    let totalCallGEX = 0;
+    let totalPutGEX = 0;
+    let runningCumulative = 0;
+
+    const sortedStrikes = Object.keys(optionChain)
+        .map(k => parseFloat(k))
+        .sort((a, b) => a - b);
+
+    // Logic to select visible range
+    const atmIndex = sortedStrikes.findIndex(s => s >= spot);
+    // Be robust if spot is far out
+    let startIndex = 0, endIndex = sortedStrikes.length;
+    if (atmIndex !== -1) {
+        startIndex = Math.max(0, atmIndex - 15);
+        endIndex = Math.min(sortedStrikes.length, atmIndex + 16);
+    }
+    const visibleStrikeKeys = sortedStrikes.slice(startIndex, endIndex);
+
+    visibleStrikeKeys.forEach(strike => {
+        const data = optionChain[strike];
+        // Handle potentially missing nested objects safely
+        const ceGamma = data?.ce?.optgeeks?.gamma || data?.ce?.gamma || 0;
+        const peGamma = data?.pe?.optgeeks?.gamma || data?.pe?.gamma || 0;
+        const ceOI = data?.ce?.oi || data?.ce?.OI || 0;
+        const peOI = data?.pe?.oi || data?.pe?.OI || 0;
+
+        const multiplier = spot * spot * 0.01 * lotSize / 10000000;
+        const callGEX = ceGamma * ceOI * multiplier;
+        const putGEX = -peGamma * peOI * multiplier;
+        const netGEX = callGEX + putGEX;
+
+        runningCumulative += netGEX;
+
+        strikes.push({
+            strike,
+            callGEX,
+            putGEX,
+            netGEX,
+            cumulativeGEX: runningCumulative,
+            // isATM logic could be relative to sim spot or actual atm strike
+            isATM: Math.abs(strike - spot) < 50 // Approx
+        });
+
+        totalCallGEX += callGEX;
+        totalPutGEX += putGEX;
+    });
+
+    let flipLevel = null;
+    for (let i = 1; i < strikes.length; i++) {
+        if (
+            (strikes[i - 1].cumulativeGEX < 0 && strikes[i].cumulativeGEX >= 0) ||
+            (strikes[i - 1].cumulativeGEX > 0 && strikes[i].cumulativeGEX <= 0)
+        ) {
+            const s1 = strikes[i - 1];
+            const s2 = strikes[i];
+            const ratio = Math.abs(s1.cumulativeGEX) / (Math.abs(s1.cumulativeGEX) + Math.abs(s2.cumulativeGEX));
+            flipLevel = s1.strike + (s2.strike - s1.strike) * ratio;
+            break;
+        }
+    }
+
+    return {
+        data: strikes,
+        totalGEX: totalCallGEX + totalPutGEX,
+        callGEX: totalCallGEX,
+        putGEX: totalPutGEX,
+        flipLevel
+    };
+};
+
+const getRegime = (totalGEX) => {
+    if (totalGEX > 500) return { label: 'Long Gamma', color: '#10B981', desc: 'Volatility Suppression' };
+    if (totalGEX < -500) return { label: 'Short Gamma', color: '#EF4444', desc: 'Volatility Amplification' };
+    return { label: 'Neutral Gamma', color: '#F59E0B', desc: 'Mixed Positioning' };
+};
+
+const MetricCard = ({ title, value, subValue, icon: Icon, isGood, theme, colorClass, isTextValue = true }) => (
+    <div className={`relative overflow-hidden rounded-xl p-4 bg-gradient-to-br border shadow-lg
+        ${isTextValue && typeof value === 'number' // Only apply color logic for numeric main values
+            ? (value > 0
+                ? (theme ? 'from-emerald-900/40 to-emerald-800/10 border-emerald-500/30' : 'from-emerald-100 to-white border-emerald-200')
+                : (theme ? 'from-red-900/40 to-red-800/10 border-red-500/30' : 'from-red-100 to-white border-red-200'))
+            : (theme ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200')
+        }`}>
+        <div className="flex items-center gap-2 mb-1">
+            <Icon className={`w-4 h-4 ${colorClass || (value > 0 ? 'text-emerald-500' : 'text-red-500')}`} />
+            <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">{title}</span>
+        </div>
+        <div className={`text-2xl font-bold ${colorClass || (value > 0 ? 'text-emerald-500' : 'text-red-500')}`}>
+            {isTextValue ? (
+                <>
+                    {value > 0 ? '+' : ''}{typeof value === 'number' ? value.toFixed(2) : value} <span className="text-sm font-normal text-gray-500">Cr</span>
+                </>
+            ) : (
+                typeof value === 'number' ? value.toFixed(0) : value
+            )}
+        </div>
+        <div className="text-[10px] text-gray-400 mt-1">{subValue}</div>
+    </div>
+);
 
 export default GammaExposureChart;

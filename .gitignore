@@ -79,3 +79,20 @@ secrets/
 .pre-commit-config.yaml.backup
 
 .next
+
+# Credentials and Secrets (CRITICAL)
+**/credentials/
+**/firebase-credentials*.json
+**/service-account*.json
+*.credentials.json
+
+# Test/Debug data files
+*-response.json
+dhan_*.json
+*_data.json
+test_*.json
+
+# Rust build artifacts
+**/target/
+**/*.rs.bk
+Cargo.lock

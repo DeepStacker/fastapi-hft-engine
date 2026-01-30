@@ -292,10 +292,12 @@ async def save_current_snapshot(
 ):
     """
     Trigger manual save of current option chain data to TimescaleDB.
-    Used for data collection. Requires authentication.
     
-    Note: Live data is automatically persisted by OptionsService.save_snapshot().
-    This endpoint allows manual triggering if needed.
+    NOTE: This endpoint reads live data but does NOT persist it directly.
+    Data is persisted automatically via the Storage service pipeline:
+    Ingestion → Kafka → Processor → Kafka → Storage → TimescaleDB
+    
+    This endpoint is kept for compatibility but the save is a no-op.
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")

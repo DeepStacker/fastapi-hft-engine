@@ -1,7 +1,7 @@
 /**
- * Analytics Dashboard - Enhanced with Trader Guidance
- * Professional layout with educational tooltips and actionable insights
- */
+* Analytics Dashboard - Enhanced with Trader Guidance
+* Professional layout with educational tooltips and actionable insights
+*/
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Helmet } from 'react-helmet-async';
@@ -54,6 +54,7 @@ import GreeksAnalysisPro from '../components/analytics/GreeksAnalysisPro';
 import StrategyBuilderPro from '../components/analytics/StrategyBuilderPro';
 import PCRTrendChart from '../components/analytics/PCRTrendChart';
 import IVSkewChart from '../components/analytics/IVSkewChart';
+import UnifiedMarketOverview from '../components/analytics/UnifiedMarketOverview';
 
 // Pro Components
 import OIHeatmapPro from '../components/analytics/OIHeatmapPro';
@@ -84,6 +85,16 @@ const tabCategories = [
         name: '📊 Market Overview',
         description: 'Start here to get the big picture of market sentiment',
         tabs: [
+            {
+                id: 'unified',
+                label: 'Consensus Engine',
+                icon: CubeIcon,
+                component: UnifiedMarketOverview,
+                difficulty: 'beginner',
+                purpose: 'Aggregates all signals into one Confluence Score',
+                howToUse: 'Look at the Confluence Score. >60 = Strong Buy. <-60 = Strong Sell. Check for conflicting signals.',
+                tradingTip: 'Always trade in the direction of the Confluence Score. Avoid trading when score is near 0.',
+            },
             {
                 id: 'coa',
                 label: 'Chart of Accuracy',
@@ -382,7 +393,7 @@ const Analytics = () => {
 
     const displaySymbol = dataSymbol || symbol || 'NIFTY';
 
-    const [activeTab, setActiveTab] = useState('flow');
+    const [activeTab, setActiveTab] = useState('unified');
     const [lastUpdate, setLastUpdate] = useState(new Date());
     const [showGuide, setShowGuide] = useState(false);
     const [expandedCategory, setExpandedCategory] = useState('overview');
@@ -421,7 +432,7 @@ const Analytics = () => {
         return { sentiment, maxPainDist, pcr };
     }, [optionChain, spotPrice, pcr, maxPain]);
 
-    const ActiveComponent = activeTabInfo?.component || OptionsFlowDashboard;
+    const ActiveComponent = activeTabInfo?.component || UnifiedMarketOverview;
 
     // No data state
     if (!optionChain && !isLoading) {

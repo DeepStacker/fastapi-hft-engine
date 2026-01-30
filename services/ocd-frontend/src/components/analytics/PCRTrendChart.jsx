@@ -1,152 +1,82 @@
 /**
  * PCR Trend Chart Component
- * Shows historical Put-Call Ratio trend over time
- * Uses stored option chain snapshots to calculate PCR history
+ * Professional Dual-Axis visualization of Put-Call Ratio vs Spot Price
+ * Features:
+ * - Dual Y-Axis (Left: PCR, Right: Spot Price) to show correlation
+ * - Signal Zones (Bullish/Bearish background areas)
+ * - Interactive Tooltips with Sentiment Analysis
+ * - Real-time updates
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
-import { selectSelectedSymbol, selectSelectedExpiry, selectOptionChain } from '../../context/selectors';
+import {
+    ComposedChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    ResponsiveContainer,
+    ReferenceArea,
+    Area
+} from 'recharts';
+import { selectSelectedSymbol, selectOptionChain, selectSpotPrice } from '../../context/selectors';
 import {
     ScaleIcon,
-    ArrowPathIcon,
     InformationCircleIcon,
+    ArrowTrendingUpIcon,
+    ArrowTrendingDownIcon
 } from '@heroicons/react/24/outline';
 import Card from '../common/Card';
 
-/**
- * Simple line chart renderer (SVG-based)
- */
-const SimpleTrendLine = ({ data, width = 300, height = 120, color = '#3b82f6' }) => {
-    if (!data || data.length < 2) {
+const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+        const pcr = payload.find(p => p.dataKey === 'pcr')?.value;
+        const price = payload.find(p => p.dataKey === 'price')?.value;
+
+        let sentiment = 'Neutral';
+        let sentimentColor = 'text-gray-500';
+        if (pcr > 1.2) {
+            sentiment = 'Bullish';
+            sentimentColor = 'text-green-500';
+        } else if (pcr < 0.7) {
+            sentiment = 'Bearish';
+            sentimentColor = 'text-red-500';
+        }
+
         return (
-            <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                Insufficient data for trend
+            <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+                <p className="text-xs text-gray-500 mb-1">{label}</p>
+                <div className="space-y-1">
+                    <p className="text-sm font-semibold flex items-center justify-between gap-4">
+                        <span className="text-blue-500">PCR:</span>
+                        <span>{pcr?.toFixed(2)}</span>
+                    </p>
+                    <p className="text-sm font-semibold flex items-center justify-between gap-4">
+                        <span className="text-purple-500">Price:</span>
+                        <span>{price?.toFixed(2)}</span>
+                    </p>
+                    <div className={`text-xs font-bold pt-1 border-t border-gray-100 dark:border-gray-700 mt-1 ${sentimentColor}`}>
+                        {sentiment} Sentiment
+                    </div>
+                </div>
             </div>
         );
     }
-
-    const padding = { top: 10, right: 10, bottom: 20, left: 40 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-
-    // Calculate scales
-    const values = data.map(d => d.value);
-    const minY = Math.min(...values) * 0.95;
-    const maxY = Math.max(...values) * 1.05;
-    const rangeY = maxY - minY || 1;
-
-    const xScale = (i) => padding.left + (i / (data.length - 1)) * chartWidth;
-    const yScale = (v) => padding.top + chartHeight - ((v - minY) / rangeY) * chartHeight;
-
-    // Generate line path
-    const linePath = data
-        .map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.value)}`)
-        .join(' ');
-
-    // Generate area path
-    const areaPath = `${linePath} L ${xScale(data.length - 1)} ${height - padding.bottom} L ${padding.left} ${height - padding.bottom} Z`;
-
-    // Reference lines
-    const bullishLine = 1.2;
-    const bearishLine = 0.7;
-
-    return (
-        <svg width={width} height={height} className="overflow-visible">
-            {/* Grid lines */}
-            <line
-                x1={padding.left}
-                y1={yScale(1)}
-                x2={width - padding.right}
-                y2={yScale(1)}
-                stroke="currentColor"
-                strokeOpacity={0.2}
-                strokeDasharray="4,4"
-            />
-            {bullishLine <= maxY && bullishLine >= minY && (
-                <line
-                    x1={padding.left}
-                    y1={yScale(bullishLine)}
-                    x2={width - padding.right}
-                    y2={yScale(bullishLine)}
-                    stroke="#22c55e"
-                    strokeOpacity={0.4}
-                    strokeDasharray="4,4"
-                />
-            )}
-            {bearishLine <= maxY && bearishLine >= minY && (
-                <line
-                    x1={padding.left}
-                    y1={yScale(bearishLine)}
-                    x2={width - padding.right}
-                    y2={yScale(bearishLine)}
-                    stroke="#ef4444"
-                    strokeOpacity={0.4}
-                    strokeDasharray="4,4"
-                />
-            )}
-
-            {/* Area under line */}
-            <path d={areaPath} fill={color} fillOpacity={0.1} />
-
-            {/* Main line */}
-            <path
-                d={linePath}
-                fill="none"
-                stroke={color}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-
-            {/* Current value dot */}
-            <circle
-                cx={xScale(data.length - 1)}
-                cy={yScale(data[data.length - 1].value)}
-                r={4}
-                fill={color}
-            />
-
-            {/* Y-axis labels */}
-            <text x={padding.left - 5} y={padding.top + 5} textAnchor="end" fontSize={10} fill="currentColor" opacity={0.5}>
-                {maxY.toFixed(2)}
-            </text>
-            <text x={padding.left - 5} y={height - padding.bottom} textAnchor="end" fontSize={10} fill="currentColor" opacity={0.5}>
-                {minY.toFixed(2)}
-            </text>
-            <text x={padding.left - 5} y={yScale(1)} textAnchor="end" fontSize={10} fill="currentColor" opacity={0.5}>
-                1.0
-            </text>
-
-            {/* X-axis labels */}
-            {data.length > 0 && (
-                <>
-                    <text x={padding.left} y={height - 5} textAnchor="start" fontSize={9} fill="currentColor" opacity={0.5}>
-                        {data[0].time}
-                    </text>
-                    <text x={width - padding.right} y={height - 5} textAnchor="end" fontSize={9} fill="currentColor" opacity={0.5}>
-                        {data[data.length - 1].time}
-                    </text>
-                </>
-            )}
-        </svg>
-    );
+    return null;
 };
 
-/**
- * PCR Trend Chart Component
- */
 const PCRTrendChart = () => {
     const theme = useSelector((state) => state.theme.theme);
     const isDark = theme === 'dark';
     const symbol = useSelector(selectSelectedSymbol);
-    const expiry = useSelector(selectSelectedExpiry);
     const optionChain = useSelector(selectOptionChain);
+    const spotPrice = useSelector(selectSpotPrice);
 
-    const [pcrHistory, setPcrHistory] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [history, setHistory] = useState([]);
 
-    // Calculate current PCR from option chain
+    // Calculate current PCR
     const currentPCR = useMemo(() => {
         if (!optionChain || Object.keys(optionChain).length === 0) return null;
 
@@ -159,108 +89,179 @@ const PCRTrendChart = () => {
         return totalCEOI > 0 ? totalPEOI / totalCEOI : 0;
     }, [optionChain]);
 
-    // Add current PCR to history when it changes
+    // Track history (PCR + Price)
     useEffect(() => {
-        if (currentPCR !== null) {
+        if (currentPCR !== null && spotPrice !== null) {
             const now = new Date();
             const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-            setPcrHistory(prev => {
-                // Keep last 20 data points
-                const newHistory = [...prev, { time: timeStr, value: currentPCR }];
-                if (newHistory.length > 20) {
-                    return newHistory.slice(-20);
-                }
+            setHistory(prev => {
+                // Ensure we don't add duplicate time points (throttle simple)
+                if (prev.length > 0 && prev[prev.length - 1].time === timeStr) return prev;
+
+                const newPoint = {
+                    time: timeStr,
+                    pcr: currentPCR,
+                    price: spotPrice,
+                    timestamp: now.getTime()
+                };
+
+                // Keep last 30 points for better trend visibility
+                const newHistory = [...prev, newPoint];
+                if (newHistory.length > 30) return newHistory.slice(-30);
                 return newHistory;
             });
         }
-    }, [currentPCR]);
+    }, [currentPCR, spotPrice]);
 
-    const getPCRSignal = (pcr) => {
-        if (!pcr) return { text: 'N/A', color: 'gray' };
-        if (pcr > 1.2) return { text: 'BULLISH', color: 'green' };
-        if (pcr < 0.7) return { text: 'BEARISH', color: 'red' };
-        return { text: 'NEUTRAL', color: 'gray' };
+    const getSignal = (pcr) => {
+        if (!pcr) return { text: 'WAITING', color: 'text-gray-400', bg: 'bg-gray-100 dark:bg-gray-800' };
+        if (pcr > 1.2) return { text: 'BULLISH', color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30' };
+        if (pcr < 0.7) return { text: 'BEARISH', color: 'text-red-600', bg: 'bg-red-100 dark:bg-red-900/30' };
+        return { text: 'NEUTRAL', color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900/30' };
     };
 
-    const signal = getPCRSignal(currentPCR);
+    const signal = getSignal(currentPCR);
 
-    // Empty state
+    // Domain calculations for nice charts
+    const minPCR = Math.min(...history.map(d => d.pcr), 0.5) * 0.9;
+    const maxPCR = Math.max(...history.map(d => d.pcr), 1.5) * 1.1;
+
+    const minPrice = Math.min(...history.map(d => d.price), spotPrice * 0.99) * 0.999;
+    const maxPrice = Math.max(...history.map(d => d.price), spotPrice * 1.01) * 1.001;
+
     if (!optionChain || Object.keys(optionChain).length === 0) {
         return (
-            <Card variant="glass" className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className={`p-2 rounded-xl ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
-                        <ScaleIcon className="w-5 h-5 text-blue-500" />
-                    </div>
-                    <div>
-                        <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            PCR Trend
-                        </h3>
-                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            Put-Call Ratio over time
-                        </p>
-                    </div>
-                </div>
-                <div className={`text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            <Card variant="glass" className="p-6 h-full flex items-center justify-center">
+                <div className="text-center text-gray-400">
                     <ScaleIcon className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">Load Option Chain to view PCR trend</p>
+                    <p>Load data to view PCR Trend</p>
                 </div>
             </Card>
         );
     }
 
     return (
-        <Card variant="glass" className="p-6">
+        <Card variant="glass" className="p-0 overflow-hidden flex flex-col h-full">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
-                        <ScaleIcon className="w-5 h-5 text-blue-500" />
+                    <div className={`p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600`}>
+                        <ScaleIcon className="w-5 h-5" />
                     </div>
                     <div>
-                        <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            PCR Trend
-                        </h3>
-                        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            {symbol} • Intraday
-                        </p>
+                        <h3 className="font-bold text-gray-900 dark:text-gray-100">PCR Trend</h3>
+                        <p className="text-xs text-gray-500">Put/Call Ratio vs Spot Price</p>
                     </div>
                 </div>
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${signal.color === 'green' ? 'bg-green-500/20 text-green-500' :
-                        signal.color === 'red' ? 'bg-red-500/20 text-red-500' :
-                            isDark ? 'bg-gray-500/20 text-gray-400' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                    <span className="text-2xl font-black">{currentPCR?.toFixed(2) || '--'}</span>
-                    <span className="text-xs font-bold">{signal.text}</span>
+
+                <div className={`flex items-center gap-3 px-3 py-1.5 rounded-lg border border-transparent ${signal.bg}`}>
+                    <div className="text-right">
+                        <div className={`text-xs font-bold ${signal.color}`}>{signal.text}</div>
+                        <div className="text-[10px] text-gray-500 opacity-80">Signal</div>
+                    </div>
+                    <div className={`text-2xl font-black ${signal.color}`}>
+                        {currentPCR?.toFixed(2)}
+                    </div>
                 </div>
             </div>
 
-            {/* Chart */}
-            <div className={`rounded-xl p-4 ${isDark ? 'bg-gray-900/50' : 'bg-gray-50'}`}>
-                <SimpleTrendLine
-                    data={pcrHistory}
-                    width={400}
-                    height={150}
-                    color={signal.color === 'green' ? '#22c55e' : signal.color === 'red' ? '#ef4444' : '#3b82f6'}
-                />
+            {/* Chart Area */}
+            <div className="flex-1 min-h-[250px] w-full p-2">
+                <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                            <linearGradient id="pcrGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#374151' : '#e5e7eb'} opacity={0.5} />
+
+                        <XAxis
+                            dataKey="time"
+                            tick={{ fontSize: 10, fill: isDark ? '#9ca3af' : '#6b7280' }}
+                            axisLine={false}
+                            tickLine={false}
+                        />
+
+                        {/* Left Y Axis: PCR */}
+                        <YAxis
+                            yAxisId="left"
+                            domain={[minPCR, maxPCR]}
+                            tick={{ fontSize: 10, fill: '#3b82f6' }}
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={(v) => v.toFixed(2)}
+                        />
+
+                        {/* Right Y Axis: Price */}
+                        <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            domain={[minPrice, maxPrice]}
+                            tick={{ fontSize: 10, fill: '#a855f7' }}
+                            axisLine={false}
+                            tickLine={false}
+                            hide={false}
+                            width={40}
+                        />
+
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+
+                        {/* Bullish Zone Reference Area */}
+                        <ReferenceArea
+                            yAxisId="left"
+                            y1={1.2}
+                            y2={maxPCR}
+                            fill={isDark ? "#22c55e" : "#86efac"}
+                            fillOpacity={0.05}
+                        />
+
+                        {/* Bearish Zone Reference Area */}
+                        <ReferenceArea
+                            yAxisId="left"
+                            y1={minPCR}
+                            y2={0.7}
+                            fill={isDark ? "#ef4444" : "#fca5a5"}
+                            fillOpacity={0.05}
+                        />
+
+                        {/* Price Line (Correlated asset) */}
+                        <Line
+                            yAxisId="right"
+                            type="monotone"
+                            dataKey="price"
+                            name="Spot Price"
+                            stroke="#a855f7"
+                            strokeWidth={2}
+                            dot={false}
+                            strokeDasharray="4 4"
+                            animationDuration={500}
+                        />
+
+                        {/* PCR Line (Main indicator) */}
+                        <Area
+                            yAxisId="left"
+                            type="monotone"
+                            dataKey="pcr"
+                            name="PCR"
+                            stroke="#3b82f6"
+                            fill="url(#pcrGradient)"
+                            strokeWidth={2}
+                            dot={{ r: 2, fill: '#3b82f6' }}
+                            animationDuration={500}
+                        />
+                    </ComposedChart>
+                </ResponsiveContainer>
             </div>
 
-            {/* Legend */}
-            <div className="flex items-center justify-between mt-4 text-xs">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1">
-                        <div className="w-3 h-0.5 bg-green-500" />
-                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Bullish (&gt;1.2)</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <div className="w-3 h-0.5 bg-red-500" />
-                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Bearish (&lt;0.7)</span>
-                    </div>
-                </div>
-                <div className={`flex items-center gap-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    <InformationCircleIcon className="w-3 h-3" />
-                    <span>{pcrHistory.length} data points</span>
+            {/* Footer Interpretation */}
+            <div className="px-5 pb-4">
+                <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 dark:bg-gray-800/50 p-2 rounded-lg">
+                    <InformationCircleIcon className="w-4 h-4 flex-shrink-0" />
+                    <span>Difference between PCR trend and Price trend indicates divergence (reversal signal).</span>
                 </div>
             </div>
         </Card>

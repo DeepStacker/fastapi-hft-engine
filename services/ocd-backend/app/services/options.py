@@ -312,10 +312,8 @@ class OptionsService:
             }
         return meta
     
-    async def save_snapshot(self, data: Dict[str, Any]):
-        """Delegated persistence"""
-        if self.repository:
-            await self.repository.save_snapshot(data)
+    # NOTE: save_snapshot() was removed - data persists via Storage service pipeline only
+    # See: services/storage/main.py
     
     async def get_percentage_data(self, symbol: str, expiry: str, strike: float, option_type: str) -> Dict[str, Any]:
         """Get percentage/volume analysis for a specific option"""

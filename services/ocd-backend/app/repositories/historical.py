@@ -94,6 +94,10 @@ class HistoricalDataRepository:
             "theta": OptionContractDB.theta,
             "gamma": OptionContractDB.gamma,
             "vega": OptionContractDB.vega,
+            # Percentage fields for COA
+            "oi_pct": OptionContractDB.oi_pct,
+            "volume_pct": OptionContractDB.volume_pct,
+            "oichng_pct": OptionContractDB.oichng_pct,
         }
         
         column = field_mapping.get(field, OptionContractDB.oi)

@@ -2,10 +2,11 @@
  * Chart of Accuracy 1.0 Component
  * Visual representation of the 9 COA scenarios with trading guidance
  */
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { selectOptionChain, selectSpotPrice, selectATMStrike } from '../../context/selectors';
 import { useChartOfAccuracy } from '../../hooks/useChartOfAccuracy';
+import COAHistoryChart from './COAHistoryChart';
 import {
     ChartBarSquareIcon,
     ArrowTrendingUpIcon,
@@ -17,10 +18,14 @@ import {
     ShieldCheckIcon,
     ShieldExclamationIcon,
     FireIcon,
-    RocketLaunchIcon
+    RocketLaunchIcon,
+    BellIcon
 } from '@heroicons/react/24/outline';
+import COAAlertSettings from './COAAlertSettings';
+import Modal from '../common/Modal';
 
 const ChartOfAccuracy = () => {
+    const [showSettings, setShowSettings] = useState(false);
     const optionChain = useSelector(selectOptionChain);
     const spotPrice = useSelector(selectSpotPrice);
     const atmStrike = useSelector(selectATMStrike);
@@ -37,6 +42,14 @@ const ChartOfAccuracy = () => {
     }
 
     const { scenario, support, resistance, levels, trading } = coa;
+
+    // Normalize field names (API uses snake_case, local uses camelCase)
+    const getOiPct100 = (obj) => obj?.oi_pct100 ?? obj?.pct100 ?? 0;
+    const getOiPct2nd = (obj) => obj?.oi_pct2nd ?? obj?.pct2nd ?? 0;
+    const getOiChng100 = (obj) => obj?.oichng100 ?? obj?.oiChng100 ?? 0;
+    const getOiChng2nd = (obj) => obj?.oichng2nd ?? obj?.oiChng2nd ?? 0;
+    const getTradeAtEOS = () => levels?.trade_at_eos ?? trading?.tradeAtEOS ?? false;
+    const getTradeAtEOR = () => levels?.trade_at_eor ?? trading?.tradeAtEOR ?? false;
 
     // Get scenario visual styling
     const getScenarioStyle = () => {
@@ -95,7 +108,15 @@ const ChartOfAccuracy = () => {
     return (
         <div className="space-y-4">
             {/* Main Scenario Card */}
-            <div className={`rounded-2xl p-6 bg-gradient-to-r ${style.bg} text-white shadow-lg`}>
+            <div className={`rounded-2xl p-6 bg-gradient-to-r ${style.bg} text-white shadow-lg relative`}>
+                <button
+                    onClick={() => setShowSettings(true)}
+                    className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors backdrop-blur-sm"
+                    title="Alert Settings"
+                >
+                    <BellIcon className="w-5 h-5 text-white" />
+                </button>
+
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
                         <div className="w-16 h-16 rounded-xl bg-white/20 flex items-center justify-center">
@@ -139,28 +160,28 @@ const ChartOfAccuracy = () => {
                         <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
                                 <span className="text-gray-500">OI at Strike</span>
-                                <span className="font-medium">{(support.oi100 / 1000).toFixed(0)}K ({support.pct100.toFixed(0)}%)</span>
+                                <span className="font-medium">{(support.oi100 / 1000).toFixed(0)}K ({getOiPct100(support).toFixed(0)}%)</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-500">OI Change</span>
-                                <span className={`font-medium ${support.oiChng100 >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {support.oiChng100 >= 0 ? '+' : ''}{(support.oiChng100 / 1000).toFixed(1)}K
+                                <span className={`font-medium ${getOiChng100(support) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {getOiChng100(support) >= 0 ? '+' : ''}{(getOiChng100(support) / 1000).toFixed(1)}K
                                 </span>
                             </div>
                             {support.strike2nd && (
                                 <div className="flex justify-between text-gray-400">
                                     <span>2nd Strike</span>
-                                    <span>{support.strike2nd} ({support.pct2nd.toFixed(0)}%)</span>
+                                    <span>{support.strike2nd} ({getOiPct2nd(support).toFixed(0)}%)</span>
                                 </div>
                             )}
                         </div>
 
                         {/* Trade Indicator */}
-                        <div className={`mt-3 py-2 px-3 rounded-lg text-sm font-bold text-center ${trading.tradeAtEOS
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-700'
+                        <div className={`mt-3 py-2 px-3 rounded-lg text-sm font-bold text-center ${getTradeAtEOS()
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
                             }`}>
-                            {trading.tradeAtEOS ? '✅ Trade at EOS' : '❌ No EOS Trade'}
+                            {getTradeAtEOS() ? '✅ Trade at EOS' : '❌ No EOS Trade'}
                         </div>
                     </div>
                 </div>
@@ -183,28 +204,28 @@ const ChartOfAccuracy = () => {
                         <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
                                 <span className="text-gray-500">OI at Strike</span>
-                                <span className="font-medium">{(resistance.oi100 / 1000).toFixed(0)}K ({resistance.pct100.toFixed(0)}%)</span>
+                                <span className="font-medium">{(resistance.oi100 / 1000).toFixed(0)}K ({getOiPct100(resistance).toFixed(0)}%)</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-500">OI Change</span>
-                                <span className={`font-medium ${resistance.oiChng100 >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {resistance.oiChng100 >= 0 ? '+' : ''}{(resistance.oiChng100 / 1000).toFixed(1)}K
+                                <span className={`font-medium ${getOiChng100(resistance) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {getOiChng100(resistance) >= 0 ? '+' : ''}{(getOiChng100(resistance) / 1000).toFixed(1)}K
                                 </span>
                             </div>
                             {resistance.strike2nd && (
                                 <div className="flex justify-between text-gray-400">
                                     <span>2nd Strike</span>
-                                    <span>{resistance.strike2nd} ({resistance.pct2nd.toFixed(0)}%)</span>
+                                    <span>{resistance.strike2nd} ({getOiPct2nd(resistance).toFixed(0)}%)</span>
                                 </div>
                             )}
                         </div>
 
                         {/* Trade Indicator */}
-                        <div className={`mt-3 py-2 px-3 rounded-lg text-sm font-bold text-center ${trading.tradeAtEOR
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-700'
+                        <div className={`mt-3 py-2 px-3 rounded-lg text-sm font-bold text-center ${getTradeAtEOR()
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
                             }`}>
-                            {trading.tradeAtEOR ? '✅ Trade at EOR' : '❌ No EOR Trade'}
+                            {getTradeAtEOR() ? '✅ Trade at EOR' : '❌ No EOR Trade'}
                         </div>
                     </div>
                 </div>
@@ -307,14 +328,14 @@ const ChartOfAccuracy = () => {
                                 >
                                     <td className="py-1.5 px-2">{row.id} {scenario.id === row.id && '←'}</td>
                                     <td className={`py-1.5 px-2 text-center ${row.s === 'Strong' ? 'text-emerald-600' :
-                                            row.s === 'WTT' ? 'text-green-600' : 'text-red-600'
+                                        row.s === 'WTT' ? 'text-green-600' : 'text-red-600'
                                         }`}>{row.s}</td>
                                     <td className={`py-1.5 px-2 text-center ${row.r === 'Strong' ? 'text-emerald-600' :
-                                            row.r === 'WTT' ? 'text-green-600' : 'text-red-600'
+                                        row.r === 'WTT' ? 'text-green-600' : 'text-red-600'
                                         }`}>{row.r}</td>
                                     <td className={`py-1.5 px-2 text-center font-medium ${row.bias.includes('Bull') ? 'text-green-600' :
-                                            row.bias.includes('Bear') || row.bias.includes('Blood') ? 'text-red-600' :
-                                                row.bias === 'Wait' ? 'text-amber-600' : ''
+                                        row.bias.includes('Bear') || row.bias.includes('Blood') ? 'text-red-600' :
+                                            row.bias === 'Wait' ? 'text-amber-600' : ''
                                         }`}>{row.bias}</td>
                                     <td className="py-1.5 px-2 text-center text-red-500">{row.top}</td>
                                     <td className="py-1.5 px-2 text-center text-green-500">{row.bottom}</td>
@@ -341,6 +362,26 @@ const ChartOfAccuracy = () => {
                     </div>
                 </div>
             </div>
+
+            {/* COA History Timeline */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700/50">
+                    <h3 className="font-semibold text-sm">Support & Resistance History</h3>
+                </div>
+                <div className="p-4">
+                    <COAHistoryChart />
+                </div>
+            </div>
+
+
+            {/* Alert Settings Modal */}
+            <Modal
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+                title="Scenario Alert Settings"
+            >
+                <COAAlertSettings />
+            </Modal>
         </div>
     );
 };

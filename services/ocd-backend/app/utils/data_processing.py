@@ -75,99 +75,10 @@ def find_strikes(
         return [int(atm_price)]
 
 
-def calculate_percentage(value: float, max_value: float) -> float:
-    """Calculate percentage of value relative to max"""
-    if max_value <= 0 or value <= 0:
-        return 0.0
-    return round((value / max_value) * 100, 2)
 
+# NOTE: Percentage calculation logic moved to Processor service (PercentageAnalyzer)
+# Old fetch_percentage and helpers removed to avoid duplication
 
-def find_highest_values(values: List[float], threshold: float = 0.75) -> List[float]:
-    """Find values >= threshold * max"""
-    if not values:
-        return []
-    max_val = max(values)
-    return sorted([v for v in values if v >= threshold * max_val], reverse=True)
-
-
-def get_rank_in_highest(value: float, all_values: List[float]) -> str:
-    """Get ranking position if value is in highest tier"""
-    highest = find_highest_values(all_values)
-    if value in highest:
-        return str(highest.index(value) + 1)
-    return "0"
-
-
-def fetch_percentage(option_chain: Dict) -> Dict:
-    """
-    Calculate percentage values and rankings for option chain.
-    Adds OI_percentage, vol_percentage, oichng_percentage and max_value ranks.
-    """
-    if "data" not in option_chain or "oc" not in option_chain.get("data", {}):
-        return option_chain
-    
-    data = option_chain["data"]["oc"]
-    
-    # Collect all values
-    ce_oi, ce_oichng, ce_vol = [], [], []
-    pe_oi, pe_oichng, pe_vol = [], [], []
-    
-    for values in data.values():
-        ce_data = values.get("ce", {})
-        pe_data = values.get("pe", {})
-        
-        ce_oi.append(ce_data.get("oi", ce_data.get("OI", 0)))
-        ce_oichng.append(ce_data.get("oichng", 0))
-        ce_vol.append(ce_data.get("vol", 0))
-        
-        pe_oi.append(pe_data.get("oi", pe_data.get("OI", 0)))
-        pe_oichng.append(pe_data.get("oichng", 0))
-        pe_vol.append(pe_data.get("vol", 0))
-    
-    # Calculate max values
-    max_ce_oi = max(ce_oi) if ce_oi else 1
-    max_ce_oichng = max(ce_oichng) if ce_oichng else 1
-    max_ce_vol = max(ce_vol) if ce_vol else 1
-    max_pe_oi = max(pe_oi) if pe_oi else 1
-    max_pe_oichng = max(pe_oichng) if pe_oichng else 1
-    max_pe_vol = max(pe_vol) if pe_vol else 1
-    
-    # Calculate percentages for each value
-    ce_oi_pct = [calculate_percentage(v, max_ce_oi) for v in ce_oi]
-    ce_oichng_pct = [calculate_percentage(v, max_ce_oichng) for v in ce_oichng]
-    ce_vol_pct = [calculate_percentage(v, max_ce_vol) for v in ce_vol]
-    pe_oi_pct = [calculate_percentage(v, max_pe_oi) for v in pe_oi]
-    pe_oichng_pct = [calculate_percentage(v, max_pe_oichng) for v in pe_oichng]
-    pe_vol_pct = [calculate_percentage(v, max_pe_vol) for v in pe_vol]
-    
-    # Calculate max value rankings
-    ce_oi_rank = [get_rank_in_highest(v, ce_oi_pct) for v in ce_oi_pct]
-    ce_oichng_rank = [get_rank_in_highest(v, ce_oichng_pct) for v in ce_oichng_pct]
-    ce_vol_rank = [get_rank_in_highest(v, ce_vol_pct) for v in ce_vol_pct]
-    pe_oi_rank = [get_rank_in_highest(v, pe_oi_pct) for v in pe_oi_pct]
-    pe_oichng_rank = [get_rank_in_highest(v, pe_oichng_pct) for v in pe_oichng_pct]
-    pe_vol_rank = [get_rank_in_highest(v, pe_vol_pct) for v in pe_vol_pct]
-    
-    # Update data with percentages and rankings
-    for i, (key, values) in enumerate(data.items()):
-        if "ce" in values:
-            values["ce"]["OI_percentage"] = ce_oi_pct[i]
-            values["ce"]["oichng_percentage"] = ce_oichng_pct[i]
-            values["ce"]["vol_percentage"] = ce_vol_pct[i]
-            values["ce"]["OI_max_value"] = ce_oi_rank[i]
-            values["ce"]["oichng_max_value"] = ce_oichng_rank[i]
-            values["ce"]["vol_max_value"] = ce_vol_rank[i]
-        
-        if "pe" in values:
-            values["pe"]["OI_percentage"] = pe_oi_pct[i]
-            values["pe"]["oichng_percentage"] = pe_oichng_pct[i]
-            values["pe"]["vol_percentage"] = pe_vol_pct[i]
-            values["pe"]["OI_max_value"] = pe_oi_rank[i]
-            values["pe"]["oichng_max_value"] = pe_oichng_rank[i]
-            values["pe"]["vol_max_value"] = pe_vol_rank[i]
-    
-    option_chain["data"]["oc"] = data
-    return option_chain
 
 
 def filter_expiry_data(fut_data: Dict) -> Dict:

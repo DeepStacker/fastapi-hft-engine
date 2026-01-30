@@ -119,17 +119,18 @@ async def realtime_loop():
         auto_offset_reset="latest",
         enable_auto_commit=True,
         # Performance tuning
-        fetch_max_wait_ms=100,
+        fetch_max_wait_ms=10,
+        fetch_min_bytes=1,
     )
     await consumer.start()
     
-    logger.info("Kafka Consumer started for topic market.enriched")
+    logger.info("Kafka Consumer started for topic market.enriched (Low Latency Mode)")
     
     # Periodic batch flushing task
     async def flush_batches():
-        """Flush remaining messages every 100ms (was 1s)"""
+        """Flush remaining messages every 20ms (was 100ms)"""
         while True:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.02)
             if message_buffer:
                 await process_batch()
     

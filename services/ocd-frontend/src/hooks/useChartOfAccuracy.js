@@ -1,34 +1,30 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import apiClient from '../services/apiClient';
 
 /**
- * Hook to calculate Chart of Accuracy 1.0 scenario
+ * Hook to get Chart of Accuracy 1.0 scenario
  * 
- * Detection Logic:
- * - Strong: 100% strike with no other strike >= 75%
- * - WTB (Weak Towards Bottom): 2nd strike at 75-100% with 100% strike losing strength (negative OI CHG)
- * - WTT (Weak Towards Top): 2nd strike at 75-100% with that strike gaining strength (positive OI CHG)
+ * Fetches from backend API which calculates from persisted percentage data.
+ * Falls back to local calculation if API fails.
  * 
  * 9 Scenarios:
  * 1.0: S=Strong, R=Strong → Neutral (Trade both EOS and EOR)
- * 1.1: S=Strong, R=WTB   → Bearish (Top=EOR, Bottom=EOS-1)
- * 1.2: S=Strong, R=WTT   → Bullish (Top=WTT-1, Bottom=EOS)
- * 1.3: S=WTB,    R=Strong → Bearish (Top=EOR, Bottom=WTB+1)
- * 1.4: S=WTT,    R=Strong → Bullish (Top=EOR+1, Bottom=EOS)
- * 1.5: S=WTB,    R=WTB   → Blood Bath (No longs)
- * 1.6: S=WTT,    R=WTT   → Bull Run (No shorts)
+ * 1.1: S=Strong, R=WTB   → Bearish
+ * 1.2: S=Strong, R=WTT   → Bullish
+ * 1.3: S=WTB,    R=Strong → Bearish
+ * 1.4: S=WTT,    R=Strong → Bullish
+ * 1.5: S=WTB,    R=WTB   → Blood Bath
+ * 1.6: S=WTT,    R=WTT   → Bull Run
  * 1.7: S=WTB,    R=WTT   → Not Tradable
  * 1.8: S=WTT,    R=WTB   → Not Tradable
  */
 
-const COLUMNS = ['oi', 'oichng', 'volume']; // Priority order
+// ============== Local Calculation Fallback ==============
 
-/**
- * Get ITM depth for strike filtering
- */
 const getITMDepth = (strike, atmStrike, side) => {
     if (!atmStrike) return 0;
-    const stepSize = 50; // Assuming NIFTY 50-point steps
-
+    const stepSize = 50;
     if (side === 'ce') {
         return strike < atmStrike ? Math.round((atmStrike - strike) / stepSize) : 0;
     } else {
@@ -36,16 +32,10 @@ const getITMDepth = (strike, atmStrike, side) => {
     }
 };
 
-/**
- * Calculate strength for one side (CE or PE)
- * Returns: { strength: 'Strong'|'WTT'|'WTB', strike100: number, strike2nd: number, pct100: number, pct2nd: number }
- */
-const calculateSideStrength = (optionChain, atmStrike, side) => {
+const calculateSideStrengthLocal = (optionChain, atmStrike, side) => {
     if (!optionChain) return null;
 
     const strikes = [];
-
-    // Collect OI data for each strike
     Object.entries(optionChain).forEach(([strikeKey, data]) => {
         const strike = parseFloat(strikeKey);
         const sideData = data[side];
@@ -53,85 +43,49 @@ const calculateSideStrength = (optionChain, atmStrike, side) => {
 
         const oi = sideData.OI || sideData.oi || 0;
         const oiChng = sideData.oichng || sideData.oi_change || 0;
-        const volume = sideData.volume || sideData.vol || 0;
         const ltp = sideData.ltp || 0;
-
         const itmDepth = getITMDepth(strike, atmStrike, side);
-        const isValid = itmDepth <= 2; // Valid for 100% if <= 2 ITM
+        const isValid = itmDepth <= 2;
 
         if (oi > 0) {
-            strikes.push({
-                strike,
-                oi,
-                oiChng,
-                volume,
-                ltp,
-                itmDepth,
-                isValid
-            });
+            strikes.push({ strike, oi, oiChng, ltp, itmDepth, isValid });
         }
     });
 
     if (strikes.length === 0) return null;
 
-    // Find max OI from valid strikes
     const validStrikes = strikes.filter(s => s.isValid);
     if (validStrikes.length === 0) return null;
 
     const maxOI = Math.max(...validStrikes.map(s => s.oi));
     if (maxOI === 0) return null;
 
-    // Calculate percentages
-    const withPct = strikes.map(s => ({
-        ...s,
-        pct: (s.oi / maxOI) * 100
-    }));
-
-    // Sort by OI descending
+    const withPct = strikes.map(s => ({ ...s, pct: (s.oi / maxOI) * 100 }));
     withPct.sort((a, b) => b.oi - a.oi);
 
     const strike100 = withPct[0];
     const strike2nd = withPct.length > 1 ? withPct[1] : null;
 
-    // Determine strength
     let strength = 'Strong';
-
     if (strike2nd && strike2nd.pct >= 75) {
-        // There's a competitor at >= 75%
-        // Use OI CHG to determine WTT vs WTB
-
-        // Check if 100% strike is losing strength (negative OI CHG = WTB)
-        // Check if 2nd strike is gaining strength (positive OI CHG = WTT)
-
         const is100Weakening = strike100.oiChng < 0;
         const is2ndStrengthening = strike2nd.oiChng > 0;
 
-        // Determine direction of pressure
         if (side === 'ce') {
-            // For Calls (Resistance):
-            // WTT = resistance shifting up (2nd strike is HIGHER and gaining)
-            // WTB = resistance shifting down (2nd strike is LOWER and gaining)
             if (strike2nd.strike > strike100.strike && is2ndStrengthening) {
-                strength = 'WTT'; // Resistance moving up = bullish pressure
-            } else if (strike2nd.strike < strike100.strike && (is100Weakening || is2ndStrengthening)) {
-                strength = 'WTB'; // Resistance moving down = bearish pressure
-            } else if (is100Weakening) {
-                strength = strike2nd.strike > strike100.strike ? 'WTT' : 'WTB';
+                strength = 'WTT';
+            } else if (is100Weakening || (strike2nd.strike < strike100.strike && is2ndStrengthening)) {
+                strength = 'WTB';
             } else {
-                strength = 'WTT'; // Default to WTT if gaining upward
+                strength = 'WTT';
             }
         } else {
-            // For Puts (Support):
-            // WTT = support shifting up (2nd strike is HIGHER and gaining)
-            // WTB = support shifting down (2nd strike is LOWER and gaining)
             if (strike2nd.strike > strike100.strike && is2ndStrengthening) {
-                strength = 'WTT'; // Support moving up = bullish pressure
-            } else if (strike2nd.strike < strike100.strike && (is100Weakening || is2ndStrengthening)) {
-                strength = 'WTB'; // Support moving down = bearish pressure
-            } else if (is100Weakening) {
-                strength = strike2nd.strike > strike100.strike ? 'WTT' : 'WTB';
+                strength = 'WTT';
+            } else if (is100Weakening || (strike2nd.strike < strike100.strike && is2ndStrengthening)) {
+                strength = 'WTB';
             } else {
-                strength = 'WTB'; // Default to WTB if uncertain
+                strength = 'WTB';
             }
         }
     }
@@ -140,189 +94,139 @@ const calculateSideStrength = (optionChain, atmStrike, side) => {
         strength,
         strike100: strike100.strike,
         strike2nd: strike2nd?.strike || null,
-        pct100: strike100.pct,
-        pct2nd: strike2nd?.pct || 0,
+        oi_pct100: strike100.pct,
+        oi_pct2nd: strike2nd?.pct || 0,
         oi100: strike100.oi,
         oi2nd: strike2nd?.oi || 0,
-        oiChng100: strike100.oiChng,
-        oiChng2nd: strike2nd?.oiChng || 0,
-        ltp100: strike100.ltp,
-        ltp2nd: strike2nd?.ltp || 0
+        oichng100: strike100.oiChng,
+        oichng2nd: strike2nd?.oiChng || 0,
     };
 };
 
-/**
- * Classify into one of 9 COA scenarios
- */
-const classifyScenario = (supportStrength, resistanceStrength) => {
-    const s = supportStrength;
-    const r = resistanceStrength;
-
-    // Scenario matrix
-    if (s === 'Strong' && r === 'Strong') return { id: '1.0', bias: 'neutral', name: 'Strong Both', tradable: 'both' };
-    if (s === 'Strong' && r === 'WTB') return { id: '1.1', bias: 'bearish', name: 'Bearish Pressure', tradable: 'short' };
-    if (s === 'Strong' && r === 'WTT') return { id: '1.2', bias: 'bullish', name: 'Bullish Pressure', tradable: 'long' };
-    if (s === 'WTB' && r === 'Strong') return { id: '1.3', bias: 'bearish', name: 'Support Weakness', tradable: 'short' };
-    if (s === 'WTT' && r === 'Strong') return { id: '1.4', bias: 'bullish', name: 'Support Strength', tradable: 'long' };
-    if (s === 'WTB' && r === 'WTB') return { id: '1.5', bias: 'bearish', name: 'Blood Bath', tradable: 'short_only' };
-    if (s === 'WTT' && r === 'WTT') return { id: '1.6', bias: 'bullish', name: 'Bull Run', tradable: 'long_only' };
-    if (s === 'WTB' && r === 'WTT') return { id: '1.7', bias: 'unclear', name: 'Not Tradable', tradable: 'none' };
-    if (s === 'WTT' && r === 'WTB') return { id: '1.8', bias: 'unclear', name: 'Not Tradable', tradable: 'none' };
-
-    return { id: '?', bias: 'unknown', name: 'Unknown', tradable: 'none' };
+const classifyScenarioLocal = (s, r) => {
+    const scenarios = {
+        'Strong_Strong': { id: '1.0', bias: 'neutral', name: 'Strong Both', tradable: 'both' },
+        'Strong_WTB': { id: '1.1', bias: 'bearish', name: 'Bearish Pressure', tradable: 'short' },
+        'Strong_WTT': { id: '1.2', bias: 'bullish', name: 'Bullish Pressure', tradable: 'long' },
+        'WTB_Strong': { id: '1.3', bias: 'bearish', name: 'Support Weakness', tradable: 'short' },
+        'WTT_Strong': { id: '1.4', bias: 'bullish', name: 'Support Strength', tradable: 'long' },
+        'WTB_WTB': { id: '1.5', bias: 'bearish', name: 'Blood Bath', tradable: 'short' },
+        'WTT_WTT': { id: '1.6', bias: 'bullish', name: 'Bull Run', tradable: 'long' },
+        'WTB_WTT': { id: '1.7', bias: 'unclear', name: 'Not Tradable', tradable: 'none' },
+        'WTT_WTB': { id: '1.8', bias: 'unclear', name: 'Not Tradable', tradable: 'none' },
+    };
+    return scenarios[`${s}_${r}`] || { id: '?', bias: 'unknown', name: 'Unknown', tradable: 'none' };
 };
 
-/**
- * Calculate EOS (Extension of Support) and EOR (Extension of Resistance)
- * EOS = Support Strike - PE LTP
- * EOR = Resistance Strike + CE LTP
- */
-const calculateLevels = (optionChain, support, resistance, spotPrice) => {
-    if (!support || !resistance || !optionChain) return null;
+const calculateLocalCOA = (optionChain, spotPrice, atmStrike) => {
+    if (!optionChain || !spotPrice || !atmStrike) return null;
 
+    const support = calculateSideStrengthLocal(optionChain, atmStrike, 'pe');
+    const resistance = calculateSideStrengthLocal(optionChain, atmStrike, 'ce');
+    if (!support || !resistance) return null;
+
+    const scenario = classifyScenarioLocal(support.strength, resistance.strength);
+
+    // Calculate EOS/EOR
     const supportData = optionChain[support.strike100]?.pe;
     const resistanceData = optionChain[resistance.strike100]?.ce;
-
     const eos = supportData ? support.strike100 - (supportData.ltp || 0) : support.strike100;
     const eor = resistanceData ? resistance.strike100 + (resistanceData.ltp || 0) : resistance.strike100;
+    const stepSize = 50;
 
-    // Get adjacent strikes for EOS+1, EOS-1, EOR+1, EOR-1
-    const strikes = Object.keys(optionChain).map(Number).sort((a, b) => a - b);
-    const stepSize = strikes.length > 1 ? strikes[1] - strikes[0] : 50;
-
-    return {
-        eos,
-        eor,
+    const levels = {
+        eos, eor,
         eos_plus1: eos + stepSize,
         eos_minus1: eos - stepSize,
         eor_plus1: eor + stepSize,
         eor_minus1: eor - stepSize,
+        top: scenario.tradable !== 'long' ? eor : null,
+        bottom: scenario.tradable !== 'short' ? eos : null,
+        trade_at_eos: ['both', 'long'].includes(scenario.tradable),
+        trade_at_eor: ['both', 'short'].includes(scenario.tradable),
+    };
+
+    const recommendations = {
+        '1.0': `Trade reversals from both EOS (${eos.toFixed(0)}) and EOR (${eor.toFixed(0)}).`,
+        '1.1': `Bearish. Short at EOR (${eor.toFixed(0)}). Avoid longs.`,
+        '1.2': `Bullish. Long at EOS (${eos.toFixed(0)}). Avoid shorts.`,
+        '1.3': `Bearish. Support weakening. Short at EOR (${eor.toFixed(0)}).`,
+        '1.4': `Bullish. Support strong. Long at EOS (${eos.toFixed(0)}).`,
+        '1.5': `🩸 Blood bath! Only shorts. No longs.`,
+        '1.6': `🚀 Bull run! Only longs. No shorts.`,
+        '1.7': `⚠️ Not tradable. Both sides unstable.`,
+        '1.8': `⚠️ Not tradable. Both sides unstable.`,
+    };
+
+    return {
+        scenario,
+        support: { ...support, type: 'Support (PE)' },
+        resistance: { ...resistance, type: 'Resistance (CE)' },
+        levels,
+        trading: { recommendation: recommendations[scenario.id] || 'Unknown' },
         spotPrice,
-        supportStrike: support.strike100,
-        resistanceStrike: resistance.strike100,
-        stepSize
+        atmStrike,
+        source: 'local'
     };
 };
 
-/**
- * Get trading recommendation based on scenario
- */
-const getTradingRecommendation = (scenario, levels, support, resistance) => {
-    const { id, bias, tradable } = scenario;
+// ============== Main Hook ==============
 
-    let top = null;
-    let bottom = null;
-    let tradeAtEOS = false;
-    let tradeAtEOR = false;
-    let recommendation = '';
-
-    switch (id) {
-        case '1.0':
-            top = levels?.eor;
-            bottom = levels?.eos;
-            tradeAtEOS = true;
-            tradeAtEOR = true;
-            recommendation = 'Ideal scenario! Trade reversals from both EOS and EOR.';
-            break;
-        case '1.1':
-            top = levels?.eor;
-            bottom = levels?.eos_minus1;
-            tradeAtEOS = false;
-            tradeAtEOR = true;
-            recommendation = 'Bearish pressure. Support may break. Bottom at EOS-1.';
-            break;
-        case '1.2':
-            top = resistance?.strike2nd ? resistance.strike100 - levels?.stepSize : levels?.eor;
-            bottom = levels?.eos;
-            tradeAtEOS = true;
-            tradeAtEOR = false;
-            recommendation = 'Bullish pressure. Resistance may break. Top at WTT-1.';
-            break;
-        case '1.3':
-            top = levels?.eor;
-            bottom = support?.strike2nd ? support.strike100 + levels?.stepSize : levels?.eos;
-            tradeAtEOS = false;
-            tradeAtEOR = true;
-            recommendation = 'Bearish. Support weakening. Bottom at WTB+1.';
-            break;
-        case '1.4':
-            top = levels?.eor_plus1;
-            bottom = levels?.eos;
-            tradeAtEOS = true;
-            tradeAtEOR = false;
-            recommendation = 'Bullish. Resistance may break upward. Top at EOR+1.';
-            break;
-        case '1.5':
-            top = levels?.eor;
-            bottom = null;
-            tradeAtEOS = false;
-            tradeAtEOR = true;
-            recommendation = '🩸 BLOOD BATH! No bottom. Only short trades allowed.';
-            break;
-        case '1.6':
-            top = null;
-            bottom = levels?.eos;
-            tradeAtEOS = true;
-            tradeAtEOR = false;
-            recommendation = '🚀 BULL RUN! No top. Only long trades allowed.';
-            break;
-        case '1.7':
-        case '1.8':
-            top = null;
-            bottom = null;
-            tradeAtEOS = false;
-            tradeAtEOR = false;
-            recommendation = '⚠️ NOT TRADABLE. Wait for clarity.';
-            break;
-        default:
-            recommendation = 'Unable to determine scenario.';
-    }
-
-    return { top, bottom, tradeAtEOS, tradeAtEOR, recommendation };
-};
-
-/**
- * Main hook
- */
 export const useChartOfAccuracy = (optionChain, spotPrice, atmStrike) => {
-    return useMemo(() => {
-        if (!optionChain || !spotPrice || !atmStrike) {
-            return null;
-        }
+    const [apiData, setApiData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-        // Calculate strength for both sides
-        const support = calculateSideStrength(optionChain, atmStrike, 'pe');
-        const resistance = calculateSideStrength(optionChain, atmStrike, 'ce');
+    // Use same selectors as Analytics.jsx for consistency
+    const symbol = useSelector(state => state.data.sid || 'NIFTY');
+    const expiry = useSelector(state => state.data.exp_sid);
 
-        if (!support || !resistance) {
-            return null;
-        }
+    // Fetch from backend API
+    useEffect(() => {
+        const fetchCOA = async () => {
+            if (!symbol) return;
 
-        // Classify scenario
-        const scenario = classifyScenario(support.strength, resistance.strength);
+            setLoading(true);
+            setError(null);
 
-        // Calculate levels
-        const levels = calculateLevels(optionChain, support, resistance, spotPrice);
+            try {
+                const params = expiry ? { expiry } : {};
+                const response = await apiClient.get(`/analytics/${symbol}/coa`, { params });
 
-        // Get trading recommendation
-        const trading = getTradingRecommendation(scenario, levels, support, resistance);
-
-        return {
-            scenario,
-            support: {
-                ...support,
-                type: 'Support (PE)'
-            },
-            resistance: {
-                ...resistance,
-                type: 'Resistance (CE)'
-            },
-            levels,
-            trading,
-            spotPrice,
-            atmStrike
+                if (response.data?.success) {
+                    setApiData({
+                        ...response.data,
+                        source: 'api'
+                    });
+                }
+            } catch (err) {
+                console.warn('COA API failed, using local calculation:', err.message);
+                setError(err);
+                setApiData(null);
+            } finally {
+                setLoading(false);
+            }
         };
+
+        fetchCOA();
+
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchCOA, 30000);
+        return () => clearInterval(interval);
+    }, [symbol, expiry]);
+
+    // Local calculation fallback
+    const localData = useMemo(() => {
+        return calculateLocalCOA(optionChain, spotPrice, atmStrike);
     }, [optionChain, spotPrice, atmStrike]);
+
+    // Return API data if available, otherwise local calculation
+    return useMemo(() => {
+        if (apiData && !error) {
+            return apiData;
+        }
+        return localData;
+    }, [apiData, localData, error]);
 };
 
 export default useChartOfAccuracy;

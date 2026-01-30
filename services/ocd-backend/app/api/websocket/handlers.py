@@ -236,20 +236,9 @@ async def stream_hft_data(symbol: str):
         logger.info(f"HFT streaming stopped for {symbol}")
 
 
-async def persist_snapshot(data: dict):
-    """
-    Persist market snapshot to TimescaleDB.
-    Creates a dedicated session for the operation.
-    """
-    from app.config.database import AsyncSessionLocal
-    
-    try:
-        async with AsyncSessionLocal() as session:
-            # Create minimal service instance just for saving
-            service = OptionsService(dhan_client=None, cache=None, db=session)
-            await service.save_snapshot(data)
-    except Exception as e:
-        logger.error(f"Failed to persist snapshot in background: {e}")
+
+# NOTE: persist_snapshot() was removed - data persists via Storage service pipeline only
+# See services/storage/main.py for actual DB writes
 
 
 async def broadcast_to_symbol(symbol: str, data: dict):

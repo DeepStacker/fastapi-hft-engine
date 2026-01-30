@@ -17,7 +17,6 @@ from app.utils.helpers import (
 from app.utils.data_processing import (
     modify_oc_keys,
     find_strikes,
-    fetch_percentage,
     filter_expiry_data,
     filter_oc_strikes,
 )
@@ -36,7 +35,6 @@ __all__ = [
     "safe_json_loads",
     "modify_oc_keys",
     "find_strikes",
-    "fetch_percentage",
     "filter_expiry_data",
     "filter_oc_strikes",
 ]

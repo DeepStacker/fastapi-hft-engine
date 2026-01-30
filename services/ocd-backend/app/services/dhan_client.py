@@ -17,9 +17,9 @@ from app.config.symbols import (
 )
 from app.core.exceptions import ExternalAPIException, ValidationException
 from fastapi import Depends
-from app.cache.redis import RedisCache, get_redis
+from app.cache.redis import RedisCache, get_redis, CacheKeys
 from app.utils.data_processing import (
-    modify_oc_keys, filter_oc_strikes, fetch_percentage, filter_expiry_data
+    modify_oc_keys, filter_oc_strikes, filter_expiry_data
 )
 from app.utils.timezone import get_ist_isoformat
 

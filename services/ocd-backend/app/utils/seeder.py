@@ -601,6 +601,123 @@ async def seed_core_instruments(db: AsyncSession) -> int:
     return count
 
 
+
+# ═══════════════════════════════════════════════════════════════════
+# Default Community Rooms
+# ═══════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════
+# Default Community Rooms
+# ═══════════════════════════════════════════════════════════════════
+
+# Note: We need to import RoomType inside the function or file to use it in the dict
+# But effectively we will use the string values matching the Enum since we can't easily access the Enum class at module level if imports fail
+# However, for the seeder to work, we MUST use valid Enum values.
+
+async def seed_community_rooms(db: AsyncSession) -> int:
+    """Seed default community rooms"""
+    from core.database.community_models import CommunityRoomDB, RoomType
+    
+    # Define rooms using valid RoomType enum values
+    DEFAULT_ROOMS: List[Dict[str, Any]] = [
+        {
+            "name": "General Trading",
+            "slug": "general",
+            "description": "General market discussion, news, and analysis that doesn't fit specific instrument rooms.",
+            "room_type": RoomType.STRATEGY_INSIGHTS,
+            "is_active": True,
+            "is_read_only": False,
+            "priority": 10,
+        },
+        {
+            "name": "Nifty 50",
+            "slug": "nifty",
+            "description": "Exclusive discussion for Nifty 50 index options, strategies, and levels.",
+            "room_type": RoomType.STRATEGY_INSIGHTS,
+            "is_active": True,
+            "is_read_only": False,
+            "priority": 1,
+        },
+        {
+            "name": "Bank Nifty",
+            "slug": "banknifty",
+            "description": "Exclusive discussion for Bank Nifty index options, strategies, and levels.",
+            "room_type": RoomType.STRATEGY_INSIGHTS,
+            "is_active": True,
+            "is_read_only": False,
+            "priority": 2,
+        },
+        {
+            "name": "Trade Breakdowns",
+            "slug": "trade-breakdowns",
+            "description": "Detailed post-market analysis and trade journals. Learn from winning and losing trades.",
+            "room_type": RoomType.TRADE_BREAKDOWN,
+            "is_active": True,
+            "is_read_only": False,
+            "priority": 5,
+        },
+        {
+            "name": "Announcements",
+            "slug": "announcements",
+            "description": "Official platform updates and important announcements.",
+            "room_type": RoomType.MARKET_OUTLOOK,
+            "is_active": True,
+            "is_read_only": True,
+            "priority": 0,
+        }
+    ]
+    
+    count = 0
+    now = datetime.utcnow()
+    
+    # Get admin user for author_id (first user)
+    from app.repositories.user import UserRepository
+    user_repo = UserRepository(db)
+    admins = await user_repo.get_admins()
+    
+    if not admins:
+        # Fallback to any user if no admin
+        users = await user_repo.get_all(limit=1)
+        if not users:
+            logger.warning("No users found to set as room creator. Skipping room seeding.")
+            return 0
+        creator_id = users[0].id
+    else:
+        creator_id = admins[0].id
+
+    for room_data in DEFAULT_ROOMS:
+        # Check if room exists
+        stmt = select(CommunityRoomDB).where(CommunityRoomDB.slug == room_data["slug"])
+        result = await db.execute(stmt)
+        existing_room = result.scalar_one_or_none()
+        
+        if not existing_room:
+            room = CommunityRoomDB(
+                name=room_data["name"],
+                slug=room_data["slug"],
+                description=room_data["description"],
+                room_type=room_data["room_type"],
+                is_active=room_data["is_active"],
+                is_read_only=room_data["is_read_only"],
+                allowed_roles=["user"], # Default allowed role
+                created_at=now,
+                updated_at=now
+            )
+            # Use direct SQL insert or add/commit to ensure fields are handled correctly is safer with Enums?
+            # Creating object is fine.
+            # Note: created_by is NOT in CommunityRoomDB based on the model definition I saw!
+            # The model has 'posts' relationship but not 'created_by' field strictly?
+            # Let's check CommunityRoomDB definition again.
+            db.add(room)
+            count += 1
+            logger.info(f"Seeded room: {room.name} ({room.slug})")
+    
+    if count > 0:
+        await db.commit()
+    
+    return count
+
+
 async def run_seeder():
     """Run all seeders"""
     async with AsyncSessionLocal() as db:
@@ -610,14 +727,22 @@ async def run_seeder():
         instrument_count = await seed_instruments(db)
         core_instrument_count = await seed_core_instruments(db)
         admin_count = await seed_admin_user(db)
+        rooms_count = await seed_community_rooms(db)
         
-        logger.info(f"Seeding complete: {config_count} configs, {instrument_count} instruments, {core_instrument_count} core instruments, {admin_count} admins")
+        logger.info(
+            f"Seeding complete: {config_count} configs, "
+            f"{instrument_count} instruments, "
+            f"{core_instrument_count} core instruments, "
+            f"{admin_count} admins, "
+            f"{rooms_count} rooms"
+        )
         
         return {
             "configs_seeded": config_count,
             "instruments_seeded": instrument_count,
             "core_instruments_seeded": core_instrument_count,
             "admins_seeded": admin_count,
+            "rooms_seeded": rooms_count,
         }
 
 

@@ -68,6 +68,12 @@ class CleanedOptionData(BaseModel):
     weekly_reversal_price: Optional[float] = None
     future_reversal_price: Optional[float] = None
     
+    # Percentage fields for COA (Chart of Accuracy)
+    oi_pct: Optional[float] = None       # OI as % of max valid OI
+    volume_pct: Optional[float] = None   # Volume as % of max
+    oichng_pct: Optional[float] = None   # OI CHG as % of max
+    oi_rank: Optional[int] = None        # Rank (1 = highest)
+    
     # Analysis Flags
     is_liquid: bool = True  # False if bid=0 or ask=0
     is_valid: bool = True  # False if critical data missing
@@ -121,6 +127,9 @@ class CleanedGlobalContext(BaseModel):
     
     exchange: str = 'NSE'
     segment: str = 'D'
+    
+    # Internal Benchmarking
+    probe_id: Optional[str] = None
     
     timestamp: datetime
 
@@ -177,6 +186,7 @@ class EnrichedMarketData(BaseModel):
     """
     # Metadata
     symbol: str
+    symbol_id: int
     expiry: str  # Expiry date for the option chain
     timestamp: datetime
     processing_timestamp: datetime = Field(default_factory=lambda: datetime.now())

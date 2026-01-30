@@ -63,7 +63,8 @@
           {"name": "pcr_ratio", "type": ["null", "double"], "default": null},
           {"name": "option_lot_size", "type": ["null", "int"], "default": null},
           {"name": "days_to_expiry", "type": ["null", "int"], "default": null},
-          {"name": "max_pain_strike", "type": ["null", "double"], "default": null}
+          {"name": "max_pain_strike", "type": ["null", "double"], "default": null},
+          {"name": "probe_id", "type": ["null", "string"], "default": null}
         ]
       },
       "doc": "Global market context"

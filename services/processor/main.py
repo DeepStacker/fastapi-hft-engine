@@ -43,6 +43,7 @@ from services.processor.analyzers.vix_divergence import VIXDivergenceAnalyzer
 from services.processor.analyzers.gamma_exposure import GammaExposureAnalyzer
 from services.processor.analyzers.iv_skew_analyzer import IVSkewAnalyzer
 from services.processor.analyzers.reversal import ReversalAnalyzer
+from services.processor.analyzers.percentage_analyzer import PercentageAnalyzer
 from services.processor.analyzer_cache import AnalyzerCacheManager
 
 # Use consolidated PCR utility
@@ -72,6 +73,7 @@ class ProcessorService:
         self.vix_analyzer = None
         self.gamma_analyzer = None
         self.iv_skew_analyzer = None
+        self.percentage_analyzer = None  # For COA percentage calculation
         # Advanced analyzers moved to analytics service
         # self.order_flow_analyzer = None
         # self.smart_money_analyzer = None
@@ -113,6 +115,7 @@ class ProcessorService:
         self.gamma_analyzer = GammaExposureAnalyzer()
         self.iv_skew_analyzer = IVSkewAnalyzer()
         self.reversal_analyzer = ReversalAnalyzer()
+        self.percentage_analyzer = PercentageAnalyzer()  # For COA percentages
         
         # OPTIMIZATION: Analyzer result cache (2-3x speedup)
         self.cache_manager = AnalyzerCacheManager(maxsize=1000, ttl=5)
@@ -126,14 +129,14 @@ class ProcessorService:
         self.consumer = AIOKafkaConsumer(
             settings.KAFKA_TOPIC_MARKET_RAW,
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS.split(","),  # Cluster support
-            group_id="processor-group",  # Consumer group for load balancing
-            auto_offset_reset='earliest',  # Start from beginning if no offset stored
+            group_id="processor-group-v2",  # Consumer group for load balancing
+            auto_offset_reset='latest',  # Start from end to skip incompatible legacy data
             enable_auto_commit=True,  # Commit offsets automatically
             value_deserializer=avro_deserializer(settings.KAFKA_TOPIC_MARKET_RAW),  # Avro binary input
             # Performance tuning
-            fetch_max_wait_ms=50,  # Max wait for batching (Reduced for lower latency)
-            fetch_min_bytes=1024,  # Min data to fetch (1KB)
-            fetch_max_bytes=52428800,  # Max data to fetch (50MB)
+            fetch_max_wait_ms=10,  # Max wait for batching (Aggressively reduced for HFT)
+            fetch_min_bytes=1,     # Min data to fetch (1 byte to prevent waiting)
+            fetch_max_bytes=1048576,  # Max data to fetch (1MB)
             max_partition_fetch_bytes=1048576,  # Max per partition (1MB)
         )
         
@@ -158,8 +161,8 @@ class ProcessorService:
             value_serializer=avro_serializer(settings.KAFKA_TOPIC_ENRICHED),  # Avro binary output
             compression_type='snappy',
             acks='all',
-            linger_ms=10,          # Batch enriched data (10ms wait)
-            max_batch_size=65536,  # 64KB batches
+            linger_ms=1,           # Minimize batching delay (1ms)
+            max_batch_size=16384,  # Smaller batches for latency (16KB)
         )
         await self.producer.start()
         logger.info("✓ Kafka producer started (Avro format for enriched messages)")
@@ -228,7 +231,20 @@ class ProcessorService:
                     context=cleaned['context']
                 )
             
-            # 4. Run analyses in parallel (8x speedup!)
+            # 4. Calculate Percentages for COA (Chart of Accuracy)
+            if self.config_manager.get('enable_percentage_calculation', True):
+                # Calculate ATM strike from spot price
+                spot_price = cleaned['context'].spot_price
+                tick_size = cleaned['context'].tick_size or 50
+                atm_strike = round(spot_price / tick_size) * tick_size
+                
+                self.percentage_analyzer.enrich_options(
+                    options=cleaned['options'],
+                    atm_strike=atm_strike,
+                    step_size=tick_size
+                )
+            
+            # 5. Run analyses in parallel (8x speedup!)
             analyses = {}
             
             tasks = []
@@ -501,8 +517,8 @@ class ProcessorService:
         if self.consumer:
             await self.consumer.stop()
         
-        if kafka_producer.producer:
-            await kafka_producer.stop()
+        if self.producer:
+            await self.producer.stop()
         
         logger.info("Processor Service stopped")
 

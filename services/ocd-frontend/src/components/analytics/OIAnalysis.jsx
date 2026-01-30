@@ -1,16 +1,34 @@
 /**
  * OI Analysis Component - Enhanced
- * Focused analysis of Open Interest distribution with:
- * - K/M/B/T number formatting
- * - Strike-wise PCR (OI and OI Change)
- * - Clickable strikes with Support/Resistance info
+ * Professional Open Interest distribution visualization
+ * Features:
+ * - Grouped Bar Chart (Call vs Put OI)
+ * - Net OI Overlay (Line)
+ * - Interactive Brush for zooming
+ * - Clickable strikes for detailed analysis
  */
 import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
+import {
+    ComposedChart,
+    Bar,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    ResponsiveContainer,
+    Brush,
+    ReferenceLine
+} from 'recharts';
 import { selectOptionChain, selectSpotPrice, selectATMStrike, selectPCR, selectTotalOI, selectMaxPainStrike, selectDataSymbol } from '../../context/selectors';
 import { ChartBarIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon, FireIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import Card from '../common/Card';
 
 const OIAnalysis = () => {
+    const theme = useSelector((state) => state.theme.theme);
+    const isDark = theme === 'dark';
     const optionChain = useSelector(selectOptionChain);
     const spotPrice = useSelector(selectSpotPrice);
     const atmStrike = useSelector(selectATMStrike);
@@ -18,8 +36,7 @@ const OIAnalysis = () => {
     const totalOI = useSelector(selectTotalOI);
     const maxPain = useSelector(selectMaxPainStrike);
     const dataSymbol = useSelector(selectDataSymbol);
-    
-    const [hoveredStrike, setHoveredStrike] = useState(null);
+
     const [selectedStrike, setSelectedStrike] = useState(null);
 
     // Format number as K/M/B/T
@@ -27,7 +44,7 @@ const OIAnalysis = () => {
         if (!num || num === 0) return '0';
         const absNum = Math.abs(num);
         const sign = num < 0 ? '-' : '';
-        
+
         if (absNum >= 1e12) return sign + (absNum / 1e12).toFixed(2) + 'T';
         if (absNum >= 1e9) return sign + (absNum / 1e9).toFixed(2) + 'B';
         if (absNum >= 1e6) return sign + (absNum / 1e6).toFixed(2) + 'M';
@@ -38,7 +55,7 @@ const OIAnalysis = () => {
     // Process OI data with PCR
     const oiData = useMemo(() => {
         if (!optionChain) return [];
-        
+
         return Object.entries(optionChain)
             .map(([strike, data]) => {
                 const ce = data.ce || {};
@@ -47,23 +64,22 @@ const OIAnalysis = () => {
                 const pe_oi = pe.OI || pe.oi || 0;
                 const ce_oi_chng = ce.oichng || ce.oi_change || 0;
                 const pe_oi_chng = pe.oichng || pe.oi_change || 0;
-                
+
                 // Calculate strike-wise PCR
                 const pcr_oi = ce_oi > 0 ? pe_oi / ce_oi : 0;
-                const pcr_oi_chng = ce_oi_chng !== 0 ? Math.abs(pe_oi_chng / ce_oi_chng) : 0;
-                
+
                 // Reversal values for support/resistance
                 const ce_reversal = ce.reversal || 0;
                 const pe_reversal = pe.reversal || 0;
-                
+
                 return {
                     strike: parseFloat(strike),
                     ce_oi,
                     pe_oi,
+                    net_oi: pe_oi - ce_oi, // Positive = Bullish support
                     ce_oi_chng,
                     pe_oi_chng,
                     pcr_oi,
-                    pcr_oi_chng,
                     ce_reversal,
                     pe_reversal,
                     ce_ltp: ce.ltp || 0,
@@ -77,17 +93,23 @@ const OIAnalysis = () => {
     }, [optionChain]);
 
     // Top OI strikes
-    const topCEStrikes = useMemo(() => 
-        [...oiData].sort((a, b) => b.ce_oi - a.ce_oi).slice(0, 5), 
-    [oiData]);
-    
-    const topPEStrikes = useMemo(() => 
-        [...oiData].sort((a, b) => b.pe_oi - a.pe_oi).slice(0, 5), 
-    [oiData]);
+    const topCEStrikes = useMemo(() =>
+        [...oiData].sort((a, b) => b.ce_oi - a.ce_oi).slice(0, 5),
+        [oiData]);
 
-    const maxOI = useMemo(() => 
-        Math.max(...oiData.flatMap(d => [d.ce_oi, d.pe_oi]), 1),
-    [oiData]);
+    const topPEStrikes = useMemo(() =>
+        [...oiData].sort((a, b) => b.pe_oi - a.pe_oi).slice(0, 5),
+        [oiData]);
+
+    const displayData = useMemo(() => {
+        if (!oiData.length || !spotPrice) return [];
+        // Show range around spot
+        const atmIndex = oiData.findIndex(d => d.strike >= spotPrice);
+        if (atmIndex === -1) return oiData;
+        const start = Math.max(0, atmIndex - 12);
+        const end = Math.min(oiData.length, atmIndex + 13);
+        return oiData.slice(start, end);
+    }, [oiData, spotPrice]);
 
     // Get selected strike data
     const selectedData = useMemo(() => {
@@ -104,6 +126,44 @@ const OIAnalysis = () => {
         if (pcrValue > 1.0) return 'text-green-500 bg-green-50/50 dark:bg-green-900/20';
         if (pcrValue > 0.7) return 'text-amber-600 bg-amber-50 dark:bg-amber-900/30';
         return 'text-red-600 bg-red-50 dark:bg-red-900/30';
+    };
+
+    const handleChartClick = (data) => {
+        if (data && data.activePayload && data.activePayload.length > 0) {
+            const strike = data.activePayload[0].payload.strike;
+            setSelectedStrike(strike);
+        }
+    };
+
+    const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            const data = payload[0].payload;
+            return (
+                <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50">
+                    <p className="font-bold mb-2 border-b border-gray-100 dark:border-gray-700 pb-1">Strike {label}</p>
+                    <div className="space-y-1 text-xs">
+                        <div className="flex justify-between gap-4 text-green-600">
+                            <span>Call OI:</span>
+                            <span className="font-mono font-bold">{formatNumber(data.ce_oi)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4 text-red-600">
+                            <span>Put OI:</span>
+                            <span className="font-mono font-bold">{formatNumber(data.pe_oi)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4 text-purple-600 pt-1 border-t border-dashed border-gray-200 dark:border-gray-700">
+                            <span>Net OI (PE-CE):</span>
+                            <span className="font-mono font-bold">{formatNumber(data.net_oi)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4 text-gray-500 mt-1">
+                            <span>PCR:</span>
+                            <span className="font-mono">{data.pcr_oi.toFixed(2)}</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-1 italic text-center">Click to view mechanics</div>
+                    </div>
+                </div>
+            );
+        }
+        return null;
     };
 
     if (!optionChain) {
@@ -130,15 +190,15 @@ const OIAnalysis = () => {
             {/* Summary Cards Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 text-white">
-                    <div className="text-xs opacity-80 mb-1">Total Call OI</div>
+                    <div className="text-xs opacity-80 mb-1">Total Call OI (Resistance)</div>
                     <div className="text-2xl font-bold">{formatNumber(totalOI.calls)}</div>
                 </div>
                 <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white">
-                    <div className="text-xs opacity-80 mb-1">Total Put OI</div>
+                    <div className="text-xs opacity-80 mb-1">Total Put OI (Support)</div>
                     <div className="text-2xl font-bold">{formatNumber(totalOI.puts)}</div>
                 </div>
                 <div className={`bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700`}>
-                    <div className="text-xs text-gray-500 mb-1">PCR</div>
+                    <div className="text-xs text-gray-500 mb-1">PCR Sentiment</div>
                     <div className={`text-2xl font-bold ${pcrColor}`}>{pcr?.toFixed(2)}</div>
                     <div className={`text-xs ${pcrColor}`}>{pcrLabel}</div>
                 </div>
@@ -149,10 +209,93 @@ const OIAnalysis = () => {
                 </div>
             </div>
 
+            {/* Main Charts Area */}
+            <Card variant="glass" className="p-5">
+                <div className="mb-4 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <ChartBarIcon className="w-5 h-5 text-blue-600" />
+                            Open Interest Distribution
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Call OI (Resistance) vs Put OI (Support) across strikes
+                        </p>
+                    </div>
+                    {/* Zoom hint */}
+                    <div className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                        <span className="font-bold">Tip:</span> Use the slider below to zoom
+                    </div>
+                </div>
+
+                <div className="h-[400px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
+                            data={displayData}
+                            margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+                            onClick={handleChartClick}
+                            barGap={2}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#374151' : '#e5e7eb'} opacity={0.5} />
+                            <XAxis
+                                dataKey="strike"
+                                tick={{ fontSize: 10, fill: isDark ? '#9ca3af' : '#6b7280' }}
+                            />
+                            <YAxis
+                                yAxisId="oi"
+                                tick={{ fontSize: 10, fill: isDark ? '#9ca3af' : '#6b7280' }}
+                                tickFormatter={formatNumber}
+                            />
+                            <YAxis
+                                yAxisId="net"
+                                orientation="right"
+                                tick={{ fontSize: 10, fill: '#8b5cf6' }}
+                                tickFormatter={formatNumber}
+                                hide={false}
+                            />
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: isDark ? '#374151' : '#f3f4f6', opacity: 0.2 }} />
+                            <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+
+                            {/* Spot Price Line */}
+                            <ReferenceLine x={atmStrike} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'top', value: 'ATM', fill: '#f59e0b', fontSize: 10 }} />
+
+                            {/* Call OI Bars - Red/Green based on role? Standard convention: Call=Green/Red? 
+                                Convention: Call writing = Resistance = Red usually in some heatmaps, 
+                                but standard OI charts often use Green for Call, Red for Put. 
+                                Let's stick to standard: Calls (Green), Puts (Red) like the user's previous code, 
+                                OR more intuitively: Calls = Resistance (Redish), Puts = Support (Greenish).
+                                USER'S PREVIOUS CODE: Call OI = Green, Put OI = Red. I will RESPECT this color coding.
+                            */}
+                            <Bar yAxisId="oi" dataKey="ce_oi" name="Call OI" fill="#22c55e" radius={[4, 4, 0, 0]} animationDuration={1000} />
+                            <Bar yAxisId="oi" dataKey="pe_oi" name="Put OI" fill="#ef4444" radius={[4, 4, 0, 0]} animationDuration={1000} />
+
+                            {/* Net OI Line */}
+                            <Line
+                                yAxisId="net"
+                                type="monotone"
+                                dataKey="net_oi"
+                                name="Net OI (PE-CE)"
+                                stroke="#8b5cf6"
+                                strokeWidth={2}
+                                dot={false}
+                                animationDuration={1000}
+                            />
+
+                            <Brush
+                                dataKey="strike"
+                                height={30}
+                                stroke="#3b82f6"
+                                fill={isDark ? "#1f2937" : "#eff6ff"}
+                                tickFormatter={() => ''}
+                            />
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </div>
+            </Card>
+
             {/* Selected Strike Modal */}
             {selectedStrike && selectedData && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedStrike(null)}>
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4" onClick={() => setSelectedStrike(null)}>
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-scaleIn" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-xl font-bold">Strike {selectedStrike}</h3>
                             <button onClick={() => setSelectedStrike(null)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
@@ -215,109 +358,10 @@ const OIAnalysis = () => {
                                 <span className="text-gray-500">PE LTP</span>
                                 <span className="font-medium">₹{selectedData.pe_ltp.toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">CE IV / PE IV</span>
-                                <span className="font-medium">{selectedData.ce_iv.toFixed(1)}% / {selectedData.pe_iv.toFixed(1)}%</span>
-                            </div>
                         </div>
                     </div>
                 </div>
             )}
-
-            {/* Main OI Chart with PCR */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <h3 className="font-semibold flex items-center gap-2">
-                        <ChartBarIcon className="w-5 h-5 text-blue-500" />
-                        OI Distribution by Strike
-                    </h3>
-                    <span className="text-xs text-gray-500">Click any strike for details</span>
-                </div>
-                <div className="p-4 overflow-x-auto">
-                    <div className="min-w-[700px]">
-                        {/* Header */}
-                        <div className="flex items-center gap-1 text-[10px] text-gray-500 mb-2 pb-2 border-b">
-                            <div className="w-16 text-right">CE OI</div>
-                            <div className="flex-1"></div>
-                            <div className="w-12 text-center">Strike</div>
-                            <div className="w-10 text-center">PCR</div>
-                            <div className="flex-1"></div>
-                            <div className="w-16 text-left">PE OI</div>
-                        </div>
-
-                        {/* Rows */}
-                        {oiData.map((row, i) => {
-                            const ceWidth = (row.ce_oi / maxOI) * 100;
-                            const peWidth = (row.pe_oi / maxOI) * 100;
-                            const isATM = row.strike === atmStrike;
-                            const isHovered = hoveredStrike === row.strike;
-                            const isNearSpot = Math.abs(row.strike - spotPrice) <= 100;
-
-                            return (
-                                <div 
-                                    key={i} 
-                                    className={`flex items-center gap-1 py-1.5 cursor-pointer rounded transition-all ${isATM ? 'bg-blue-100 dark:bg-blue-900/40' : ''} ${isHovered ? 'bg-gray-100 dark:bg-gray-700/50' : ''} hover:bg-gray-50 dark:hover:bg-gray-700/30`}
-                                    onMouseEnter={() => setHoveredStrike(row.strike)}
-                                    onMouseLeave={() => setHoveredStrike(null)}
-                                    onClick={() => setSelectedStrike(row.strike)}
-                                >
-                                    {/* CE OI Value */}
-                                    <div className="w-16 text-right text-xs font-medium text-green-600">
-                                        {formatNumber(row.ce_oi)}
-                                    </div>
-
-                                    {/* CE OI Bar */}
-                                    <div className="flex-1 flex justify-end items-center">
-                                        <div className="h-6 rounded-l relative overflow-hidden" style={{ width: `${ceWidth}%` }}>
-                                            <div className={`absolute inset-0 ${row.ce_oi_chng > 0 ? 'bg-gradient-to-l from-green-500 to-green-400' : 'bg-gradient-to-l from-green-300 to-green-200'}`} />
-                                            {row.ce_oi_chng !== 0 && (
-                                                <div className={`absolute right-1 top-1 text-[8px] font-bold ${row.ce_oi_chng > 0 ? 'text-green-800' : 'text-red-600'}`}>
-                                                    {row.ce_oi_chng > 0 ? '+' : ''}{formatNumber(row.ce_oi_chng)}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Strike */}
-                                    <div className={`w-12 text-center text-xs font-bold py-1 rounded ${isATM ? 'bg-blue-500 text-white' : isNearSpot ? 'bg-gray-200 dark:bg-gray-600' : 'bg-gray-100 dark:bg-gray-700'}`}>
-                                        {row.strike}
-                                    </div>
-
-                                    {/* Strike PCR Badge */}
-                                    <div className={`w-10 text-center text-[9px] font-bold py-0.5 px-1 rounded ${getPCRColor(row.pcr_oi)}`}>
-                                        {row.pcr_oi > 0 ? row.pcr_oi.toFixed(1) : '-'}
-                                    </div>
-
-                                    {/* PE OI Bar */}
-                                    <div className="flex-1 flex items-center">
-                                        <div className="h-6 rounded-r relative overflow-hidden" style={{ width: `${peWidth}%` }}>
-                                            <div className={`absolute inset-0 ${row.pe_oi_chng > 0 ? 'bg-gradient-to-r from-red-500 to-red-400' : 'bg-gradient-to-r from-red-300 to-red-200'}`} />
-                                            {row.pe_oi_chng !== 0 && (
-                                                <div className={`absolute left-1 top-1 text-[8px] font-bold ${row.pe_oi_chng > 0 ? 'text-red-800' : 'text-green-600'}`}>
-                                                    {row.pe_oi_chng > 0 ? '+' : ''}{formatNumber(row.pe_oi_chng)}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* PE OI Value */}
-                                    <div className="w-16 text-left text-xs font-medium text-red-600">
-                                        {formatNumber(row.pe_oi)}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    
-                    {/* Legend */}
-                    <div className="flex justify-center gap-6 mt-4 text-xs text-gray-500">
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-500" /> Call OI</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500" /> Put OI</span>
-                        <span className="flex items-center gap-1"><span className="w-4 h-3 rounded bg-blue-500" /> ATM</span>
-                        <span className="text-gray-400">PCR: PE/CE ratio</span>
-                    </div>
-                </div>
-            </div>
 
             {/* Top Strikes Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -343,11 +387,6 @@ const OIAnalysis = () => {
                                 </div>
                                 <div className="text-right">
                                     <div className="font-semibold text-green-600">{formatNumber(row.ce_oi)}</div>
-                                    {row.ce_oi_chng !== 0 && (
-                                        <div className={`text-xs ${row.ce_oi_chng > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                            {row.ce_oi_chng > 0 ? '+' : ''}{formatNumber(row.ce_oi_chng)}
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         ))}
@@ -376,11 +415,6 @@ const OIAnalysis = () => {
                                 </div>
                                 <div className="text-right">
                                     <div className="font-semibold text-red-600">{formatNumber(row.pe_oi)}</div>
-                                    {row.pe_oi_chng !== 0 && (
-                                        <div className={`text-xs ${row.pe_oi_chng > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                                            {row.pe_oi_chng > 0 ? '+' : ''}{formatNumber(row.pe_oi_chng)}
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         ))}

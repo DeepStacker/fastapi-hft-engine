@@ -51,7 +51,8 @@
           {"name": "max_pain_strike", "type": ["null", "double"], "default": null},
           {"name": "exchange", "type": ["null", "string"], "default": null},
           {"name": "segment", "type": ["null", "string"], "default": null},
-          {"name": "timestamp", "type": ["null", "string"], "default": null}
+          {"name": "timestamp", "type": ["null", "string"], "default": null},
+          {"name": "probe_id", "type": ["null", "string"], "default": null}
         ]
       }
     },
@@ -127,6 +128,10 @@
             {"name": "resistance_range_price", "type": ["null", "double"], "default": null},
             {"name": "weekly_reversal_price", "type": ["null", "double"], "default": null},
             {"name": "future_reversal_price", "type": ["null", "double"], "default": null},
+            {"name": "oi_pct", "type": ["null", "double"], "default": null},
+            {"name": "volume_pct", "type": ["null", "double"], "default": null},
+            {"name": "oichng_pct", "type": ["null", "double"], "default": null},
+            {"name": "oi_rank", "type": ["null", "int"], "default": null},
             {"name": "is_liquid", "type": "boolean"},
             {"name": "is_valid", "type": "boolean"}
           ]

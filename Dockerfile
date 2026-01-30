@@ -1,5 +1,3 @@
-# Multi-stage Dockerfile for optimized production builds
-
 # Stage 1: Builder
 FROM python:3.11-slim as builder
 
@@ -12,14 +10,27 @@ RUN apt-get update && apt-get install -y \
     make \
     libpq-dev \
     liblz4-dev \
+    cargo \
+    rustc \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
 COPY requirements.txt ./
 
-# Install Python dependencies
+# Install Python dependencies and maturin
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir maturin
+
+# Copy Rust source modules
+COPY rust_modules /app/rust_modules
+
+# Build and install Rust extensions
+WORKDIR /app/rust_modules/bsm_engine
+RUN maturin build --release --out dist && \
+    pip install --no-cache-dir dist/*.whl
+
+WORKDIR /app
 
 # Stage 2: Runtime
 FROM python:3.11-slim
