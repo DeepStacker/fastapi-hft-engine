@@ -13,9 +13,30 @@ export { default as Skeleton, CardSkeleton, StatsGridSkeleton, TableSkeleton, Ch
 export { default as ErrorBoundary } from './ErrorBoundary';
 export { PostSkeleton, FeedSkeleton, RoomListSkeleton, AvatarSkeleton, SidebarSkeleton } from './Skeletons';
 
+// Animated Components
+export {
+    AnimatedCounter,
+    PulseDot,
+    ShimmerText,
+    TrendIndicator,
+    AnimatedProgress,
+    Tooltip,
+    StatCard,
+    AnimatedListItem,
+} from './AnimatedComponents';
+
+// Data Display Components
+export {
+    PriceDisplay,
+    DataCell,
+    MiniChart,
+    Gauge,
+    ComparisonBar,
+} from './DataDisplay';
+
 // Re-export for convenience
 export * from './Button';
 export * from './Card';
 export * from './Input';
 export * from './Modal';
-export * from './Badge';
+

@@ -1,20 +1,115 @@
 /**
- * IV Percentile Gauge Component
- * Shows current IV relative to historical range with visual gauge
+ * Enhanced IV Percentile Gauge Component
+ * 
+ * NIFTY 50 Calibrated IV Analysis:
+ * - Historical context for IV percentile interpretation
+ * - IV regime classification with trading implications
+ * - IV skew analysis with directional hints
+ * - Options strategy recommendations based on IV level
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { motion, AnimatePresence } from 'framer-motion';
 import { selectOptionChain, selectSpotPrice, selectATMStrike } from '../../context/selectors';
 import {
-    ChartBarSquareIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon
+    ChartBarSquareIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
+    InformationCircleIcon, LightBulbIcon
 } from '@heroicons/react/24/outline';
 
+// ============ NIFTY 50 IV CONTEXT ============
+// Historical NIFTY IV ranges (based on VIX data)
+const NIFTY_IV_CONTEXT = {
+    // VIX-based historical ranges (2020-2024)
+    historicalLow: 10,       // VIX below 10 is extremely low
+    historicalHigh: 35,      // VIX above 35 is elevated (not crisis)
+    normalLow: 12,           // Normal range lower bound
+    normalHigh: 18,          // Normal range upper bound
+
+    // Thresholds for current percentile interpretation
+    veryLow: 11,
+    low: 13,
+    normal: 16,
+    high: 20,
+    veryHigh: 25,
+    extreme: 30,
+};
+
+// Strategy recommendations based on IV level
+const getStrategyRecommendations = (atmIV, ivPercentile) => {
+    if (ivPercentile >= 80 || atmIV >= NIFTY_IV_CONTEXT.veryHigh) {
+        return {
+            outlook: 'Premium Selling',
+            strategies: ['Iron Condor', 'Credit Spread', 'Straddle Sell', 'Strangle Sell'],
+            avoid: ['Long Options', 'Debit Spreads'],
+            confidence: 'High',
+            emoji: '🔴',
+            description: 'IV is elevated. Options are overpriced. Premium selling strategies have edge.',
+        };
+    }
+    if (ivPercentile >= 60 || atmIV >= NIFTY_IV_CONTEXT.high) {
+        return {
+            outlook: 'Slightly Bearish on Volatility',
+            strategies: ['Credit Spread', 'Iron Butterfly'],
+            avoid: ['Naked Long Options'],
+            confidence: 'Medium',
+            emoji: '🟠',
+            description: 'IV is above normal. Consider neutral to premium selling strategies.',
+        };
+    }
+    if (ivPercentile <= 20 || atmIV <= NIFTY_IV_CONTEXT.low) {
+        return {
+            outlook: 'Premium Buying',
+            strategies: ['Long Straddle', 'Long Strangle', 'Long Call/Put', 'Debit Spread'],
+            avoid: ['Premium Selling', 'Iron Condors'],
+            confidence: 'High',
+            emoji: '🟢',
+            description: 'IV is low. Options are cheap. Good time to buy premium for directional bets.',
+        };
+    }
+    if (ivPercentile <= 40 || atmIV <= NIFTY_IV_CONTEXT.normalLow) {
+        return {
+            outlook: 'Slightly Bullish on Volatility',
+            strategies: ['Debit Spread', 'Calendar Spread'],
+            avoid: ['Heavy Premium Selling'],
+            confidence: 'Medium',
+            emoji: '🔵',
+            description: 'IV is below normal. Lean toward debit strategies if directional.',
+        };
+    }
+    return {
+        outlook: 'Neutral',
+        strategies: ['Directional Plays', 'Calendar Spread', 'Ratio Spread'],
+        avoid: [],
+        confidence: 'Low',
+        emoji: '⚪',
+        description: 'IV is in normal range. Choose strategy based on directional view.',
+    };
+};
+
+// ============ HELPER FUNCTIONS ============
+const calcMean = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+const calcStdDev = arr => {
+    if (arr.length < 2) return 1;
+    const m = calcMean(arr);
+    return Math.sqrt(arr.reduce((acc, v) => acc + (v - m) ** 2, 0) / arr.length) || 1;
+};
+
+// Calculate IV percentile relative to NIFTY historical range
+const calcHistoricalPercentile = (atmIV) => {
+    const { historicalLow, historicalHigh } = NIFTY_IV_CONTEXT;
+    const range = historicalHigh - historicalLow;
+    const percentile = ((atmIV - historicalLow) / range) * 100;
+    return Math.min(100, Math.max(0, percentile));
+};
+
+// ============ MAIN COMPONENT ============
 const IVPercentileGauge = () => {
     const optionChain = useSelector(selectOptionChain);
-    const spotPrice = useSelector(selectSpotPrice);
+    const _spotPrice = useSelector(selectSpotPrice);
     const atmStrike = useSelector(selectATMStrike);
+    const [showStrategies, setShowStrategies] = useState(false);
 
-    // Calculate IV metrics
+    // ============ IV ANALYSIS ENGINE ============
     const ivMetrics = useMemo(() => {
         if (!optionChain) return null;
 
@@ -37,26 +132,40 @@ const IVPercentileGauge = () => {
             }
 
             if (ceIV > 0 || peIV > 0) {
-                strikes.push({ strike, ceIV, peIV, avgIV: (ceIV + peIV) / 2 });
+                strikes.push({ strike, ceIV, peIV, avgIV: (ceIV + peIV) / 2 || ceIV || peIV });
             }
         });
 
         strikes.sort((a, b) => a.strike - b.strike);
 
         const atmIV = (atmCEIV + atmPEIV) / 2;
-        const minIV = Math.min(...allIVs);
-        const maxIV = Math.max(...allIVs);
-        const avgIV = allIVs.length > 0 ? allIVs.reduce((a, b) => a + b, 0) / allIVs.length : 0;
+        const minIV = allIVs.length ? Math.min(...allIVs) : 0;
+        const maxIV = allIVs.length ? Math.max(...allIVs) : 100;
+        const avgIV = calcMean(allIVs);
+        const stdDevIV = calcStdDev(allIVs);
 
-        // Calculate IV percentile (where current ATM IV falls in the range)
+        // Chain-based IV percentile (where current ATM IV falls in current chain)
         const ivRange = maxIV - minIV;
-        const ivPercentile = ivRange > 0 ? ((atmIV - minIV) / ivRange) * 100 : 50;
+        const chainPercentile = ivRange > 0 ? ((atmIV - minIV) / ivRange) * 100 : 50;
 
-        // IV Rank simulation (usually needs historical data, using current range as proxy)
-        const ivRank = ivPercentile;
+        // Historical percentile (more meaningful for NIFTY)
+        const historicalPercentile = calcHistoricalPercentile(atmIV);
 
-        // Put-Call IV Spread
+        // Use weighted average of both (historical is more reliable)
+        const ivPercentile = (historicalPercentile * 0.7 + chainPercentile * 0.3);
+
+        // Put-Call IV Spread (skew)
         const pcIVSpread = atmPEIV - atmCEIV;
+
+        // IV Skew Analysis
+        const otmPuts = strikes.filter(s => s.strike < atmStrike - 100).slice(-3);
+        const otmCalls = strikes.filter(s => s.strike > atmStrike + 100).slice(0, 3);
+        const avgOTMPutIV = calcMean(otmPuts.map(s => s.peIV).filter(v => v > 0));
+        const avgOTMCallIV = calcMean(otmCalls.map(s => s.ceIV).filter(v => v > 0));
+        const skewRatio = avgOTMPutIV && avgOTMCallIV ? avgOTMPutIV / avgOTMCallIV : 1;
+
+        // IV term structure hint (comparing near ATM to far OTM)
+        const termSlope = avgOTMPutIV > atmIV ? 'steep' : avgOTMPutIV < atmIV * 0.9 ? 'flat' : 'normal';
 
         return {
             atmIV,
@@ -65,13 +174,18 @@ const IVPercentileGauge = () => {
             minIV,
             maxIV,
             avgIV,
+            stdDevIV,
+            chainPercentile,
+            historicalPercentile,
             ivPercentile,
-            ivRank,
             pcIVSpread,
-            strikes
+            skewRatio,
+            termSlope,
+            strikes,
         };
     }, [optionChain, atmStrike]);
 
+    // ============ UI RENDERING ============
     if (!optionChain || !ivMetrics) {
         return (
             <div className="p-8 text-center text-gray-400">
@@ -81,95 +195,134 @@ const IVPercentileGauge = () => {
         );
     }
 
-    // Interpret IV level
-    const ivLevel = ivMetrics.ivPercentile >= 80 ? 'Very High' :
-        ivMetrics.ivPercentile >= 60 ? 'High' :
-            ivMetrics.ivPercentile >= 40 ? 'Normal' :
-                ivMetrics.ivPercentile >= 20 ? 'Low' : 'Very Low';
+    // Get strategy recommendations
+    const strategy = getStrategyRecommendations(ivMetrics.atmIV, ivMetrics.ivPercentile);
 
-    const ivColor = ivMetrics.ivPercentile >= 80 ? 'red' :
-        ivMetrics.ivPercentile >= 60 ? 'orange' :
-            ivMetrics.ivPercentile >= 40 ? 'amber' :
-                ivMetrics.ivPercentile >= 20 ? 'green' : 'emerald';
+    // Determine IV level classification
+    const getIVLevel = (percentile) => {
+        if (percentile >= 80) return { label: 'Very High', color: 'red', textColor: 'text-red-600' };
+        if (percentile >= 60) return { label: 'High', color: 'orange', textColor: 'text-orange-600' };
+        if (percentile >= 40) return { label: 'Normal', color: 'amber', textColor: 'text-amber-600' };
+        if (percentile >= 20) return { label: 'Low', color: 'green', textColor: 'text-green-600' };
+        return { label: 'Very Low', color: 'emerald', textColor: 'text-emerald-600' };
+    };
+
+    const ivLevel = getIVLevel(ivMetrics.ivPercentile);
+
+    const getColorClass = (color) => {
+        const colorMap = {
+            red: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+            orange: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+            amber: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+            green: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+            emerald: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+        };
+        return colorMap[color] || colorMap.amber;
+    };
 
     return (
         <div className="space-y-4">
             {/* Main IV Gauge */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
-                <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                        <ChartBarSquareIcon className="w-5 h-5 text-purple-500" />
-                        IV Percentile & Rank
-                    </h3>
-                    <div className={`px-3 py-1.5 rounded-lg text-sm font-bold ${ivColor === 'red' ? 'bg-red-100 text-red-700' :
-                            ivColor === 'orange' ? 'bg-orange-100 text-orange-700' :
-                                ivColor === 'amber' ? 'bg-amber-100 text-amber-700' :
-                                    ivColor === 'green' ? 'bg-green-100 text-green-700' :
-                                        'bg-emerald-100 text-emerald-700'
-                        }`}>
-                        {ivLevel} IV
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                {/* Header with Strategy Tag */}
+                <div className="px-6 py-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <ChartBarSquareIcon className="w-6 h-6" />
+                            <div>
+                                <h3 className="font-bold text-lg">IV Analysis</h3>
+                                <p className="text-xs opacity-80">NIFTY 50 Calibrated</p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-3xl font-bold">{ivMetrics.atmIV.toFixed(1)}%</div>
+                            <div className="text-xs opacity-80">ATM IV</div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Horizontal Gauge Bar */}
-                <div className="relative mb-8">
-                    <div className="h-8 rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-red-500 overflow-hidden">
-                        <div className="absolute inset-0 flex">
-                            {/* IV Zones */}
-                            <div className="w-1/5 border-r border-white/30"></div>
-                            <div className="w-1/5 border-r border-white/30"></div>
-                            <div className="w-1/5 border-r border-white/30"></div>
-                            <div className="w-1/5 border-r border-white/30"></div>
-                            <div className="w-1/5"></div>
+                <div className="p-6">
+                    {/* IV Level Badge */}
+                    <div className="flex items-center justify-between mb-4">
+                        <span className={`px-4 py-2 rounded-lg text-sm font-bold ${getColorClass(ivLevel.color)}`}>
+                            {strategy.emoji} {ivLevel.label} IV Environment
+                        </span>
+                        <span className="text-xs text-gray-500">
+                            Strategy: <span className="font-bold text-indigo-600">{strategy.outlook}</span>
+                        </span>
+                    </div>
+
+                    {/* Horizontal Gauge Bar */}
+                    <div className="relative mb-8">
+                        <div className="h-8 rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-red-500 overflow-hidden shadow-inner">
+                            <div className="absolute inset-0 flex">
+                                {/* IV Zones with labels */}
+                                {[0, 20, 40, 60, 80].map((pct, i) => (
+                                    <div key={i} className="flex-1 border-r border-white/30 last:border-0" />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Needle/Marker */}
+                        <motion.div
+                            initial={{ left: '50%' }}
+                            animate={{ left: `${ivMetrics.ivPercentile}%` }}
+                            transition={{ type: 'spring', stiffness: 100 }}
+                            className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
+                        >
+                            <div className="w-1 h-8 bg-gray-900 dark:bg-white rounded-full shadow-lg" />
+                            <div className="mt-2 px-3 py-1 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-xs font-bold shadow-lg">
+                                {ivMetrics.ivPercentile.toFixed(0)}%
+                            </div>
+                        </motion.div>
+
+                        {/* Labels */}
+                        <div className="flex justify-between mt-4 text-[10px] text-gray-500">
+                            <span>Very Low</span>
+                            <span>Low</span>
+                            <span>Normal</span>
+                            <span>High</span>
+                            <span>Very High</span>
                         </div>
                     </div>
 
-                    {/* Needle/Marker */}
-                    <div
-                        className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
-                        style={{ left: `${ivMetrics.ivPercentile}%` }}
-                    >
-                        <div className="w-1 h-8 bg-gray-900 dark:bg-white rounded-full"></div>
-                        <div className="mt-2 px-2 py-1 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded text-xs font-bold">
-                            {ivMetrics.ivPercentile.toFixed(0)}%
+                    {/* IV Stats Grid */}
+                    <div className="grid grid-cols-5 gap-2 mb-4">
+                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                            <div className="text-[10px] text-gray-500">Min</div>
+                            <div className="text-sm font-bold text-emerald-600">{ivMetrics.minIV.toFixed(1)}%</div>
+                        </div>
+                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                            <div className="text-[10px] text-gray-500">Avg</div>
+                            <div className="text-sm font-bold text-amber-600">{ivMetrics.avgIV.toFixed(1)}%</div>
+                        </div>
+                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                            <div className="text-[10px] text-gray-500">Max</div>
+                            <div className="text-sm font-bold text-red-600">{ivMetrics.maxIV.toFixed(1)}%</div>
+                        </div>
+                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                            <div className="text-[10px] text-gray-500">Std Dev</div>
+                            <div className="text-sm font-bold text-purple-600">±{ivMetrics.stdDevIV.toFixed(1)}</div>
+                        </div>
+                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                            <div className="text-[10px] text-gray-500">Skew</div>
+                            <div className={`text-sm font-bold ${ivMetrics.skewRatio > 1.1 ? 'text-red-600' : ivMetrics.skewRatio < 0.9 ? 'text-green-600' : 'text-gray-600'}`}>
+                                {ivMetrics.skewRatio.toFixed(2)}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Labels */}
-                    <div className="flex justify-between mt-3 text-[10px] text-gray-500">
-                        <span>0% (Low)</span>
-                        <span>25%</span>
-                        <span>50%</span>
-                        <span>75%</span>
-                        <span>100% (High)</span>
-                    </div>
-                </div>
-
-                {/* ATM IV Value */}
-                <div className="text-center mb-6">
-                    <div className="text-4xl font-bold text-gray-900 dark:text-white">
-                        {ivMetrics.atmIV.toFixed(1)}%
-                    </div>
-                    <div className="text-sm text-gray-500">ATM Implied Volatility</div>
-                </div>
-
-                {/* IV Stats Grid */}
-                <div className="grid grid-cols-4 gap-3">
-                    <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                        <div className="text-[10px] text-gray-500 mb-1">Min IV</div>
-                        <div className="text-lg font-bold text-emerald-600">{ivMetrics.minIV.toFixed(1)}%</div>
-                    </div>
-                    <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                        <div className="text-[10px] text-gray-500 mb-1">Avg IV</div>
-                        <div className="text-lg font-bold text-amber-600">{ivMetrics.avgIV.toFixed(1)}%</div>
-                    </div>
-                    <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                        <div className="text-[10px] text-gray-500 mb-1">Max IV</div>
-                        <div className="text-lg font-bold text-red-600">{ivMetrics.maxIV.toFixed(1)}%</div>
-                    </div>
-                    <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                        <div className="text-[10px] text-gray-500 mb-1">IV Rank</div>
-                        <div className="text-lg font-bold text-purple-600">{ivMetrics.ivRank.toFixed(0)}%</div>
+                    {/* NIFTY Context */}
+                    <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-xs text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center gap-2 mb-1">
+                            <InformationCircleIcon className="w-4 h-4 text-indigo-500" />
+                            <span className="font-semibold text-indigo-700 dark:text-indigo-400">NIFTY 50 Context</span>
+                        </div>
+                        <p>
+                            Historical range: {NIFTY_IV_CONTEXT.historicalLow}% - {NIFTY_IV_CONTEXT.historicalHigh}% |
+                            Normal: {NIFTY_IV_CONTEXT.normalLow}% - {NIFTY_IV_CONTEXT.normalHigh}% |
+                            Current ATM IV is at {ivMetrics.historicalPercentile.toFixed(0)}% of historical range
+                        </p>
                     </div>
                 </div>
             </div>
@@ -185,8 +338,8 @@ const IVPercentileGauge = () => {
                     <div className="text-2xl font-bold">{ivMetrics.atmPEIV.toFixed(1)}%</div>
                 </div>
                 <div className={`rounded-xl p-4 border-2 ${ivMetrics.pcIVSpread > 0
-                        ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                        : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                    : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
                     }`}>
                     <div className="text-xs text-gray-500 mb-1">Put-Call IV Spread</div>
                     <div className={`text-2xl font-bold flex items-center gap-1 ${ivMetrics.pcIVSpread > 0 ? 'text-red-600' : 'text-green-600'
@@ -195,52 +348,112 @@ const IVPercentileGauge = () => {
                         {ivMetrics.pcIVSpread > 0 ? '+' : ''}{ivMetrics.pcIVSpread.toFixed(1)}%
                     </div>
                     <div className="text-[10px] text-gray-500 mt-1">
-                        {ivMetrics.pcIVSpread > 1 ? 'Bearish skew (puts expensive)' :
-                            ivMetrics.pcIVSpread < -1 ? 'Bullish skew (calls expensive)' : 'Neutral'}
+                        {ivMetrics.pcIVSpread > 2 ? '🔴 Strong bearish skew (puts expensive)' :
+                            ivMetrics.pcIVSpread > 0.5 ? '🟠 Mild bearish skew' :
+                                ivMetrics.pcIVSpread < -2 ? '🟢 Strong bullish skew (calls expensive)' :
+                                    ivMetrics.pcIVSpread < -0.5 ? '🔵 Mild bullish skew' : '⚪ Neutral'}
                     </div>
                 </div>
             </div>
 
+            {/* Strategy Recommendations */}
+            <div
+                className={`rounded-xl border-2 overflow-hidden cursor-pointer transition-all ${strategy.outlook === 'Premium Selling' ? 'border-red-300 dark:border-red-700' :
+                    strategy.outlook === 'Premium Buying' ? 'border-green-300 dark:border-green-700' :
+                        'border-gray-200 dark:border-gray-700'
+                    }`}
+                onClick={() => setShowStrategies(!showStrategies)}
+            >
+                <div className={`px-4 py-3 flex items-center justify-between ${strategy.outlook === 'Premium Selling' ? 'bg-red-50 dark:bg-red-900/20' :
+                    strategy.outlook === 'Premium Buying' ? 'bg-green-50 dark:bg-green-900/20' :
+                        'bg-gray-50 dark:bg-gray-700/30'
+                    }`}>
+                    <div className="flex items-center gap-2">
+                        <LightBulbIcon className="w-5 h-5 text-amber-500" />
+                        <span className="font-semibold">Strategy Recommendations</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${strategy.confidence === 'High' ? 'bg-green-100 text-green-700' :
+                            strategy.confidence === 'Medium' ? 'bg-amber-100 text-amber-700' :
+                                'bg-gray-100 text-gray-700'
+                            }`}>
+                            {strategy.confidence} Confidence
+                        </span>
+                    </div>
+                    <span className="text-xs text-gray-500">{showStrategies ? '▲' : '▼'}</span>
+                </div>
+
+                <AnimatePresence>
+                    {showStrategies && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="p-4 space-y-3"
+                        >
+                            <p className="text-sm text-gray-600 dark:text-gray-400">{strategy.description}</p>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <div className="text-[10px] text-gray-500 mb-1">✅ Consider</div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {strategy.strategies.map((s, i) => (
+                                            <span key={i} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
+                                                {s}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                                {strategy.avoid.length > 0 && (
+                                    <div>
+                                        <div className="text-[10px] text-gray-500 mb-1">❌ Avoid</div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {strategy.avoid.map((s, i) => (
+                                                <span key={i} className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">
+                                                    {s}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
             {/* IV by Strike Chart */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white">
-                    <h3 className="font-semibold text-sm">IV by Strike (Smile)</h3>
+                <div className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white flex items-center justify-between">
+                    <h3 className="font-semibold text-sm">IV Smile (Volatility Skew)</h3>
+                    <span className="text-[10px] opacity-80">
+                        Term: {ivMetrics.termSlope === 'steep' ? '📈 Steep' : ivMetrics.termSlope === 'flat' ? '📉 Flat' : '➖ Normal'}
+                    </span>
                 </div>
                 <div className="p-4">
                     <IVSmileChart strikes={ivMetrics.strikes} atmStrike={atmStrike} atmIV={ivMetrics.atmIV} />
                 </div>
             </div>
 
-            {/* Interpretation */}
-            <div className={`rounded-xl p-4 ${ivMetrics.ivPercentile >= 70 ? 'bg-red-50 dark:bg-red-900/20' :
-                    ivMetrics.ivPercentile <= 30 ? 'bg-green-50 dark:bg-green-900/20' :
-                        'bg-amber-50 dark:bg-amber-900/20'
-                }`}>
-                <div className="text-sm">
-                    <strong>Trading Implications:</strong>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        {ivMetrics.ivPercentile >= 70
-                            ? '⚠️ IV is elevated. Options are expensive. Consider selling premium (iron condors, credit spreads). Be cautious buying options.'
-                            : ivMetrics.ivPercentile <= 30
-                                ? '✅ IV is low. Options are cheap. Good time to buy options (long straddles, strangles). Avoid selling premium.'
-                                : 'IV is in normal range. Evaluate individual trades based on directional view and strategy.'}
-                    </p>
-                </div>
+            {/* Footer */}
+            <div className="text-center text-[10px] text-gray-500">
+                <span className="font-medium text-indigo-600">NIFTY 50 Reference</span> |
+                Historical Range: {NIFTY_IV_CONTEXT.historicalLow}%-{NIFTY_IV_CONTEXT.historicalHigh}% |
+                Skew Ratio: OTM Put IV / OTM Call IV
             </div>
         </div>
     );
 };
 
 // IV Smile Mini Chart
-const IVSmileChart = ({ strikes, atmStrike, atmIV }) => {
+const IVSmileChart = ({ strikes, atmStrike, atmIV: _atmIV }) => {
     const width = 700;
     const height = 150;
     const padding = { left: 50, right: 30, top: 20, bottom: 30 };
 
     if (!strikes || strikes.length === 0) return null;
 
-    const minIV = Math.min(...strikes.flatMap(s => [s.ceIV, s.peIV]).filter(v => v > 0));
-    const maxIV = Math.max(...strikes.flatMap(s => [s.ceIV, s.peIV]));
+    const validIVs = strikes.flatMap(s => [s.ceIV, s.peIV]).filter(v => v > 0);
+    const minIV = Math.min(...validIVs);
+    const maxIV = Math.max(...validIVs);
     const ivRange = maxIV - minIV || 1;
 
     const xScale = (i) => padding.left + (i / (strikes.length - 1)) * (width - padding.left - padding.right);
@@ -264,7 +477,7 @@ const IVSmileChart = ({ strikes, atmStrike, atmIV }) => {
 
             {/* CE IV line */}
             <polyline
-                points={strikes.filter(s => s.ceIV > 0).map((s, i, arr) => {
+                points={strikes.filter(s => s.ceIV > 0).map((s) => {
                     const origIdx = strikes.indexOf(s);
                     return `${xScale(origIdx)},${yScale(s.ceIV)}`;
                 }).join(' ')}
@@ -273,7 +486,7 @@ const IVSmileChart = ({ strikes, atmStrike, atmIV }) => {
 
             {/* PE IV line */}
             <polyline
-                points={strikes.filter(s => s.peIV > 0).map((s, i, arr) => {
+                points={strikes.filter(s => s.peIV > 0).map((s) => {
                     const origIdx = strikes.indexOf(s);
                     return `${xScale(origIdx)},${yScale(s.peIV)}`;
                 }).join(' ')}

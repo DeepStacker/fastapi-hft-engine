@@ -136,18 +136,6 @@ const OptionChainTable = ({
             } else {
                 strikes = allStrikes.slice(0, strikeCount);
             }
-
-            // DEBUG LOGGING
-            if (showControls && !isLoading) {
-                console.debug("OptionChainTable Debug:", {
-                    mode: "LIVE",
-                    strikesLength: strikes.length,
-                    atmStrike,
-                    hasRawData: !!rawData,
-                    ocKeysCount: rawData?.oc ? Object.keys(rawData.oc).length : 0,
-                    reduxStrikesLength: reduxStrikes.length
-                });
-            }
         }
     } else {
         // HISTORICAL MODE (No data yet)

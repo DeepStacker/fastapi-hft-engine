@@ -7,17 +7,17 @@
  * - Dealer Hedging Flow Estimation
  * - Market Regime Classification
  */
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import {
-    ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-    ReferenceLine, ResponsiveContainer, Cell, Area, Scatter
+    ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+    ReferenceLine, ResponsiveContainer, Cell, Area
 } from 'recharts';
 import { selectOptionChain, selectSpotPrice, selectATMStrike, selectLotSize } from '../../context/selectors';
 import { useGreeksWorker } from '../../hooks/useGreeksWorker';
 import {
     BoltIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
-    InformationCircleIcon, ChartBarIcon, BeakerIcon,
+    InformationCircleIcon, BeakerIcon,
     CurrencyRupeeIcon, ShieldCheckIcon
 } from '@heroicons/react/24/outline';
 
@@ -457,7 +457,7 @@ const GammaExposureChart = () => {
 // --- Helper Functions & Subcomponents ---
 
 // Calculation Logic extracted for reuse
-const calculateGEXProfile = (optionChain, spot, lotSize, atmStrike) => {
+const calculateGEXProfile = (optionChain, spot, lotSize, _atmStrike) => {
     const strikes = [];
     let totalCallGEX = 0;
     let totalPutGEX = 0;
@@ -529,13 +529,65 @@ const calculateGEXProfile = (optionChain, spot, lotSize, atmStrike) => {
     };
 };
 
+// NIFTY 50 calibrated regime classification
+// Typical NIFTY GEX ranges: -5 to +10 Cr
 const getRegime = (totalGEX) => {
-    if (totalGEX > 500) return { label: 'Long Gamma', color: '#10B981', desc: 'Volatility Suppression' };
-    if (totalGEX < -500) return { label: 'Short Gamma', color: '#EF4444', desc: 'Volatility Amplification' };
-    return { label: 'Neutral Gamma', color: '#F59E0B', desc: 'Mixed Positioning' };
+    const absGEX = Math.abs(totalGEX);
+
+    // NIFTY 50 calibrated thresholds (in Crores)
+    if (totalGEX > 2.0) {
+        const confidence = Math.min(95, 60 + absGEX * 10);
+        return {
+            label: 'Long Gamma',
+            color: '#10B981',
+            desc: 'Volatility Suppression',
+            confidence,
+            emoji: '🛡️',
+            action: 'MMs buying dips, selling rallies. Expect mean reversion.'
+        };
+    }
+    if (totalGEX < -1.0) {
+        const confidence = Math.min(95, 60 + absGEX * 10);
+        return {
+            label: 'Short Gamma',
+            color: '#EF4444',
+            desc: 'Volatility Amplification',
+            confidence,
+            emoji: '⚠️',
+            action: 'MMs selling dips, buying rallies. Expect trending moves.'
+        };
+    }
+    if (totalGEX > 0.5) {
+        return {
+            label: 'Mild Long Gamma',
+            color: '#34D399',
+            desc: 'Slight Stabilization',
+            confidence: 50 + absGEX * 15,
+            emoji: '🔵',
+            action: 'Slight bias toward range-bound behavior.'
+        };
+    }
+    if (totalGEX < -0.3) {
+        return {
+            label: 'Mild Short Gamma',
+            color: '#F97316',
+            desc: 'Slight Amplification',
+            confidence: 50 + absGEX * 15,
+            emoji: '🟠',
+            action: 'Slight bias toward trending moves.'
+        };
+    }
+    return {
+        label: 'Neutral Gamma',
+        color: '#6B7280',
+        desc: 'Mixed Positioning',
+        confidence: 40,
+        emoji: '⚪',
+        action: 'No clear MM bias. Watch other indicators.'
+    };
 };
 
-const MetricCard = ({ title, value, subValue, icon: Icon, isGood, theme, colorClass, isTextValue = true }) => (
+const MetricCard = ({ title, value, subValue, icon: Icon, theme, colorClass, isTextValue = true }) => (
     <div className={`relative overflow-hidden rounded-xl p-4 bg-gradient-to-br border shadow-lg
         ${isTextValue && typeof value === 'number' // Only apply color logic for numeric main values
             ? (value > 0

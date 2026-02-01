@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,13 +26,14 @@ import {
   ArrowTrendingUpIcon,
   TicketIcon,
   UserGroupIcon,
+  MagnifyingGlassIcon,
+  CommandLineIcon,
 } from "@heroicons/react/24/outline";
 import { BellIcon as BellIconSolid } from "@heroicons/react/24/solid";
 import { notificationService } from "../../services/notificationService";
 import { NotificationCenter, NotificationPreferences } from "../notifications";
 import SupportCenter from "../support/SupportCenter";
 import usePushNotifications from "../../hooks/usePushNotifications";
-
 
 const Sidebar = () => {
   const dispatch = useDispatch();
@@ -45,6 +46,8 @@ const Sidebar = () => {
   // Use shared sidebar context
   const { isCollapsed, toggleSidebar, sidebarWidth } = useSidebar();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Notification States
   const [unreadCount, setUnreadCount] = useState(0);
@@ -53,6 +56,12 @@ const Sidebar = () => {
   const [isSupportOpen, setIsSupportOpen] = useState(false);
 
   const profileRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  // Detect Mac platform for keyboard shortcut display
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  const modKey = isMac ? '⌥' : 'Alt';
+  const cmdKey = isMac ? '⌘' : 'Ctrl';
 
   // Initialize Push Notifications
   usePushNotifications(isAuthenticated);
@@ -79,31 +88,31 @@ const Sidebar = () => {
   }, [isAuthenticated]);
 
 
-  // Navigation sections with professional icons
+  // Navigation sections with professional icons and keyboard shortcuts
   const navigationSections = [
     {
       title: "Overview",
       items: [
-        { name: "Dashboard", path: "/dashboard", icon: HomeIcon, badge: null },
+        { name: "Dashboard", path: "/dashboard", icon: HomeIcon, badge: null, shortcut: "D" },
       ]
     },
     {
       title: "Trading",
       items: [
-        { name: "Option Chain", path: "/option-chain", icon: TableCellsIcon, badge: "Live", badgeColor: "bg-green-500" },
-        { name: "Traders Hub", path: "/community", icon: UserGroupIcon, badge: "New", badgeColor: "bg-amber-500" },
-        { name: "Analytics", path: "/analytics", icon: ChartPieIcon, badge: "Pro", badgeColor: "bg-purple-500" },
-        { name: "Futures", path: "/futures", icon: ArrowTrendingUpIcon, badge: "New", badgeColor: "bg-blue-500" },
-        { name: "Historical", path: "/historical", icon: ClockIcon, badge: null },
-        { name: "Split View", path: "/split-view", icon: Squares2X2Icon, badge: null },
+        { name: "Option Chain", path: "/option-chain", icon: TableCellsIcon, badge: "Live", badgeColor: "bg-green-500", shortcut: "O" },
+        { name: "Traders Hub", path: "/community", icon: UserGroupIcon, badge: "New", badgeColor: "bg-amber-500", shortcut: "T" },
+        { name: "Analytics", path: "/analytics", icon: ChartPieIcon, badge: "Pro", badgeColor: "bg-purple-500", shortcut: "A" },
+        { name: "Futures", path: "/futures", icon: ArrowTrendingUpIcon, badge: "New", badgeColor: "bg-blue-500", shortcut: "F" },
+        { name: "Historical", path: "/historical", icon: ClockIcon, badge: null, shortcut: "H" },
+        { name: "Split View", path: "/split-view", icon: Squares2X2Icon, badge: null, shortcut: "V" },
       ]
     },
     {
       title: "Tools",
       items: [
-        { name: "Screeners", path: "/screeners", icon: MagnifyingGlassCircleIcon, badge: "New", badgeColor: "bg-blue-500" },
-        { name: "Calculators", path: "/calculators", icon: CalculatorIcon, badge: null },
-        { name: "Position Sizing", path: "/position-sizing", icon: ScaleIcon, badge: null },
+        { name: "Screeners", path: "/screeners", icon: MagnifyingGlassCircleIcon, badge: "New", badgeColor: "bg-blue-500", shortcut: "S" },
+        { name: "Calculators", path: "/calculators", icon: CalculatorIcon, badge: null, shortcut: "C" },
+        { name: "Position Sizing", path: "/position-sizing", icon: ScaleIcon, badge: null, shortcut: "P" },
         { name: "TCA", path: "/tca", icon: BanknotesIcon, badge: null },
       ]
     },
@@ -115,6 +124,46 @@ const Sidebar = () => {
       adminOnly: true,
     },
   ];
+
+  // Get all navigation items flat for search
+  const allNavItems = navigationSections.flatMap(section =>
+    section.items.map(item => ({ ...item, section: section.title }))
+  );
+
+  // Filter items based on search
+  const filteredItems = searchQuery
+    ? allNavItems.filter(item =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    : [];
+
+  // Keyboard shortcuts handler
+  const handleKeyboardShortcuts = useCallback((e) => {
+    // Ignore if typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    // Cmd/Ctrl + K for search
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      setIsSearchOpen(true);
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+      return;
+    }
+
+    // Alt + letter for quick navigation
+    if (e.altKey && e.key) {
+      const item = allNavItems.find(i => i.shortcut?.toLowerCase() === e.key.toLowerCase());
+      if (item) {
+        e.preventDefault();
+        navigate(item.path);
+      }
+    }
+  }, [allNavItems, navigate]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyboardShortcuts);
+    return () => document.removeEventListener('keydown', handleKeyboardShortcuts);
+  }, [handleKeyboardShortcuts]);
 
   // Handle click outside for profile dropdown
   useEffect(() => {
@@ -192,6 +241,26 @@ const Sidebar = () => {
           </motion.div>
         )}
 
+        {/* Quick Search Button */}
+        {!isCollapsed && (
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={() => {
+              setIsSearchOpen(true);
+              setTimeout(() => searchInputRef.current?.focus(), 100);
+            }}
+            className={`mx-2 mb-2 flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed text-sm transition-all duration-200 ${theme === "dark"
+              ? "border-gray-700 hover:border-gray-600 text-gray-400 hover:text-gray-300"
+              : "border-gray-300 hover:border-gray-400 text-gray-500 hover:text-gray-600"
+              }`}
+          >
+            <MagnifyingGlassIcon className="w-4 h-4" />
+            <span className="flex-1 text-left">Quick search...</span>
+            <kbd className={`px-1.5 py-0.5 text-[10px] rounded font-mono ${theme === "dark" ? "bg-gray-700 text-gray-400" : "bg-gray-200 text-gray-500"}`}>{cmdKey}+K</kbd>
+          </motion.button>
+        )}
+
         {/* Navigation Links with Sections */}
         <nav className="flex-1 overflow-y-auto py-2 px-2">
           {navigationSections
@@ -244,6 +313,14 @@ const Sidebar = () => {
                       {!isCollapsed && item.badge && (
                         <span className={`ml-auto px-1.5 py-0.5 text-[9px] font-bold text-white rounded-full ${item.badgeColor || 'bg-green-500'}`}>
                           {item.badge}
+                        </span>
+                      )}
+                      {/* Show keyboard shortcut on hover when not collapsed */}
+                      {!isCollapsed && item.shortcut && !item.badge && (
+                        <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                          <kbd className={`px-1 py-0.5 text-[9px] rounded font-mono ${theme === "dark" ? "bg-gray-700 text-gray-400" : "bg-gray-200 text-gray-500"}`}>
+                            {modKey}+{item.shortcut}
+                          </kbd>
                         </span>
                       )}
                     </Link>
@@ -423,6 +500,113 @@ const Sidebar = () => {
         isOpen={isSupportOpen}
         onClose={() => setIsSupportOpen(false)}
       />
+
+      {/* Quick Search Modal */}
+      <AnimatePresence>
+        {isSearchOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]"
+            onClick={() => {
+              setIsSearchOpen(false);
+              setSearchQuery("");
+            }}
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -20 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`relative w-full max-w-lg mx-4 rounded-2xl shadow-2xl overflow-hidden ${theme === "dark" ? "bg-gray-900 border border-gray-700" : "bg-white border border-gray-200"}`}
+            >
+              {/* Search Input */}
+              <div className={`flex items-center gap-3 px-4 py-3 border-b ${theme === "dark" ? "border-gray-700" : "border-gray-200"}`}>
+                <MagnifyingGlassIcon className={`w-5 h-5 ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`} />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search pages..."
+                  className={`flex-1 bg-transparent outline-none text-lg ${theme === "dark" ? "text-white placeholder-gray-500" : "text-gray-900 placeholder-gray-400"}`}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setIsSearchOpen(false);
+                      setSearchQuery("");
+                    }
+                    if (e.key === "Enter" && filteredItems.length > 0) {
+                      navigate(filteredItems[0].path);
+                      setIsSearchOpen(false);
+                      setSearchQuery("");
+                    }
+                  }}
+                />
+                <kbd className={`px-2 py-1 text-xs rounded font-mono ${theme === "dark" ? "bg-gray-700 text-gray-400" : "bg-gray-200 text-gray-500"}`}>ESC</kbd>
+              </div>
+
+              {/* Results */}
+              <div className="max-h-80 overflow-y-auto p-2">
+                {searchQuery ? (
+                  filteredItems.length > 0 ? (
+                    filteredItems.map((item, idx) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.path}
+                          onClick={() => {
+                            navigate(item.path);
+                            setIsSearchOpen(false);
+                            setSearchQuery("");
+                          }}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${idx === 0 ? (theme === "dark" ? "bg-gray-800" : "bg-blue-50") : ""} ${theme === "dark" ? "hover:bg-gray-800 text-gray-300" : "hover:bg-gray-100 text-gray-700"}`}
+                        >
+                          <Icon className="w-5 h-5 flex-shrink-0" />
+                          <div className="flex-1 text-left">
+                            <div className="font-medium">{item.name}</div>
+                            <div className={`text-xs ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}>{item.section}</div>
+                          </div>
+                          {item.shortcut && (
+                            <kbd className={`px-1.5 py-0.5 text-[10px] rounded font-mono ${theme === "dark" ? "bg-gray-700 text-gray-400" : "bg-gray-200 text-gray-500"}`}>
+                              {modKey}+{item.shortcut}
+                            </kbd>
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className={`text-center py-8 ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}>
+                      No results found
+                    </div>
+                  )
+                ) : (
+                  <div className={`px-3 py-4 ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <CommandLineIcon className="w-4 h-4" />
+                      <span className="text-sm font-medium">Keyboard Shortcuts</span>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>Quick search</span>
+                        <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === "dark" ? "bg-gray-700" : "bg-gray-200"}`}>{cmdKey}+K</kbd>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Navigate to page</span>
+                        <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === "dark" ? "bg-gray-700" : "bg-gray-200"}`}>{modKey} + Letter</kbd>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 };

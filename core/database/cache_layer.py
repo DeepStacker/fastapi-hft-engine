@@ -185,15 +185,17 @@ class QueryCache:
         Invalidate all keys matching pattern.
         
         Args:
-            pattern: Pattern to match (e.g., "snapshot:*")
+            pattern: Glob pattern to match (e.g., "snapshot:*", "*:nifty")
         
         Returns:
             Number of keys invalidated
         """
+        import fnmatch
+        
         async with self._lock:
             keys_to_delete = [
                 key for key in self.cache.keys()
-                if pattern.replace('*', '') in str(key)
+                if fnmatch.fnmatch(str(key), pattern)
             ]
             
             for key in keys_to_delete:

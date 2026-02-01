@@ -66,7 +66,9 @@ class DatabasePool:
     def _get_write_url(self) -> str:
         """Get write URL (primary database)"""
         # Use direct timescaledb connection (PgBouncer not deployed)
-        base_url = getattr(settings, 'DATABASE_URL', 'postgresql+asyncpg://stockify:stockify123@timescaledb:5432/stockify_db')
+        base_url = getattr(settings, 'DATABASE_URL', None)
+        if not base_url:
+            raise RuntimeError("DATABASE_URL environment variable is required")
         return base_url
     
     def _get_read_urls(self) -> list[str]:
@@ -77,10 +79,8 @@ class DatabasePool:
             # Format: "url1,url2,url3"
             return [url.strip() for url in read_urls_str.split(',')]
         
-        # Default: Use same database for reads (no replicas deployed)
-        return [
-            'postgresql+asyncpg://stockify:stockify123@timescaledb:5432/stockify_db',
-        ]
+        # Default: Use write URL for reads if no replicas configured
+        return [self.write_url]
     
     async def initialize(self):
         """Initialize connection pools"""

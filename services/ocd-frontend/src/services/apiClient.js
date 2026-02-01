@@ -5,6 +5,30 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
+// Toast rate limiting to prevent error flooding
+const toastHistory = new Map();
+const TOAST_COOLDOWN_MS = 5000; // Don't repeat same toast within 5 seconds
+
+const rateLimitedToast = {
+    error: (message) => {
+        const now = Date.now();
+        const lastShown = toastHistory.get(message) || 0;
+
+        if (now - lastShown > TOAST_COOLDOWN_MS) {
+            toastHistory.set(message, now);
+            toast.error(message);
+
+            // Cleanup old entries periodically
+            if (toastHistory.size > 20) {
+                const cutoff = now - TOAST_COOLDOWN_MS;
+                for (const [key, time] of toastHistory.entries()) {
+                    if (time < cutoff) toastHistory.delete(key);
+                }
+            }
+        }
+    }
+};
+
 // Create axios instance with default config
 const apiClient = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1',
@@ -49,7 +73,7 @@ apiClient.interceptors.response.use(
                     break;
 
                 case 403:
-                    toast.error('You do not have permission to perform this action');
+                    rateLimitedToast.error('You do not have permission to perform this action');
                     break;
 
                 case 404:
@@ -57,19 +81,19 @@ apiClient.interceptors.response.use(
                     break;
 
                 case 500:
-                    toast.error('Server error. Please try again later.');
+                    rateLimitedToast.error('Server error. Please try again later.');
                     break;
 
                 default:
                     // Show error message from server if available
                     if (response.data?.detail) {
-                        toast.error(response.data.detail);
+                        rateLimitedToast.error(response.data.detail);
                     }
             }
         } else if (error.code === 'ECONNABORTED') {
-            toast.error('Request timed out. Please check your connection.');
+            rateLimitedToast.error('Request timed out. Please check your connection.');
         } else if (!navigator.onLine) {
-            toast.error('No internet connection');
+            rateLimitedToast.error('No internet connection');
         }
 
         return Promise.reject(error);

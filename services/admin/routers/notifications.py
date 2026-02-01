@@ -45,8 +45,15 @@ class NotificationDB(Base):
     title = Column(String(100), nullable=False)
     message = Column(Text, nullable=False)
     type = Column(Enum(NotificationType), default=NotificationType.INFO, nullable=False)
+    channel = Column(String(20), nullable=False, default="system")  # system, email, push
+    purpose = Column(String(20), nullable=False, default="alert")   # alert, trade, price, announcement
+    priority = Column(String(20), nullable=False, default="normal") # low, normal, high, urgent
     is_read = Column(Boolean, default=False, nullable=False)
+    sound_enabled = Column(Boolean, default=True, nullable=False)
     link = Column(String(255), nullable=True)
+    action_url = Column(String(255), nullable=True)
+    action_label = Column(String(50), nullable=True)
+    expires_at = Column(DateTime, nullable=True)
     extra_data = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
