@@ -22,12 +22,22 @@ import { useEffect } from 'react';
 const OptionChain = () => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const navigate = useNavigate();
-  const [showChart, setShowChart] = useState(false);
+  // Sync view state with URL
+  const [searchParams, setSearchParams] = useSearchParams();
+  const showChart = searchParams.get('view') === 'chart';
+
+  const setShowChart = (show) => {
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      if (show) newParams.set('view', 'chart');
+      else newParams.delete('view');
+      return newParams;
+    });
+  };
 
   // Get spot/futures data for SpotBar when in chart mode
   const { spotData, futuresData, data: fullData, symbol: currentSymbol } = useOptionsChain();
   const dispatch = useDispatch();
-  const [searchParams] = useSearchParams();
 
   // Sync URL symbol with Redux state
   useEffect(() => {

@@ -3,6 +3,7 @@
 * Professional layout with educational tooltips and actionable insights
 */
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { Helmet } from 'react-helmet-async';
 import {
@@ -391,12 +392,33 @@ const Analytics = () => {
     const atmStrike = useSelector(selectATMStrike);
     const maxPain = useSelector(selectMaxPainStrike);
 
-    const displaySymbol = dataSymbol || symbol || 'NIFTY';
+    const [searchParams, setSearchParams] = useSearchParams();
+    const activeTab = searchParams.get('tab') || 'unified';
+    const activeCategory = searchParams.get('cat') || 'overview';
 
-    const [activeTab, setActiveTab] = useState('unified');
+    // setActiveTab helper to update URL and sync category
+    const setActiveTab = (tabId) => {
+        // Find which category this tab belongs to
+        const category = tabCategories.find(c => c.tabs.some(t => t.id === tabId));
+        const categoryId = category ? category.id : 'overview';
+
+        setSearchParams(prev => {
+            const newParams = new URLSearchParams(prev);
+            newParams.set('tab', tabId);
+            newParams.set('cat', categoryId);
+            return newParams;
+        });
+    };
+
+    const displaySymbol = dataSymbol || symbol || 'NIFTY';
     const [lastUpdate, setLastUpdate] = useState(new Date());
     const [showGuide, setShowGuide] = useState(false);
-    const [expandedCategory, setExpandedCategory] = useState('overview');
+    const [expandedCategory, setExpandedCategory] = useState(activeCategory);
+
+    // Sync expanded category with URL active category
+    useEffect(() => {
+        setExpandedCategory(activeCategory);
+    }, [activeCategory]);
 
     // Get active tab info
     const activeTabInfo = useMemo(() =>

@@ -28,6 +28,7 @@ import {
   UserGroupIcon,
   MagnifyingGlassIcon,
   CommandLineIcon,
+  BookOpenIcon,
 } from "@heroicons/react/24/outline";
 import { BellIcon as BellIconSolid } from "@heroicons/react/24/solid";
 import { notificationService } from "../../services/notificationService";
@@ -100,7 +101,7 @@ const Sidebar = () => {
       title: "Trading",
       items: [
         { name: "Option Chain", path: "/option-chain", icon: TableCellsIcon, badge: "Live", badgeColor: "bg-green-500", shortcut: "O" },
-        { name: "Traders Hub", path: "/community", icon: UserGroupIcon, badge: "New", badgeColor: "bg-amber-500", shortcut: "T" },
+        { name: "Community", path: "/community", icon: UserGroupIcon, badge: "New", badgeColor: "bg-amber-500", shortcut: "C" },
         { name: "Analytics", path: "/analytics", icon: ChartPieIcon, badge: "Pro", badgeColor: "bg-purple-500", shortcut: "A" },
         { name: "Futures", path: "/futures", icon: ArrowTrendingUpIcon, badge: "New", badgeColor: "bg-blue-500", shortcut: "F" },
         { name: "Historical", path: "/historical", icon: ClockIcon, badge: null, shortcut: "H" },
@@ -111,9 +112,21 @@ const Sidebar = () => {
       title: "Tools",
       items: [
         { name: "Screeners", path: "/screeners", icon: MagnifyingGlassCircleIcon, badge: "New", badgeColor: "bg-blue-500", shortcut: "S" },
-        { name: "Calculators", path: "/calculators", icon: CalculatorIcon, badge: null, shortcut: "C" },
+        { name: "Calculators", path: "/calculators", icon: CalculatorIcon, badge: null, shortcut: "K" },
         { name: "Position Sizing", path: "/position-sizing", icon: ScaleIcon, badge: null, shortcut: "P" },
         { name: "TCA", path: "/tca", icon: BanknotesIcon, badge: null },
+      ]
+    },
+    {
+      title: "Account",
+      items: [
+        { name: "Profile", path: "/profile", icon: UserCircleIcon, badge: null },
+      ]
+    },
+    {
+      title: "Resources",
+      items: [
+        { name: "Blog", path: "/blog", icon: BookOpenIcon, badge: null },
       ]
     },
     {
