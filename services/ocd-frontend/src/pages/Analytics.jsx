@@ -50,19 +50,19 @@ import {
 } from '@heroicons/react/24/outline';
 
 // Import all analysis modules
+// Import all analysis modules
 import OIAnalysis from '../components/analytics/OIAnalysis';
-import GreeksAnalysisPro from '../components/analytics/GreeksAnalysisPro';
-import StrategyBuilderPro from '../components/analytics/StrategyBuilderPro';
+// Basic Analysis Components (Consolidated)
+import UnifiedMarketOverview from '../components/analytics/UnifiedMarketOverview';
 import PCRTrendChart from '../components/analytics/PCRTrendChart';
 import IVSkewChart from '../components/analytics/IVSkewChart';
-import UnifiedMarketOverview from '../components/analytics/UnifiedMarketOverview';
 
 // Pro Components
-import OIHeatmapPro from '../components/analytics/OIHeatmapPro';
 import BuildupAnalysisPro from '../components/analytics/BuildupAnalysisPro';
 import COIBarsPro from '../components/analytics/COIBarsPro';
 import MaxPainChartPro from '../components/analytics/MaxPainChartPro';
 import ReversalLevelsPro from '../components/analytics/ReversalLevelsPro';
+import StrategyBuilderPro from '../components/analytics/StrategyBuilderPro';
 
 // Advanced Analysis Components
 import GammaExposureChart from '../components/analytics/GammaExposureChart';
@@ -70,11 +70,8 @@ import UnusualActivityScanner from '../components/analytics/UnusualActivityScann
 import VolumeSpikeDetection from '../components/analytics/VolumeSpikeDetection';
 import OIWeightedPCRGauge from '../components/analytics/OIWeightedPCRGauge';
 import IVPercentileGauge from '../components/analytics/IVPercentileGauge';
-import BidAskSpreadHeatmap from '../components/analytics/BidAskSpreadHeatmap';
-import NetPremiumFlowChart from '../components/analytics/NetPremiumFlowChart';
 import BuildupPatternCards from '../components/analytics/BuildupPatternCards';
 import OIConcentrationAnalysis from '../components/analytics/OIConcentrationAnalysis';
-import StraddleExpectedMove from '../components/analytics/StraddleExpectedMove';
 import OptionsFlowDashboard from '../components/analytics/OptionsFlowDashboard';
 import MarketMakerPositioning from '../components/analytics/MarketMakerPositioning';
 import ChartOfAccuracy from '../components/analytics/ChartOfAccuracy';
@@ -140,7 +137,7 @@ const tabCategories = [
                 component: UnusualActivityScanner,
                 difficulty: 'intermediate',
                 purpose: 'Find contracts with abnormal trading patterns',
-                howToUse: 'Score 70+ = Very unusual. Check the signal column for direction. Filter by Calls/Puts.',
+                howToUse: 'Score 70+ = Very unusual.Check the signal column for direction. Filter by Calls/Puts.',
                 tradingTip: 'Follow high-score bullish signals near support, bearish signals near resistance.',
             },
             {
@@ -152,16 +149,6 @@ const tabCategories = [
                 purpose: 'Identify sudden volume surges that precede big moves',
                 howToUse: '5x+ spike = Extreme. Check if OI also increased (new positions) or decreased (exits).',
                 tradingTip: 'Volume spike + OI increase + price up = Strong bullish. Opposite = Strong bearish.',
-            },
-            {
-                id: 'premiumflow',
-                label: 'Premium Flow',
-                icon: BanknotesIcon,
-                component: NetPremiumFlowChart,
-                difficulty: 'intermediate',
-                purpose: 'Track where money is flowing in the options market',
-                howToUse: 'Bulls = Call buying + Put selling. Bears = Call selling + Put buying. Check the tug-of-war.',
-                tradingTip: 'When bulls dominate, look for dips to buy. When bears dominate, look for rallies to sell.',
             },
         ]
     },
@@ -207,16 +194,6 @@ const tabCategories = [
         name: '🏛️ Open Interest Analysis',
         description: 'Identify support/resistance levels based on OI concentration',
         tabs: [
-            {
-                id: 'heatmap',
-                label: 'OI Heatmap',
-                icon: ChartBarIcon,
-                component: OIHeatmapPro,
-                difficulty: 'beginner',
-                purpose: 'Visual map of OI distribution across strikes',
-                howToUse: 'Dark colors = High OI = Strong levels. Call OI = Resistance. Put OI = Support.',
-                tradingTip: 'Enter longs near high Put OI. Enter shorts near high Call OI. These are "walls".',
-            },
             {
                 id: 'oiconc',
                 label: 'OI Walls',
@@ -264,16 +241,6 @@ const tabCategories = [
                 howToUse: 'Positive GEX = Price stabilizes. Negative GEX = Price accelerates. Check gamma flip level.',
                 tradingTip: 'Above gamma flip = Mean reversion trades. Below gamma flip = Momentum trades.',
             },
-            {
-                id: 'greeks',
-                label: 'Greeks Analysis',
-                icon: BeakerIcon,
-                component: GreeksAnalysisPro,
-                difficulty: 'advanced',
-                purpose: 'Analyze Delta, Gamma, Theta, Vega distribution',
-                howToUse: 'Net Delta shows directional bias. High Gamma = Expect explosive moves.',
-                tradingTip: 'High Theta near ATM = Good for selling options. High Vega = Good for buying options.',
-            },
         ]
     },
     {
@@ -292,16 +259,6 @@ const tabCategories = [
                 tradingTip: 'Never buy expensive options. Use IV to decide between buying vs selling strategies.',
             },
             {
-                id: 'straddle',
-                label: 'Expected Move',
-                icon: ArrowsRightLeftIcon,
-                component: StraddleExpectedMove,
-                difficulty: 'intermediate',
-                purpose: 'Calculate expected price range by expiry',
-                howToUse: 'Straddle price = Market\'s expected move. Upper/Lower breakevens show profit zones.',
-                tradingTip: 'If you expect bigger move than straddle shows, buy straddle. Smaller move? Sell.',
-            },
-            {
                 id: 'ivskew',
                 label: 'IV Skew',
                 icon: ChartPieIcon,
@@ -310,23 +267,6 @@ const tabCategories = [
                 purpose: 'Compare Put vs Call IV for directional bias',
                 howToUse: 'Put IV > Call IV = Market fears downside. Call IV > Put IV = Greed for upside.',
                 tradingTip: 'Sell overpriced side (high IV). Buy underpriced side for directional bets.',
-            },
-        ]
-    },
-    {
-        id: 'liquidity',
-        name: '💧 Liquidity & Execution',
-        description: 'Check before you trade - ensure good execution',
-        tabs: [
-            {
-                id: 'bidask',
-                label: 'Bid-Ask Spread',
-                icon: CurrencyDollarIcon,
-                component: BidAskSpreadHeatmap,
-                difficulty: 'beginner',
-                purpose: 'Identify liquid vs illiquid contracts',
-                howToUse: 'Spread < 2% = Good liquidity. Spread > 5% = Avoid or use limit orders.',
-                tradingTip: 'Always check spread before trading. Wide spread = Hidden cost eating your profits.',
             },
         ]
     },

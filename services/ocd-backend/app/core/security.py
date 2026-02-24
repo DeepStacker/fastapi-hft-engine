@@ -197,3 +197,48 @@ def get_firebase_user(uid: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Failed to get Firebase user {uid}: {e}")
         return None
+
+
+# ============================================================
+# FastAPI Dependencies
+# ============================================================
+
+from fastapi import Header, HTTPException
+
+
+async def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
+    """
+    FastAPI dependency to extract and validate user ID from Firebase token.
+    
+    Extracts Bearer token from Authorization header and verifies it.
+    Returns the Firebase UID if valid, raises 401 if invalid.
+    """
+    if not authorization:
+        # In development, allow anonymous access with a default user ID
+        if settings.is_development:
+            return "dev-user-uid"
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    # Extract token from "Bearer <token>"
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        if settings.is_development:
+            return "dev-user-uid"
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    token = parts[1]
+    
+    # Verify the token
+    decoded = verify_firebase_token(token)
+    
+    if not decoded:
+        if settings.is_development:
+            return "dev-user-uid"
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    uid = decoded.get("uid")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Token missing user ID")
+    
+    return uid
+

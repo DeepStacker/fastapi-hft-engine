@@ -17,6 +17,7 @@ import {
   HomeIcon,
   TableCellsIcon,
   ChartPieIcon,
+  ChartBarIcon,
   ClockIcon,
   Squares2X2Icon,
   MagnifyingGlassCircleIcon,
@@ -29,6 +30,8 @@ import {
   MagnifyingGlassIcon,
   CommandLineIcon,
   BookOpenIcon,
+  LightBulbIcon,
+  TrophyIcon,
 } from "@heroicons/react/24/outline";
 import { BellIcon as BellIconSolid } from "@heroicons/react/24/solid";
 import { notificationService } from "../../services/notificationService";
@@ -104,6 +107,9 @@ const Sidebar = () => {
         { name: "Community", path: "/community", icon: UserGroupIcon, badge: "New", badgeColor: "bg-amber-500", shortcut: "C" },
         { name: "Analytics", path: "/analytics", icon: ChartPieIcon, badge: "Pro", badgeColor: "bg-purple-500", shortcut: "A" },
         { name: "Futures", path: "/futures", icon: ArrowTrendingUpIcon, badge: "New", badgeColor: "bg-blue-500", shortcut: "F" },
+        { name: "Strategy Finder", path: "/strategies", icon: LightBulbIcon, badge: "Pro", badgeColor: "bg-purple-500", shortcut: "Y" },
+        { name: "My Positions", path: "/positions", icon: ChartBarIcon, badge: null, shortcut: "M" },
+        { name: "Performance", path: "/performance", icon: TrophyIcon, badge: null, shortcut: "R" },
         { name: "Historical", path: "/historical", icon: ClockIcon, badge: null, shortcut: "H" },
         { name: "Split View", path: "/split-view", icon: Squares2X2Icon, badge: null, shortcut: "V" },
       ]

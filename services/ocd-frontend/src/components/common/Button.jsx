@@ -16,8 +16,17 @@ const Button = ({
     iconPosition = 'left',
     fullWidth = false,
     type = 'button',
+    onClick,
     ...props
 }) => {
+    // Prevent interaction when disabled or loading
+    const handleClick = (e) => {
+        if (disabled || loading) {
+            e.preventDefault();
+            return;
+        }
+        if (onClick) onClick(e);
+    };
     // Base classes
     const baseClasses = `
     inline-flex items-center justify-center font-medium rounded-lg
@@ -101,6 +110,7 @@ const Button = ({
             type={type}
             className={classes}
             disabled={disabled || loading}
+            onClick={handleClick}
             {...props}
         >
             {loading ? (

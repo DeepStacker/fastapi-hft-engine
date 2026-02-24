@@ -13,8 +13,13 @@
  * 7. GAMMA FLIP DETECTION - Transition zone identification
  * 8. PIN RISK ANALYSIS - High gamma pinning probability
  * 9. MM HEDGING FLOW PREDICTION - Anticipated dealer activity
+ * 10. MARKET NARRATIVE - Human-readable signal generation
+ * 11. MAX PAIN - Options expiration price pinning target
+ * 12. IV SKEW - Sentiment bias analysis
  */
 import { useMemo, useState } from 'react';
+import { generateMarketNarrative } from '../../utils/marketNarrative';
+import { calculateOIRegression, fitVolatilitySmile, calculateProbabilityCones } from '../../utils/quantStats';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import {
@@ -190,6 +195,7 @@ const MarketMakerPositioning = () => {
 
     const [showDetails, setShowDetails] = useState(null);
     const [showAlgorithm, setShowAlgorithm] = useState(false);
+    const [activeTab, setActiveTab] = useState('positioning'); // 'positioning' or 'smartMoney'
 
     // ============ CORE DATA MINING ENGINE ============
     const mmData = useMemo(() => {
@@ -203,6 +209,8 @@ const MarketMakerPositioning = () => {
         let totalCallOI = 0;
         let totalPutOI = 0;
         const levels = [];
+        const otmCallIVs = [];
+        const otmPutIVs = [];
 
         // Step 1: Extract all level data with Greeks
         Object.entries(optionChain).forEach(([strikeKey, data]) => {
@@ -225,6 +233,8 @@ const MarketMakerPositioning = () => {
             const peTheta = peGreeks.theta || 0;
             const ceLTP = data.ce?.ltp || 0;
             const peLTP = data.pe?.ltp || 0;
+            const ceVol = data.ce?.vol || 0;
+            const peVol = data.pe?.vol || 0;
 
             totalCallOI += ceOI;
             totalPutOI += peOI;
@@ -253,6 +263,34 @@ const MarketMakerPositioning = () => {
             // Delta-adjusted exposure
             const deltaExposure = Math.abs(ceDelta) * ceOI + Math.abs(peDelta) * peOI;
 
+            // Collect IVs for Skew (using roughly 5% OTM strikes)
+            const distPct = (strike - spotPrice) / spotPrice;
+            if (distPct > 0.04 && distPct < 0.06 && ceLTP > 0) otmCallIVs.push(data.ce?.iv || _atmIV);
+            if (distPct > 0.04 && distPct < 0.06 && ceLTP > 0) otmCallIVs.push(data.ce?.iv || _atmIV);
+            if (distPct < -0.04 && distPct > -0.06 && peLTP > 0) otmPutIVs.push(data.pe?.iv || _atmIV);
+
+            // --- ALGO 1: Smart Money VOI Tracker ---
+            // High Vol + High OI Change = Conviction. 
+            // Normalized by checking vol/oi ratio
+            const ceVOI = (ceVol / (ceOI || 1)) * ceOIChg;
+            const peVOI = (peVol / (peOI || 1)) * peOIChg;
+            const smartMoneyScore = (ceVOI + peVOI) / 10000; // Normalized factor
+
+            // --- ALGO 2: Gamma Velocity (dGEX) ---
+            // How fast is the wall building?
+            const gammaVelocity = (ceGamma * ceOIChg - peGamma * peOIChg) * multiplier;
+
+            // --- ALGO 5: Strike Gravity ---
+            // Magnetism = OI / Distance^2
+            const distance = Math.abs(strike - spotPrice);
+            const gravity = distance < 10 ? 0 : (ceOI + peOI) / (distance * distance);
+
+            // --- ALGO 3: Vanna & Charm Flow Estimation ---
+            // Simulating 1% Vol Drop (Vanna) and 1 Day Decay (Charm) impact on MM Delta
+            // MM must hedge AGAINST these greek changes
+            const vannaFlow = (ceVega * ceOI + peVega * peOI) * 0.01 * lotSize * -1; // -1 for MM perspective
+            const charmFlow = (ceTheta * ceOI + peTheta * peOI) * 0.1 * lotSize * -1; // 1/10th day decay
+
             levels.push({
                 strike,
                 gex: strikeGEX,
@@ -268,6 +306,11 @@ const MarketMakerPositioning = () => {
                 theta: levelTheta,
                 deltaExposure: deltaExposure * lotSize,
                 premium: ceLTP * ceOI * lotSize + peLTP * peOI * lotSize,
+                smartMoneyScore,
+                gammaVelocity,
+                gravity,
+                vannaFlow,
+                charmFlow,
                 isSupport: peOI > ceOI * NIFTY_CONFIG.moderateLevelRatio,
                 isResistance: ceOI > peOI * NIFTY_CONFIG.moderateLevelRatio,
             });
@@ -325,6 +368,61 @@ const MarketMakerPositioning = () => {
                 ? `MMs need to buy ${formatNumber(hedgeSize)} delta to hedge`
                 : 'MMs are delta neutral';
 
+        // Step 8: Max Pain Calculation
+        let maxPainStrike = 0;
+        let minTotalLoss = Infinity;
+
+        // Check every strike in the chain as a potential expiration candidate
+        levels.forEach(candidate => {
+            const candidatePrice = candidate.strike;
+            let totalLoss = 0;
+
+            levels.forEach(level => {
+                const callLoss = Math.max(0, candidatePrice - level.strike) * level.callOI;
+                const putLoss = Math.max(0, level.strike - candidatePrice) * level.putOI;
+                totalLoss += callLoss + putLoss;
+            });
+
+            if (totalLoss < minTotalLoss) {
+                minTotalLoss = totalLoss;
+                maxPainStrike = candidatePrice;
+            }
+        });
+
+        // Step 9: IV Skew Calculation
+        const avgOtmCallIV = stats.mean(otmCallIVs) || _atmIV;
+        const avgOtmPutIV = stats.mean(otmPutIVs) || _atmIV;
+        const ivSkew = avgOtmPutIV - avgOtmCallIV; // Positive = Bearish Skew (Puts expensive)
+
+        // --- ALGO 4: Pain Threshold Ratio ---
+        // Total Premiums Collected by MMs / Current Payout Liability
+        // If Ratio < 1, MMs are bleeding
+        const totalPremiums = levels.reduce((acc, l) => acc + l.premium, 0);
+        const currentLiability = levels.reduce((acc, l) => {
+            const callLiability = Math.max(0, spotPrice - l.strike) * l.callOI;
+            const putLiability = Math.max(0, l.strike - spotPrice) * l.putOI;
+            return acc + callLiability + putLiability;
+        }, 0) * lotSize;
+
+        const painThresholdRatio = currentLiability === 0 ? 10 : (totalPremiums / currentLiability);
+
+        // Aggregate Flows for Narrative
+        const netVannaFlow = levels.reduce((acc, l) => acc + l.vannaFlow, 0);
+        const netCharmFlow = levels.reduce((acc, l) => acc + l.charmFlow, 0);
+
+        // --- QUANT STATS (Phase 2) ---
+        const oiRegression = calculateOIRegression(levels);
+        const volSmile = fitVolatilitySmile(otmCallIVs, otmPutIVs, atmStrike);
+        const probCones = calculateProbabilityCones(spotPrice, _atmIV);
+
+        // Step 10: Narrative Generation
+        const pcr = totalPutOI / totalCallOI;
+        const narrative = generateMarketNarrative({
+            totalGEX, netDelta, gammaFlip, supportLevels, resistanceLevels,
+            hedgeDirection, hedgeSize, pcr,
+            painThresholdRatio, netVannaFlow, netCharmFlow
+        }, spotPrice);
+
         // Step 7: Regime classification with confidence
         let regime = 'neutral';
         let regimeConfidence = 50;
@@ -352,8 +450,8 @@ const MarketMakerPositioning = () => {
         const atmLevel = scoredLevels.find(l => l.strike === atmStrike);
         const pinRisk = atmLevel && atmLevel.totalOI > NIFTY_CONFIG.pinRiskOI;
 
+
         // Summary stats
-        const pcr = totalPutOI / totalCallOI;
         const bullishLevels = scoredLevels.filter(l => l.gex > 0 && l.strength > 50).length;
         const bearishLevels = scoredLevels.filter(l => l.gex < 0 && l.strength > 50).length;
 
@@ -382,6 +480,17 @@ const MarketMakerPositioning = () => {
             bearishLevels,
             institutionalLevels: scoredLevels.filter(l => l.isInstitutional).length,
             anomalyLevels: scoredLevels.filter(l => l.isAnomaly).length,
+            maxPainStrike,
+            ivSkew,
+            narrative,
+            painThresholdRatio,
+            netVannaFlow,
+            netCharmFlow,
+            quantStats: {
+                oiRegression,
+                volSmile,
+                probCones
+            }
         };
     }, [optionChain, spotPrice, lotSize, atmStrike]);
 
@@ -431,12 +540,29 @@ const MarketMakerPositioning = () => {
         return 'from-gray-400 to-gray-500';
     };
 
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-4"
         >
+            {/* TABS */}
+            <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl dark:bg-slate-800">
+                {['positioning', 'smartMoney', 'quantLab'].map((tab) => (
+                    <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${activeTab === tab
+                            ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-white'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                            }`}
+                    >
+                        {tab === 'positioning' ? 'Positions & Levels' : tab === 'smartMoney' ? 'Smart Money & Velocity' : 'Quant Lab'}
+                    </button>
+                ))}
+            </div>
+
             {/* MM Summary Header */}
             <div className={`rounded-2xl p-6 bg-gradient-to-r ${getRegimeGradient(mmData.regime)} text-white`}>
                 <div className="flex items-center justify-between mb-4">
@@ -461,201 +587,397 @@ const MarketMakerPositioning = () => {
                     </div>
                 </div>
 
-                {/* Quick Stats */}
-                <div className="grid grid-cols-5 gap-2 text-xs">
-                    <div className="text-center p-2 bg-white/10 rounded-lg">
-                        <div className="font-bold">{formatNumber(mmData.netDelta)}</div>
-                        <div className="opacity-70">Net Delta</div>
-                    </div>
-                    <div className="text-center p-2 bg-white/10 rounded-lg">
-                        <div className="font-bold">{formatNumber(mmData.netGamma)}</div>
-                        <div className="opacity-70">Net Gamma</div>
-                    </div>
-                    <div className="text-center p-2 bg-white/10 rounded-lg">
-                        <div className="font-bold">{mmData.gammaFlip || '--'}</div>
-                        <div className="opacity-70">Gamma Flip</div>
-                    </div>
-                    <div className="text-center p-2 bg-white/10 rounded-lg">
-                        <div className="font-bold">{mmData.pcr.toFixed(2)}</div>
-                        <div className="opacity-70">PCR</div>
-                    </div>
-                    <div className="text-center p-2 bg-white/10 rounded-lg">
-                        <div className="font-bold flex items-center justify-center gap-1">
-                            {mmData.institutionalLevels}
-                            <BoltIcon className="w-3 h-3" />
-                        </div>
-                        <div className="opacity-70">Institutional</div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Key Levels Grid */}
-            <div className="grid grid-cols-2 gap-4">
-                {/* Resistance Levels */}
-                <div className={`rounded-xl border overflow-hidden ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
-                    <div className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <ShieldExclamationIcon className="w-4 h-4" />
-                            <span className="font-semibold text-sm">Key Resistance</span>
-                        </div>
-                        <span className="text-[10px] opacity-80">By Strength</span>
-                    </div>
-                    <div className="p-3 space-y-2">
-                        {mmData.resistanceLevels.length === 0 ? (
-                            <div className="text-center py-4 text-gray-400 text-xs">No significant resistance</div>
-                        ) : (
-                            mmData.resistanceLevels.map((level, i) => (
-                                <div
-                                    key={level.strike}
-                                    className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30 p-2 rounded-lg"
-                                    onClick={() => setShowDetails(showDetails === `r${i}` ? null : `r${i}`)}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>
-                                            {i + 1}
-                                        </span>
-                                        <span className="font-bold">{level.strike}</span>
-                                        {level.isInstitutional && <BoltIcon className="w-3 h-3 text-yellow-500" />}
-                                        {level.hasPinRisk && <span className="text-[9px]">📌</span>}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`px-1.5 py-0.5 text-[9px] rounded font-bold ${level.status === 'building' ? 'bg-green-100 text-green-700' :
-                                            level.status === 'weakening' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                                            }`}>
-                                            {level.status.toUpperCase()}
-                                        </span>
-                                        <div className="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                            <div className={`h-full bg-gradient-to-r ${getStrengthColor(level.strength)}`}
-                                                style={{ width: `${level.strength}%` }} />
-                                        </div>
-                                        <span className="text-xs font-bold w-6">{level.strength.toFixed(0)}</span>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-
-                {/* Support Levels */}
-                <div className={`rounded-xl border overflow-hidden ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
-                    <div className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <ShieldCheckIcon className="w-4 h-4" />
-                            <span className="font-semibold text-sm">Key Support</span>
-                        </div>
-                        <span className="text-[10px] opacity-80">By Strength</span>
-                    </div>
-                    <div className="p-3 space-y-2">
-                        {mmData.supportLevels.length === 0 ? (
-                            <div className="text-center py-4 text-gray-400 text-xs">No significant support</div>
-                        ) : (
-                            mmData.supportLevels.map((level, i) => (
-                                <div
-                                    key={level.strike}
-                                    className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30 p-2 rounded-lg"
-                                    onClick={() => setShowDetails(showDetails === `s${i}` ? null : `s${i}`)}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>
-                                            {i + 1}
-                                        </span>
-                                        <span className="font-bold">{level.strike}</span>
-                                        {level.isInstitutional && <BoltIcon className="w-3 h-3 text-yellow-500" />}
-                                        {level.hasPinRisk && <span className="text-[9px]">📌</span>}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`px-1.5 py-0.5 text-[9px] rounded font-bold ${level.status === 'building' ? 'bg-green-100 text-green-700' :
-                                            level.status === 'weakening' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                                            }`}>
-                                            {level.status.toUpperCase()}
-                                        </span>
-                                        <div className="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                            <div className={`h-full bg-gradient-to-r ${getStrengthColor(level.strength)}`}
-                                                style={{ width: `${level.strength}%` }} />
-                                        </div>
-                                        <span className="text-xs font-bold w-6">{level.strength.toFixed(0)}</span>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* MM Hedging Summary */}
-            <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${mmData.hedgeDirection === 'long' ? 'bg-red-100 text-red-600' :
-                            mmData.hedgeDirection === 'short' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                {/* SIGNAL NARRATIVE SECTION */}
+                <div className="mb-4 bg-white/10 rounded-xl p-4 border border-white/10">
+                    <div className="flex items-start gap-3">
+                        <div className={`mt-1 p-1.5 rounded-full ${mmData.narrative.sentiment === 'bullish' ? 'bg-green-500/20 text-green-200' :
+                            mmData.narrative.sentiment === 'bearish' ? 'bg-red-500/20 text-red-200' :
+                                'bg-blue-500/20 text-blue-200'
                             }`}>
-                            {mmData.hedgeDirection === 'long' ? <ArrowTrendingDownIcon className="w-5 h-5" /> :
-                                mmData.hedgeDirection === 'short' ? <ArrowTrendingUpIcon className="w-5 h-5" /> :
-                                    <span className="text-sm">≈</span>}
+                            {mmData.narrative.sentiment === 'bullish' ? <ArrowTrendingUpIcon className="w-5 h-5" /> :
+                                mmData.narrative.sentiment === 'bearish' ? <ArrowTrendingDownIcon className="w-5 h-5" /> :
+                                    <ShieldCheckIcon className="w-5 h-5" />}
                         </div>
                         <div>
-                            <div className="text-sm font-semibold">MM Hedging Requirement</div>
-                            <div className="text-xs text-gray-500">{mmData.hedgeInterpretation}</div>
+                            <h3 className="font-bold text-lg leading-tight mb-1">{mmData.narrative.headline}</h3>
+                            <p className="text-sm opacity-90 leading-relaxed font-medium">
+                                {mmData.narrative.summary}
+                            </p>
                         </div>
-                    </div>
-                    <div className="text-right">
-                        <div className={`text-lg font-bold ${mmData.hedgeDirection === 'long' ? 'text-red-600' :
-                            mmData.hedgeDirection === 'short' ? 'text-green-600' : 'text-gray-600'
-                            }`}>
-                            {formatNumber(mmData.hedgeSize)} Δ
-                        </div>
-                        <div className="text-[10px] text-gray-400">Net exposure</div>
                     </div>
                 </div>
+
+                {/* Beginner-Friendly Quick Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-4">
+                    <div className="bg-white/10 rounded-lg p-3 text-center">
+                        <div className="opacity-75 mb-1">Market Mood</div>
+                        <div className="font-bold text-lg">{mmData.regime === 'stabilizing' ? 'Range Bound' : mmData.regime === 'volatile' ? 'Trending' : 'Neutral'}</div>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-3 text-center">
+                        <div className="opacity-75 mb-1">Smart Money</div>
+                        <div className={`font-bold text-lg ${mmData.painThresholdRatio < 1 ? 'text-red-300' : 'text-green-300'}`}>
+                            {mmData.painThresholdRatio < 1 ? 'Trapped' : 'Safe'}
+                        </div>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-3 text-center">
+                        <div className="opacity-75 mb-1">Max Pain Level</div>
+                        <div className="font-bold text-lg text-yellow-300">{mmData.maxPainStrike}</div>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-3 text-center">
+                        <div className="opacity-75 mb-1">Direction</div>
+                        <div className="font-bold text-lg">{mmData.hedgeDirection.toUpperCase()}</div>
+                    </div>
+                </div>
+
+                {/* Advanced Stats Toggle */}
+                <details className="text-xs opacity-70 cursor-pointer">
+                    <summary className="hover:text-white">Show Advanced Greek Stats</summary>
+                    <div className="grid grid-cols-7 gap-2 mt-2 pt-2 border-t border-white/10">
+                        <div className="text-center">
+                            <div className="font-bold">{formatNumber(mmData.netDelta)}</div>
+                            <div className="opacity-70">Delta</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="font-bold">{formatNumber(mmData.netGamma)}</div>
+                            <div className="opacity-70">Gamma</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="font-bold">{mmData.gammaFlip || '--'}</div>
+                            <div className="opacity-70">Flip</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="font-bold">{mmData.pcr.toFixed(2)}</div>
+                            <div className="opacity-70">PCR</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="font-bold">{mmData.institutionalLevels}</div>
+                            <div className="opacity-70">Whales</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="font-bold">{mmData.painThresholdRatio?.toFixed(2)}</div>
+                            <div className="opacity-70">Pain</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="font-bold">{mmData.ivSkew.toFixed(1)}%</div>
+                            <div className="opacity-70">Skew</div>
+                        </div>
+                    </div>
+                </details>
             </div>
 
-            {/* GEX Visualization */}
-            <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
-                <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold flex items-center gap-2">
-                        <ChartBarIcon className="w-4 h-4" />
-                        GEX Distribution
-                    </h3>
-                    <span className="text-xs text-gray-500">{visibleLevels.length} levels</span>
-                </div>
-                <div className="space-y-1">
-                    {visibleLevels.map((level) => {
-                        const maxGex = Math.max(...visibleLevels.map(l => Math.abs(l.gex)), 0.1);
-                        const width = Math.min(100, (Math.abs(level.gex) / maxGex) * 100);
-                        const isAtm = level.strike === atmStrike;
-
-                        return (
-                            <div key={level.strike} className={`flex items-center gap-2 ${isAtm ? 'bg-yellow-50 dark:bg-yellow-900/10 rounded px-1' : ''}`}>
-                                <span className={`w-14 text-right text-xs font-mono ${isAtm ? 'font-bold text-yellow-600' : ''}`}>
-                                    {level.strike}
-                                </span>
-                                <div className="flex-1 flex items-center h-4">
-                                    {level.gex < 0 && (
-                                        <div className="flex-1 flex justify-end">
-                                            <div
-                                                className="h-3 bg-gradient-to-r from-red-500 to-rose-400 rounded-l"
-                                                style={{ width: `${width}%` }}
-                                            />
-                                        </div>
-                                    )}
-                                    <div className="w-px h-full bg-gray-300 dark:bg-gray-600" />
-                                    {level.gex >= 0 && (
-                                        <div className="flex-1">
-                                            <div
-                                                className="h-3 bg-gradient-to-r from-green-400 to-emerald-500 rounded-r"
-                                                style={{ width: `${width}%` }}
-                                            />
-                                        </div>
-                                    )}
+            {activeTab === 'positioning' ? (
+                <>
+                    {/* Key Levels Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* Resistance Levels */}
+                        <div className={`rounded-xl border overflow-hidden ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+                            <div className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <ShieldExclamationIcon className="w-4 h-4" />
+                                    <span className="font-semibold text-sm">Key Resistance</span>
                                 </div>
-                                <span className={`w-16 text-xs text-right ${level.gex >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {level.gex.toFixed(2)}Cr
+                                <span className="text-[10px] opacity-80">By Strength</span>
+                            </div>
+                            <div className="p-3 space-y-2">
+                                {mmData.resistanceLevels.length === 0 ? (
+                                    <div className="text-center py-4 text-gray-400 text-xs">No significant resistance</div>
+                                ) : (
+                                    mmData.resistanceLevels.map((level, i) => (
+                                        <div
+                                            key={level.strike}
+                                            className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30 p-2 rounded-lg"
+                                            onClick={() => setShowDetails(showDetails === `r${i}` ? null : `r${i}`)}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                                                    {i + 1}
+                                                </span>
+                                                <span className="font-bold">{level.strike}</span>
+                                                {level.isInstitutional && <BoltIcon className="w-3 h-3 text-yellow-500" />}
+                                                {level.hasPinRisk && <span className="text-[9px]">📌</span>}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`px-1.5 py-0.5 text-[9px] rounded font-bold ${level.status === 'building' ? 'bg-green-100 text-green-700' :
+                                                    level.status === 'weakening' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                                                    }`}>
+                                                    {level.status.toUpperCase()}
+                                                </span>
+                                                <div className="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                    <div className={`h-full bg-gradient-to-r ${getStrengthColor(level.strength)}`}
+                                                        style={{ width: `${level.strength}%` }} />
+                                                </div>
+                                                <span className="text-xs font-bold w-6">{level.strength.toFixed(0)}</span>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Support Levels */}
+                        <div className={`rounded-xl border overflow-hidden ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+                            <div className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheckIcon className="w-4 h-4" />
+                                    <span className="font-semibold text-sm">Key Support</span>
+                                </div>
+                                <span className="text-[10px] opacity-80">By Strength</span>
+                            </div>
+                            <div className="p-3 space-y-2">
+                                {mmData.supportLevels.length === 0 ? (
+                                    <div className="text-center py-4 text-gray-400 text-xs">No significant support</div>
+                                ) : (
+                                    mmData.supportLevels.map((level, i) => (
+                                        <div
+                                            key={level.strike}
+                                            className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30 p-2 rounded-lg"
+                                            onClick={() => setShowDetails(showDetails === `s${i}` ? null : `s${i}`)}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                                                    {i + 1}
+                                                </span>
+                                                <span className="font-bold">{level.strike}</span>
+                                                {level.isInstitutional && <BoltIcon className="w-3 h-3 text-yellow-500" />}
+                                                {level.hasPinRisk && <span className="text-[9px]">📌</span>}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`px-1.5 py-0.5 text-[9px] rounded font-bold ${level.status === 'building' ? 'bg-green-100 text-green-700' :
+                                                    level.status === 'weakening' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                                                    }`}>
+                                                    {level.status.toUpperCase()}
+                                                </span>
+                                                <div className="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                    <div className={`h-full bg-gradient-to-r ${getStrengthColor(level.strength)}`}
+                                                        style={{ width: `${level.strength}%` }} />
+                                                </div>
+                                                <span className="text-xs font-bold w-6">{level.strength.toFixed(0)}</span>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* MM Hedging Summary */}
+                    <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${mmData.hedgeDirection === 'long' ? 'bg-red-100 text-red-600' :
+                                    mmData.hedgeDirection === 'short' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                    {mmData.hedgeDirection === 'long' ? <ArrowTrendingDownIcon className="w-5 h-5" /> :
+                                        mmData.hedgeDirection === 'short' ? <ArrowTrendingUpIcon className="w-5 h-5" /> :
+                                            <span className="text-sm">≈</span>}
+                                </div>
+                                <div>
+                                    <div className="text-sm font-semibold">MM Hedging Requirement</div>
+                                    <div className="text-xs text-gray-500">{mmData.hedgeInterpretation}</div>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <div className={`text-lg font-bold ${mmData.hedgeDirection === 'long' ? 'text-red-600' :
+                                    mmData.hedgeDirection === 'short' ? 'text-green-600' : 'text-gray-600'
+                                    }`}>
+                                    {formatNumber(mmData.hedgeSize)} Δ
+                                </div>
+                                <div className="text-[10px] text-gray-400">Net exposure</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* GEX Visualization */}
+                    <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold flex items-center gap-2">
+                                <ChartBarIcon className="w-4 h-4" />
+                                GEX Distribution
+                            </h3>
+                            <span className="text-xs text-gray-500">{visibleLevels.length} levels</span>
+                        </div>
+                        <div className="space-y-1">
+                            {visibleLevels.map((level) => {
+                                const maxGex = Math.max(...visibleLevels.map(l => Math.abs(l.gex)), 0.1);
+                                const width = Math.min(100, (Math.abs(level.gex) / maxGex) * 100);
+                                const isAtm = level.strike === atmStrike;
+
+                                return (
+                                    <div key={level.strike} className={`flex items-center gap-2 ${isAtm ? 'bg-yellow-50 dark:bg-yellow-900/10 rounded px-1' : ''}`}>
+                                        <span className={`w-14 text-right text-xs font-mono ${isAtm ? 'font-bold text-yellow-600' : ''}`}>
+                                            {level.strike}
+                                        </span>
+                                        <div className="flex-1 flex items-center h-4">
+                                            {level.gex < 0 && (
+                                                <div className="flex-1 flex justify-end">
+                                                    <div
+                                                        className="h-3 bg-gradient-to-r from-red-500 to-rose-400 rounded-l"
+                                                        style={{ width: `${width}%` }}
+                                                    />
+                                                </div>
+                                            )}
+                                            <div className="w-px h-full bg-gray-300 dark:bg-gray-600" />
+                                            {level.gex >= 0 && (
+                                                <div className="flex-1">
+                                                    <div
+                                                        className="h-3 bg-gradient-to-r from-green-400 to-emerald-500 rounded-r"
+                                                        style={{ width: `${width}%` }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <span className={`w-16 text-xs text-right ${level.gex >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {level.gex.toFixed(2)}Cr
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </>
+            ) : (
+                <div className="space-y-4">
+                    {/* SMART MONEY DASHBOARD */}
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* VOI TRACKER */}
+                        <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+                            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                                <BoltIcon className="w-4 h-4 text-purple-500" /> Smart Money VOI
+                            </h3>
+                            <div className="space-y-2">
+                                {visibleLevels
+                                    .filter(l => Math.abs(l.smartMoneyScore) > 1) // Filter noise
+                                    .sort((a, b) => Math.abs(b.smartMoneyScore) - Math.abs(a.smartMoneyScore))
+                                    .slice(0, 5)
+                                    .map(level => (
+                                        <div key={level.strike} className="flex justify-between items-center text-xs">
+                                            <span className="font-mono">{level.strike}</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`h-1.5 rounded-full ${level.smartMoneyScore > 0 ? 'bg-purple-500' : 'bg-orange-500'}`}
+                                                    style={{ width: Math.min(50, Math.abs(level.smartMoneyScore) * 5) + 'px' }} />
+                                                <span className={level.smartMoneyScore > 0 ? 'text-purple-600' : 'text-orange-600'}>
+                                                    {level.smartMoneyScore > 0 ? 'Accum' : 'Dist'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+
+                        {/* GAMMA VELOCITY */}
+                        <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+                            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                                <ArrowTrendingUpIcon className="w-4 h-4 text-blue-500" /> Gamma Velocity
+                            </h3>
+                            <div className="space-y-2">
+                                {visibleLevels
+                                    .sort((a, b) => Math.abs(b.gammaVelocity) - Math.abs(a.gammaVelocity))
+                                    .slice(0, 5)
+                                    .map(level => (
+                                        <div key={level.strike} className="flex justify-between items-center text-xs">
+                                            <span className="font-mono">{level.strike}</span>
+                                            <span className={level.gammaVelocity > 0 ? 'text-green-500' : 'text-red-500'}>
+                                                {level.gammaVelocity > 0 ? 'Building' : 'Fading'} {Math.abs(level.gammaVelocity).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* PROJECTED FLOWS */}
+                    <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+                        <h3 className="text-sm font-semibold mb-3">Projected EOD Flows</h3>
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                            <div className="flex justify-between p-2 bg-gray-50 dark:bg-slate-700 rounded">
+                                <span>Vanna (Vol Reset)</span>
+                                <span className={mmData.netVannaFlow > 0 ? 'text-green-500' : 'text-red-500'}>
+                                    {mmData.netVannaFlow > 0 ? 'BUY' : 'SELL'} {(Math.abs(mmData.netVannaFlow) / 1000).toFixed(0)}k Δ
                                 </span>
                             </div>
-                        );
-                    })}
+                            <div className="flex justify-between p-2 bg-gray-50 dark:bg-slate-700 rounded">
+                                <span>Charm (Time Decay)</span>
+                                <span className={mmData.netCharmFlow > 0 ? 'text-green-500' : 'text-red-500'}>
+                                    {mmData.netCharmFlow > 0 ? 'BUY' : 'SELL'} {(Math.abs(mmData.netCharmFlow) / 1000).toFixed(0)}k Δ
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {activeTab === 'quantLab' && (
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* OI REGRESSION */}
+                        <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+                            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                                <ChartBarIcon className="w-4 h-4 text-pink-500" /> OI Regression (Skew)
+                            </h3>
+                            <div className="text-xs space-y-2">
+                                <div className="flex justify-between">
+                                    <span className="opacity-70">Slope (Bias)</span>
+                                    <span className={`font-mono font-bold ${mmData.quantStats.oiRegression.slope > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                        {mmData.quantStats.oiRegression.slope.toFixed(4)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="opacity-70">Fit Quality (R²)</span>
+                                    <span className="font-mono">{mmData.quantStats.oiRegression.rSquared.toFixed(2)}</span>
+                                </div>
+                                <div className="mt-2 text-[10px] bg-gray-50 dark:bg-slate-700 p-2 rounded">
+                                    Interpretation: {mmData.quantStats.oiRegression.bias.toUpperCase()}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* VOLATILITY SMILE */}
+                        <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+                            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                                <BoltIcon className="w-4 h-4 text-yellow-500" /> Volatility Curve
+                            </h3>
+                            <div className="text-xs space-y-2">
+                                <div className="flex justify-between">
+                                    <span className="opacity-70">Convexity (Fear)</span>
+                                    <span className="font-mono">{mmData.quantStats.volSmile.curvature.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="opacity-70">Min IV</span>
+                                    <span className="font-mono">{mmData.quantStats.volSmile.minIV.toFixed(1)}%</span>
+                                </div>
+                                <div className="mt-2 text-[10px] bg-gray-50 dark:bg-slate-700 p-2 rounded">
+                                    Higher Convexity = Market fears outliers (Fat Tails).
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* PROBABILITY CONES */}
+                    <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+                        <h3 className="text-sm font-semibold mb-3">Gaussian Probability Cones (1-Day)</h3>
+                        <div className="grid grid-cols-3 gap-2 text-xs text-center">
+                            <div className="p-2 bg-green-50 dark:bg-slate-700/50 rounded border border-green-200 dark:border-green-800">
+                                <div className="text-gray-500 mb-1">1σ (68%)</div>
+                                <div className="font-mono font-bold text-green-600">
+                                    {mmData.quantStats.probCones.oneSigma.lower.toFixed(0)} - {mmData.quantStats.probCones.oneSigma.upper.toFixed(0)}
+                                </div>
+                            </div>
+                            <div className="p-2 bg-yellow-50 dark:bg-slate-700/50 rounded border border-yellow-200 dark:border-yellow-800">
+                                <div className="text-gray-500 mb-1">2σ (95%)</div>
+                                <div className="font-mono font-bold text-yellow-600">
+                                    {mmData.quantStats.probCones.twoSigma.lower.toFixed(0)} - {mmData.quantStats.probCones.twoSigma.upper.toFixed(0)}
+                                </div>
+                            </div>
+                            <div className="p-2 bg-gray-50 dark:bg-slate-700/50 rounded border border-gray-200 dark:border-gray-600">
+                                <div className="text-gray-500 mb-1">Daily Range</div>
+                                <div className="font-mono font-bold">
+                                    ±{mmData.quantStats.probCones.dailyMove.toFixed(0)} pts
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Algorithm Toggle */}
             <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800/50' : 'bg-gray-50'} border ${isDark ? 'border-slate-700' : 'border-gray-100'}`}>
@@ -688,7 +1010,7 @@ const MarketMakerPositioning = () => {
                     </div>
                 )}
             </div>
-        </motion.div>
+        </motion.div >
     );
 };
 

@@ -1,0 +1,130 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+6 0 obj
+<< /Length 1900 >>
+stream
+BT
+13 TL
+54 738 Td
+/F2 15 Tf
+(Stockify HFT Engine - App Summary) Tj
+T*
+T*
+/F2 11 Tf
+(What it is) Tj
+T*
+T*
+/F1 10 Tf
+(A high-frequency options trading platform with real-time analytics, Greeks) Tj
+T*
+(calculation, and an event-driven architecture. Built as microservices using) Tj
+T*
+(FastAPI, Kafka, TimescaleDB, and Redis.) Tj
+T*
+T*
+/F2 11 Tf
+(Who it's for) Tj
+T*
+T*
+/F1 10 Tf
+(Not found in repo. \(Implied from README: teams building or operating options) Tj
+T*
+(trading analytics/HFT pipelines.\)) Tj
+T*
+T*
+/F2 11 Tf
+(What it does) Tj
+T*
+T*
+/F1 10 Tf
+(- Real-time market data ingestion from the Dhan API with circuit breakers.) Tj
+T*
+T*
+(- Publishes and consumes streaming data via Kafka using Avro serialization.) Tj
+T*
+T*
+(- Computes Greeks \(BSM\), IV skew, and gamma exposure with vectorized math.) Tj
+T*
+T*
+(- Persists enriched time-series data to TimescaleDB.) Tj
+T*
+T*
+(- Serves REST APIs for frontend clients \(snapshots, historical data, profiles\).) Tj
+T*
+T*
+(- Streams live updates to clients over WebSocket.) Tj
+T*
+T*
+(- Caches hot data and supports deduplication with Redis.) Tj
+T*
+T*
+/F2 11 Tf
+(How it works) Tj
+T*
+T*
+/F1 10 Tf
+(Dhan API -> Ingestion Service -> Kafka \(Avro\) for raw market data events.) Tj
+T*
+T*
+(Processor Service consumes Kafka, computes analytics, and forwards enriched) Tj
+T*
+(data.) Tj
+T*
+T*
+(Storage Service writes to TimescaleDB for time-series persistence.) Tj
+T*
+T*
+(Realtime Service streams updates to the frontend via WebSocket.) Tj
+T*
+T*
+(OCD Backend provides REST APIs; Core library shares models/analytics; Redis) Tj
+T*
+(caches hot data.) Tj
+T*
+T*
+/F2 11 Tf
+(How to run \(minimal\)) Tj
+T*
+T*
+/F1 10 Tf
+(- Install Docker Engine and Docker Compose v2+.) Tj
+T*
+T*
+(- Create .env from .env.example and set required vars: POSTGRES_PASSWORD,) Tj
+T*
+(  SECRET_KEY, DHAN_CLIENT_ID, DHAN_ACCESS_TOKEN.) Tj
+T*
+T*
+(- Run: docker compose up -d --build.) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000000321 00000 n 
+0000000396 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+2348
+%%EOF

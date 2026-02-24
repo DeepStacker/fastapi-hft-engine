@@ -11,8 +11,6 @@ import {
     ChevronDownIcon, DocumentDuplicateIcon
 } from '@heroicons/react/24/outline';
 
-import SimulationSliders from './SimulationSliders';
-import PayoffSurface from './PayoffSurface';
 import MultiExpiryLegBuilder from './MultiExpiryLegBuilder';
 import { STRATEGY_PRESETS, STRATEGY_CATEGORIES, buildLegsFromPreset } from '../../constants/strategyPresets';
 import calculatorService from '../../services/calculatorService';
@@ -28,9 +26,6 @@ const StrategyBuilder = () => {
     const [legs, setLegs] = useState([]);
     const [presetOpen, setPresetOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState('all');
-    const [showSurface, setShowSurface] = useState(false);
-    const [surfaceData, setSurfaceData] = useState(null);
-    const [surfaceLoading, setSurfaceLoading] = useState(false);
     const [simulationResult, setSimulationResult] = useState(null);
     const [isSimulating, setIsSimulating] = useState(false);
 
@@ -106,7 +101,6 @@ const StrategyBuilder = () => {
     const clearAll = useCallback(() => {
         setLegs([]);
         setSimulationResult(null);
-        setSurfaceData(null);
     }, []);
 
     // Apply preset
@@ -190,37 +184,6 @@ const StrategyBuilder = () => {
         };
     }, [legs, simulationParams, spotPrice]);
 
-    // Generate payoff surface
-    const generateSurface = useCallback(async () => {
-        if (legs.length === 0) return;
-
-        setSurfaceLoading(true);
-        try {
-            const result = await calculatorService.getPayoffSurface({
-                legs,
-                currentSpot: spotPrice,
-                priceRangePct: [-0.15, 0.15],
-                timeSteps: 10,
-                priceSteps: 50,
-                ivChange: simulationParams.ivChange
-            });
-
-            if (result.success) {
-                setSurfaceData(result);
-            }
-        } catch (error) {
-            console.error('Surface generation error:', error);
-        } finally {
-            setSurfaceLoading(false);
-        }
-    }, [legs, spotPrice, simulationParams.ivChange]);
-
-    // Auto-generate surface when showing
-    useEffect(() => {
-        if (showSurface && legs.length > 0 && !surfaceData) {
-            generateSurface();
-        }
-    }, [showSurface, legs.length, surfaceData, generateSurface]);
 
     // Calculate payoff at different spot prices (for chart)
     const payoffData = useMemo(() => {
@@ -325,8 +288,8 @@ const StrategyBuilder = () => {
                                                 key={cat}
                                                 onClick={() => setSelectedCategory(cat)}
                                                 className={`px-2 py-1 text-[10px] rounded-md font-medium transition-colors ${selectedCategory === cat
-                                                        ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300'
-                                                        : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                    ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300'
+                                                    : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
                                                     }`}
                                             >
                                                 {cat.charAt(0).toUpperCase() + cat.slice(1)}
@@ -357,18 +320,6 @@ const StrategyBuilder = () => {
                             )}
                         </div>
 
-                        {/* Surface Toggle */}
-                        <button
-                            onClick={() => setShowSurface(!showSurface)}
-                            disabled={legs.length === 0}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${showSurface
-                                    ? 'bg-blue-500 text-white shadow-md shadow-blue-500/25'
-                                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200'
-                                } disabled:opacity-50`}
-                        >
-                            <ChartBarIcon className="w-4 h-4" />
-                            Surface
-                        </button>
 
                         <button
                             onClick={clearAll}
@@ -382,14 +333,6 @@ const StrategyBuilder = () => {
                 </div>
             </div>
 
-            {/* Simulation Sliders */}
-            <SimulationSliders
-                simulationParams={simulationParams}
-                onParamsChange={setSimulationParams}
-                spotPrice={spotPrice}
-                maxDTE={maxDTE}
-                disabled={legs.length === 0}
-            />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Leg Builder */}
@@ -517,8 +460,8 @@ const StrategyBuilder = () => {
                                     <tr key={leg.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                                         <td className="p-2.5">
                                             <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${leg.action === 'BUY'
-                                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                                    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                                                 }`}>
                                                 {leg.action}
                                             </span>
@@ -526,8 +469,8 @@ const StrategyBuilder = () => {
                                         <td className="p-2.5 text-center font-bold">{leg.strike}</td>
                                         <td className="p-2.5 text-center">
                                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${leg.type === 'CE'
-                                                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700'
-                                                    : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700'
+                                                ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700'
+                                                : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700'
                                                 }`}>
                                                 {leg.type}
                                             </span>
@@ -568,28 +511,6 @@ const StrategyBuilder = () => {
             )}
 
             {/* Payoff Chart */}
-            {payoffData.length > 0 && !showSurface && (
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                        <h3 className="font-semibold flex items-center gap-2 text-sm">
-                            <ChartBarIcon className="w-5 h-5 text-blue-500" />
-                            Payoff at Expiry
-                        </h3>
-                    </div>
-                    <div className="p-4">
-                        <PayoffChart data={payoffData} spotPrice={spotPrice} breakevens={breakevens} />
-                    </div>
-                </div>
-            )}
-
-            {/* Payoff Surface */}
-            {showSurface && (
-                <PayoffSurface
-                    surfaceData={surfaceData}
-                    spotPrice={spotPrice}
-                    isLoading={surfaceLoading}
-                />
-            )}
         </div>
     );
 };

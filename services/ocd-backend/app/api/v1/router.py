@@ -175,4 +175,25 @@ api_router.include_router(
     tags=["Strategy Simulation"]
 )
 
+# Strategy Optimization (Leg Optimizer)
+from app.api import strategy_routes
+api_router.include_router(
+    strategy_routes.router,
+    tags=["Strategy Optimization"]
+)
+
+# Position Tracking
+from app.api import position_routes
+api_router.include_router(
+    position_routes.router,
+    tags=["Position Tracking"]
+)
+
+# Performance Analytics
+from app.api import analytics_routes
+api_router.include_router(
+    analytics_routes.router,
+    tags=["Performance Analytics"]
+)
+
 logger = logging.getLogger(__name__)

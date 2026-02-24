@@ -29,6 +29,7 @@ import GEXWidget from '../components/dashboard/GEXWidget';
 import FuturesBasisWidget from '../components/dashboard/FuturesBasisWidget';
 import IVSkewWidget from '../components/dashboard/IVSkewWidget';
 import MarketPulseWidget from '../components/dashboard/MarketPulseWidget';
+import PositionsSummaryWidget from '../components/dashboard/PositionsSummaryWidget';
 
 /**
  * Premium Dashboard - Trading Command Center
@@ -146,6 +147,9 @@ const Dashboard = () => {
 
         {/* Trading Stats Widget */}
         <TradingStatsWidget />
+
+        {/* My Positions Quick View */}
+        <PositionsSummaryWidget />
 
         {/* Market Status Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

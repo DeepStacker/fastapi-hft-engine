@@ -539,5 +539,63 @@
   @apply absolute -top-2 -right-2 min-w-[1.25rem] h-5 px-1;
   @apply flex items-center justify-center;
   @apply text-xs font-bold text-white bg-rose-500 rounded-full;
+
   @apply border-2 border-white dark:border-gray-800;
+}
+
+/* ============================================
+   REACT GRID LAYOUT & RESIZABLES
+   ============================================ */
+
+.react-grid-item.react-grid-placeholder {
+  background: rgba(59, 130, 246, 0.3) !important;
+  border-radius: 1rem !important;
+  opacity: 0.5 !important;
+}
+
+.react-resizable {
+  position: relative;
+}
+
+.react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  bottom: 0;
+  right: 0;
+  background-position: bottom right;
+  padding: 0 3px 3px 0;
+  background-repeat: no-repeat;
+  background-origin: content-box;
+  box-sizing: border-box;
+  cursor: se-resize;
+  z-index: 50;
+}
+
+/* Custom Resize Handle Appearance for Premium Feel */
+.react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 8px;
+  height: 8px;
+  border-right: 3px solid rgba(148, 163, 184, 0.6); /* Slate-400 */
+  border-bottom: 3px solid rgba(148, 163, 184, 0.6);
+  border-bottom-right-radius: 2px;
+  transition: all 0.2s;
+}
+
+.react-resizable-handle:hover::after {
+  border-color: rgba(59, 130, 246, 0.8); /* Blue-500 */
+  width: 10px;
+  height: 10px;
+}
+
+.dark .react-resizable-handle::after {
+  border-color: rgba(100, 116, 139, 0.6); /* Slate-500 */
+}
+
+.dark .react-resizable-handle:hover::after {
+  border-color: rgba(96, 165, 250, 0.8); /* Blue-400 */
 }

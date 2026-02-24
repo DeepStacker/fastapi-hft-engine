@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { useSelector } from "react-redux";
 import Sidebar from "../components/layout/Sidebar";
-import Toast from "../components/common/Toast";
 import QuickSymbolSwitcher from "../components/common/QuickSymbolSwitcher";
 import CommandPalette from "../components/common/CommandPalette";
 import { motion } from "framer-motion";
@@ -97,9 +96,6 @@ const MainContent = () => {
       >
         {/* Content Area */}
         <main className="relative p-2">
-          {/* Toast notifications */}
-          <Toast />
-
           {/* Page Content */}
           <motion.div
             initial={{ opacity: 0 }}

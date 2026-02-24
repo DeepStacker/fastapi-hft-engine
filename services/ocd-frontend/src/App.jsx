@@ -13,6 +13,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { PersistGate } from 'redux-persist/integration/react';
 import { persistor } from './context/store';
+import Toast from "./components/common/Toast";
 
 // Core Components (loaded immediately)
 import Login from "./components/auth/Login";
@@ -30,6 +31,9 @@ const Home = lazy(() => import("./pages/Home"));
 const About = lazy(() => import("./pages/About"));
 const Blog = lazy(() => import("./pages/Blog"));
 const ContactUs = lazy(() => import("./pages/Contact"));
+const StrategySuggestions = lazy(() => import("./pages/StrategySuggestions"));
+const MyPositions = lazy(() => import("./pages/MyPositions"));
+const PerformanceDashboard = lazy(() => import("./pages/PerformanceDashboard"));
 const Tca = lazy(() => import("./pages/Tca"));
 const PositionSizing = lazy(() => import("./pages/PositionSizing"));
 const OptionChain = lazy(() => import("./pages/OptionChain"));
@@ -86,6 +90,7 @@ function App() {
             <AuthRedirect />
             <div className={theme === "dark" ? "dark" : "light"}>
               <ToastContainer position="top-right" />
+              <Toast /> {/* Redux-based global toast */}
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   {/* Main Layout Routes */}
@@ -156,6 +161,9 @@ function App() {
                       <Route path="/historical" element={<Historical />} />
                       <Route path="/split-view" element={<SplitView />} />
                       <Route path="/screeners" element={<Screeners />} />
+                      <Route path="/strategies" element={<StrategySuggestions />} />
+                      <Route path="/positions" element={<MyPositions />} />
+                      <Route path="/performance" element={<PerformanceDashboard />} />
                       <Route path="/calculators" element={<Calculators />} />
                       <Route path="/position-sizing" element={<PositionSizing />} />
                       <Route path="/tca" element={<Tca />} />

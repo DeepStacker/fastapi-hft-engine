@@ -14,10 +14,7 @@ import {
 import MiniOptionChain from './MiniOptionChain';
 import StrategyLegsTable from './StrategyLegsTable';
 import StrategyMetricsPanel from './StrategyMetricsPanel';
-import SimulationSliders from './SimulationSliders';
 import PriceSlicesTable from './PriceSlicesTable';
-import ScenarioMatrix from './ScenarioMatrix';
-import PayoffSurface from './PayoffSurface';
 import SensibullPayoffDiagram from './SensibullPayoffDiagram';
 
 // Services & Config
@@ -40,22 +37,11 @@ const StrategyBuilderPro = () => {
     // Loading states
     const [metricsLoading, setMetricsLoading] = useState(false);
     const [slicesLoading, setSlicesLoading] = useState(false);
-    const [matrixLoading, setMatrixLoading] = useState(false);
-    const [surfaceLoading, setSurfaceLoading] = useState(false);
 
     // Data
     const [metrics, setMetrics] = useState(null);
     const [priceSlices, setPriceSlices] = useState(null);
-    const [scenarioMatrix, setScenarioMatrix] = useState(null);
-    const [surfaceData, setSurfaceData] = useState(null);
 
-    // Simulation params
-    const [simulationParams, setSimulationParams] = useState({
-        daysForward: 0,
-        spotOffset: 0,
-        ivChange: 0,
-        riskFreeRate: 0.07
-    });
 
     // Debounce timer
     const fetchTimer = useRef(null);
@@ -137,8 +123,6 @@ const StrategyBuilderPro = () => {
         if (legs.length === 0) {
             setMetrics(null);
             setPriceSlices(null);
-            setScenarioMatrix(null);
-            setSurfaceData(null);
             return;
         }
 
@@ -169,17 +153,6 @@ const StrategyBuilderPro = () => {
             } catch (e) { console.error('Slices error:', e); }
             finally { setSlicesLoading(false); }
 
-            // Fetch matrix
-            setMatrixLoading(true);
-            try {
-                const result = await calculatorService.getScenarioMatrix({
-                    legs,
-                    currentSpot: spotPrice
-                });
-                if (result.success) setScenarioMatrix(result);
-            } catch (e) { console.error('Matrix error:', e); }
-            finally { setMatrixLoading(false); }
-
         }, 500);
 
         return () => {
@@ -187,27 +160,6 @@ const StrategyBuilderPro = () => {
         };
     }, [legs, spotPrice]);
 
-    // Fetch surface when tab is active
-    useEffect(() => {
-        if (activeTab !== 'surface' || legs.length === 0 || surfaceData) return;
-
-        const fetchSurface = async () => {
-            setSurfaceLoading(true);
-            try {
-                const result = await calculatorService.getPayoffSurface({
-                    legs,
-                    currentSpot: spotPrice,
-                    priceRangePct: [-0.15, 0.15],
-                    timeSteps: 10,
-                    priceSteps: 50
-                });
-                if (result.success) setSurfaceData(result);
-            } catch (e) { console.error('Surface error:', e); }
-            finally { setSurfaceLoading(false); }
-        };
-
-        fetchSurface();
-    }, [activeTab, legs, spotPrice, surfaceData]);
 
     // Filter presets
     const filteredPresets = useMemo(() => {
@@ -338,14 +290,6 @@ const StrategyBuilderPro = () => {
 
                 {/* Right Column: Metrics & Analysis */}
                 <div className="lg:col-span-2 space-y-4">
-                    {/* Simulation Sliders */}
-                    <SimulationSliders
-                        simulationParams={simulationParams}
-                        onParamsChange={setSimulationParams}
-                        spotPrice={spotPrice}
-                        maxDTE={maxDTE}
-                        disabled={legs.length === 0}
-                    />
 
                     {/* Metrics Panel */}
                     <StrategyMetricsPanel
@@ -373,8 +317,6 @@ const StrategyBuilderPro = () => {
                             <div className="flex border-b border-gray-200 dark:border-gray-700">
                                 {[
                                     { id: 'slices', label: 'Price Slices' },
-                                    { id: 'matrix', label: 'Scenario Matrix' },
-                                    { id: 'surface', label: 'Payoff Surface' }
                                 ].map(tab => (
                                     <button
                                         key={tab.id}
@@ -395,20 +337,6 @@ const StrategyBuilderPro = () => {
                                         slicesData={priceSlices}
                                         currentSpot={spotPrice}
                                         isLoading={slicesLoading}
-                                    />
-                                )}
-                                {activeTab === 'matrix' && (
-                                    <ScenarioMatrix
-                                        matrixData={scenarioMatrix}
-                                        currentSpot={spotPrice}
-                                        isLoading={matrixLoading}
-                                    />
-                                )}
-                                {activeTab === 'surface' && (
-                                    <PayoffSurface
-                                        surfaceData={surfaceData}
-                                        spotPrice={spotPrice}
-                                        isLoading={surfaceLoading}
                                     />
                                 )}
                             </div>

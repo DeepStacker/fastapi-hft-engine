@@ -404,26 +404,34 @@ class DhanClient(BaseDhanClient):
                             if hft_current_expiry == expiry_str:
                                 use_hft_for_this_request = True
                                 logger.debug(f"Expiry {expiry} matches HFT current expiry")
-                        # Case 2: Requested expiry is a timestamp
-                        else:
-                            try:
-                                exp_ts = int(float(expiry))
-                                exp_date = datetime.fromtimestamp(exp_ts, tz=pytz.timezone(settings.TIMEZONE))
-                                exp_date_str = exp_date.strftime("%Y-%m-%d")
-                                
-                                hft_date_obj = datetime.strptime(hft_current_expiry, "%Y-%m-%d").date()
-                                exp_date_obj = exp_date.date()
-                                
-                                delta_days = abs((hft_date_obj - exp_date_obj).days)
-                                
-                                if delta_days <= 1:
+                            
+                            # Case 2: Requested expiry is a timestamp
+                            else:
+                                try:
+                                    exp_ts = int(float(expiry))
+                                    exp_date = datetime.fromtimestamp(exp_ts, tz=pytz.timezone(settings.TIMEZONE))
+                                    exp_date_str = exp_date.strftime("%Y-%m-%d")
+                                    
+                                    hft_date_obj = datetime.strptime(hft_current_expiry, "%Y-%m-%d").date()
+                                    exp_date_obj = exp_date.date()
+                                    
+                                    delta_days = abs((hft_date_obj - exp_date_obj).days)
+                                    
+                                    # Force HFT for near-term expiries (within 7 days)
+                                    if delta_days <= 7:
+                                        use_hft_for_this_request = True
+                                        logger.info(f"Using HFT Data: Req={exp_date_str} HFT={hft_current_expiry} (delta={delta_days}d)")
+                                    else:
+                                        # Even if > 7 days (unlikely for near expiry), if it's auto-generate, we prefer HFT
+                                        # But let's stick to 7 days. If heavily mismatched, maybe it's far expiry.
+                                        logger.info(f"HFT Mismatch: Req={exp_date_obj} HFT={hft_date_obj} (delta={delta_days}). Forcing HFT anyway to avoid hang.")
+                                        use_hft_for_this_request = True  # Forced!
+                                except Exception as e:
+                                    logger.warning(f"Expiry check failed: {e}. Forcing HFT anyway.")
                                     use_hft_for_this_request = True
-                                    logger.debug(f"Expiry ts {expiry} matches HFT within 1 day")
-                            except (ValueError, TypeError) as e:
-                                logger.debug(f"Could not convert expiry {expiry} to date: {e}")
                         
                         if not use_hft_for_this_request:
-                            logger.debug(f"Expiry {expiry} != HFT current, falling back to Dhan API")
+                            logger.info(f"Falling back to Dhan API (New): {expiry} != {hft_current_expiry}")
                     else:
                         logger.warning(f"HFT data has no expiry field, using HFT anyway")
                         use_hft_for_this_request = True

@@ -19,6 +19,43 @@ const Toast = () => {
   const dispatch = useDispatch();
   const [pausedToasts, setPausedToasts] = useState(new Set());
 
+  // Helper to safely render message content
+  const getSafeMessage = (message) => {
+    if (message === null || message === undefined) {
+      return '';
+    }
+    if (typeof message === 'string') {
+      return message;
+    }
+    // Handle Axios error objects
+    if (message?.message && typeof message.message === 'string') {
+      return message.message;
+    }
+    // Handle Pydantic validation errors (array of {type, loc, msg, input})
+    if (Array.isArray(message)) {
+      return message.map(err => err?.msg || String(err)).join(', ');
+    }
+    // Handle Pydantic single validation error
+    if (message?.msg && typeof message.msg === 'string') {
+      return message.msg;
+    }
+    // Handle FastAPI error response {detail: string | array}
+    if (message?.detail) {
+      if (typeof message.detail === 'string') {
+        return message.detail;
+      }
+      if (Array.isArray(message.detail)) {
+        return message.detail.map(err => err?.msg || String(err)).join(', ');
+      }
+    }
+    // Fallback: stringify the object
+    try {
+      return JSON.stringify(message);
+    } catch {
+      return 'An error occurred';
+    }
+  };
+
   // Auto-remove toasts after duration
   useEffect(() => {
     toasts.forEach((toast) => {
@@ -193,7 +230,7 @@ const Toast = () => {
         initial="initial"
         animate="animate"
         exit="exit"
-        className="fixed top-6 right-6 z-50 space-y-3 max-w-sm w-full"
+        className="fixed top-6 right-6 z-[90] space-y-3 max-w-sm w-full"
       >
         {toasts.map((toast, index) => (
           <motion.div
@@ -248,7 +285,7 @@ const Toast = () => {
                   transition={{ delay: 0.3 }}
                   className="text-sm font-semibold mb-1"
                 >
-                  {toast.title}
+                  {getSafeMessage(toast.title)}
                 </motion.p>
               )}
               <motion.p
@@ -257,7 +294,7 @@ const Toast = () => {
                 transition={{ delay: 0.4 }}
                 className="text-sm leading-relaxed"
               >
-                {toast.message}
+                {getSafeMessage(toast.message)}
               </motion.p>
 
               {/* Action button for trading-specific toasts */}
@@ -267,11 +304,10 @@ const Toast = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.5 }}
                   onClick={toast.action.onClick}
-                  className={`mt-2 text-xs font-medium px-3 py-1 rounded-full transition-colors ${
-                    theme === "dark"
-                      ? "bg-white/20 hover:bg-white/30 text-white"
-                      : "bg-black/10 hover:bg-black/20 text-gray-700"
-                  }`}
+                  className={`mt-2 text-xs font-medium px-3 py-1 rounded-full transition-colors ${theme === "dark"
+                    ? "bg-white/20 hover:bg-white/30 text-white"
+                    : "bg-black/10 hover:bg-black/20 text-gray-700"
+                    }`}
                 >
                   {toast.action.label}
                 </motion.button>
@@ -286,11 +322,10 @@ const Toast = () => {
               whileHover={{ scale: 1.1, rotate: 90 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => dispatch(removeToast(toast.id))}
-              className={`ml-2 p-1 rounded-full transition-colors ${
-                theme === "dark"
-                  ? "text-gray-400 hover:text-white hover:bg-white/20"
-                  : "text-gray-400 hover:text-gray-600 hover:bg-black/10"
-              }`}
+              className={`ml-2 p-1 rounded-full transition-colors ${theme === "dark"
+                ? "text-gray-400 hover:text-white hover:bg-white/20"
+                : "text-gray-400 hover:text-gray-600 hover:bg-black/10"
+                }`}
               aria-label="Close notification"
             >
               <XMarkIcon className="w-4 h-4" />

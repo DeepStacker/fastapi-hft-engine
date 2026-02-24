@@ -574,6 +574,10 @@ class StrategySimulationService:
         max_price = current_spot * 1.5
         step = (max_price - min_price) / 200
         
+        if step <= 0.0001:
+            logger.warning("Step size too small for breakeven search (Spot=0?), returning empty")
+            return []
+        
         breakevens = []
         prev_pnl = None
         

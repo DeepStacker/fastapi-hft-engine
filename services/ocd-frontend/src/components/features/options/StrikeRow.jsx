@@ -72,183 +72,7 @@ const GreeksTooltip = memo(({ optgeeks, isVisible, position }) => {
 
 GreeksTooltip.displayName = 'GreeksTooltip';
 
-/**
- * Strike Detail Popup - Shows support/resistance from reversal at strike level
- */
-const StrikeDetailPopup = memo(({ data, strike, spotPrice, onClose }) => {
-  if (!data) return null;
 
-  const ce = data.ce || {};
-  const pe = data.pe || {};
-
-  const ce_oi = ce.OI || ce.oi || 0;
-  const pe_oi = pe.OI || pe.oi || 0;
-  const ce_oi_chng = ce.oichng || 0;
-  const pe_oi_chng = pe.oichng || 0;
-
-  // PCR calculations
-  const pcr_oi = ce_oi > 0 ? (pe_oi / ce_oi) : 0;
-  const pcr_oi_chng = ce_oi_chng !== 0 ? (pe_oi_chng / ce_oi_chng) : 0;
-
-  // Reversal at strike level - resistance above spot, support below
-  const reversal = data.reversal || 0;
-  const wklyReversal = data.wkly_reversal || 0;
-  const futReversal = data.fut_reversal || 0;
-  const isAboveSpot = strike > (spotPrice || 0);
-  const strikePCR = data.pcr || pcr_oi;
-
-  // Trading signals
-  const signals = data.trading_signals || {};
-  const _priceRange = data.price_range || {};
-  const _regime = data.market_regimes || {};
-
-  const getPCRColor = (pcrValue) => {
-    if (pcrValue > 1.5) return 'text-green-600 bg-green-50 dark:bg-green-900/30';
-    if (pcrValue > 1.0) return 'text-green-500 bg-green-50/50 dark:bg-green-900/20';
-    if (pcrValue > 0.7) return 'text-amber-600 bg-amber-50 dark:bg-amber-900/30';
-    return 'text-red-600 bg-red-50 dark:bg-red-900/30';
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-2xl font-bold">Strike {strike}</h3>
-            <span className={`text-sm ${isAboveSpot ? 'text-red-500' : 'text-green-500'}`}>
-              {isAboveSpot ? '↑ Above Spot (Resistance Zone)' : '↓ Below Spot (Support Zone)'}
-            </span>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-            <XMarkIcon className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* Reversal - Support/Resistance - COPYABLE */}
-        <div className="mb-5 p-4 rounded-xl bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-700/50">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <ChartBarIcon className="w-5 h-5 text-purple-600" />
-              <span className="font-semibold text-purple-700 dark:text-purple-300">
-                {isAboveSpot ? 'Resistance Level' : 'Support Level'}
-              </span>
-            </div>
-            {reversal && (
-              <button
-                onClick={() => navigator.clipboard.writeText(reversal.toFixed(2))}
-                className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 rounded hover:bg-purple-200 dark:hover:bg-purple-700"
-                title="Copy to clipboard"
-              >
-                📋 Copy
-              </button>
-            )}
-          </div>
-          <div
-            className="text-3xl font-bold text-purple-800 dark:text-purple-200 mb-2 cursor-pointer select-all"
-            onClick={() => reversal && navigator.clipboard.writeText(reversal.toFixed(2))}
-            title="Click to copy"
-          >
-            {reversal ? reversal.toFixed(2) : 'N/A'}
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-sm">
-            <div className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-800/50 p-1 rounded" onClick={() => wklyReversal && navigator.clipboard.writeText(wklyReversal.toFixed(2))}>
-              <span className="text-gray-500 text-xs">Weekly:</span>
-              <span className="ml-1 font-medium select-all">{wklyReversal ? wklyReversal.toFixed(2) : '—'}</span>
-            </div>
-            <div className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-800/50 p-1 rounded" onClick={() => futReversal && navigator.clipboard.writeText(futReversal.toFixed(2))}>
-              <span className="text-gray-500 text-xs">Futures:</span>
-              <span className="ml-1 font-medium select-all">{futReversal ? futReversal.toFixed(2) : '—'}</span>
-            </div>
-            <div className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-800/50 p-1 rounded" onClick={() => strikePCR && navigator.clipboard.writeText(strikePCR.toFixed(2))}>
-              <span className="text-gray-500 text-xs">PCR:</span>
-              <span className="ml-1 font-medium select-all">{strikePCR ? strikePCR.toFixed(2) : '—'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Dual PCR - OI and OI Change */}
-        <div className="grid grid-cols-2 gap-4 mb-5">
-          <div className={`p-4 rounded-xl ${getPCRColor(pcr_oi)}`}>
-            <div className="text-xs text-gray-500 mb-1">OI PCR (PE/CE)</div>
-            <div className="text-2xl font-bold">{pcr_oi.toFixed(2)}</div>
-            <div className="text-xs mt-1">
-              {pcr_oi > 1 ? '🟢 Bullish' : '🔴 Bearish'}
-            </div>
-          </div>
-          <div className={`p-4 rounded-xl ${getPCRColor(Math.abs(pcr_oi_chng))}`}>
-            <div className="text-xs text-gray-500 mb-1">OI Chng PCR</div>
-            <div className="text-2xl font-bold">{pcr_oi_chng.toFixed(2)}</div>
-            <div className="text-xs mt-1">
-              {pcr_oi_chng > 1 ? '📈 Put Activity' : '📉 Call Activity'}
-            </div>
-          </div>
-        </div>
-
-        {/* OI Details */}
-        <div className="grid grid-cols-2 gap-4 mb-5">
-          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
-            <div className="text-xs text-green-600 mb-1">Call OI</div>
-            <div className="text-xl font-bold text-green-700">{formatNumber(ce_oi)}</div>
-            <div className={`text-sm ${ce_oi_chng >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {ce_oi_chng >= 0 ? '+' : ''}{formatNumber(ce_oi_chng)}
-            </div>
-          </div>
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
-            <div className="text-xs text-red-600 mb-1">Put OI</div>
-            <div className="text-xl font-bold text-red-700">{formatNumber(pe_oi)}</div>
-            <div className={`text-sm ${pe_oi_chng >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {pe_oi_chng >= 0 ? '+' : ''}{formatNumber(pe_oi_chng)}
-            </div>
-          </div>
-        </div>
-
-        {/* Price Details */}
-        <div className="space-y-2 text-sm border-t pt-4 border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between">
-            <span className="text-gray-500">CE LTP</span>
-            <span className="font-medium">
-              ₹{ce.ltp?.toFixed(2) || '—'}
-              <span className={`ml-1 text-xs ${ce.p_chng >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ({ce.p_chng >= 0 ? '+' : ''}{ce.p_chng?.toFixed(2) || 0})
-              </span>
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">PE LTP</span>
-            <span className="font-medium">
-              ₹{pe.ltp?.toFixed(2) || '—'}
-              <span className={`ml-1 text-xs ${pe.p_chng >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ({pe.p_chng >= 0 ? '+' : ''}{pe.p_chng?.toFixed(2) || 0})
-              </span>
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">CE IV / PE IV</span>
-            <span className="font-medium">{ce.iv?.toFixed(1) || '—'}% / {pe.iv?.toFixed(1) || '—'}%</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Straddle</span>
-            <span className="font-bold text-purple-600">₹{((ce.ltp || 0) + (pe.ltp || 0)).toFixed(2)}</span>
-          </div>
-        </div>
-
-        {/* Trading Signals if available */}
-        {signals.entry && (
-          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-            <div className="text-xs text-blue-600 font-medium mb-2">Trading Signals</div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div><span className="text-gray-500">Entry:</span> <span className="font-bold">{signals.entry?.toFixed(2)}</span></div>
-              <div><span className="text-gray-500">SL:</span> <span className="font-bold text-red-600">{signals.stop_loss?.toFixed(2)}</span></div>
-              <div><span className="text-gray-500">TP:</span> <span className="font-bold text-green-600">{signals.take_profit?.toFixed(2)}</span></div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-});
-
-StrikeDetailPopup.displayName = 'StrikeDetailPopup';
 
 /**
  * Clickable Cell - Universal clickable cell wrapper
@@ -346,7 +170,6 @@ const StrikeRow = memo(({ data, strike, atmStrike, spotPrice, onCellClick, onStr
   const ce = useMemo(() => data.ce || {}, [data.ce]);
   const pe = useMemo(() => data.pe || {}, [data.pe]);
   const [hoveredGreeks, setHoveredGreeks] = useState(null);
-  const [showStrikePopup, setShowStrikePopup] = useState(false);
 
   // Use the passed onStrikeSelect callback
   const handleExpandClick = useCallback((e) => {
@@ -393,8 +216,6 @@ const StrikeRow = memo(({ data, strike, atmStrike, spotPrice, onCellClick, onStr
     // Trigger Strike Analysis Modal with full strike data
     if (onStrikeClick) {
       onStrikeClick({ strike, ce, pe, ...data });
-    } else {
-      setShowStrikePopup(true);
     }
   }, [onStrikeClick, strike, ce, pe, data]);
 
@@ -721,15 +542,7 @@ const StrikeRow = memo(({ data, strike, atmStrike, spotPrice, onCellClick, onStr
         )}
       </tr>
 
-      {/* Strike Detail Popup */}
-      {showStrikePopup && (
-        <StrikeDetailPopup
-          data={data}
-          strike={strike}
-          spotPrice={spotPrice}
-          onClose={() => setShowStrikePopup(false)}
-        />
-      )}
+
     </>
   );
 });

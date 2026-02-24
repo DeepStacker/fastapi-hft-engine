@@ -26,6 +26,7 @@ const routeConfig = {
     '/calculators': { title: 'Calculators', parent: '/dashboard' },
     '/position-sizing': { title: 'Position Sizing', parent: '/dashboard' },
     '/tca': { title: 'TCA', parent: '/dashboard' },
+    '/strategies': { title: 'Strategy Finder', parent: '/dashboard' },
     '/community': { title: 'Traders Hub', parent: '/dashboard' },
     '/admin/monitoring': { title: 'Monitoring', parent: '/dashboard' },
 };

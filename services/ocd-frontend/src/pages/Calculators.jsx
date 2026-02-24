@@ -21,9 +21,6 @@ import { calculatorService } from '../services/calculatorService';
 const CALCULATOR_TABS = [
     { id: 'option', label: 'Option Pricing', icon: ChartBarIcon },
     { id: 'margin', label: 'Margin', icon: ScaleIcon },
-    { id: 'sip', label: 'SIP', icon: BanknotesIcon },
-    { id: 'lumpsum', label: 'Lumpsum', icon: CurrencyDollarIcon },
-    { id: 'swp', label: 'SWP', icon: CalculatorIcon },
 ];
 
 /**
@@ -154,163 +151,6 @@ const OptionCalculator = () => {
     );
 };
 
-/**
- * SIP Calculator
- */
-const SIPCalculator = () => {
-    const [inputs, setInputs] = useState({
-        monthlyInvestment: 10000,
-        annualReturn: 12,
-        years: 10,
-    });
-    const [result, setResult] = useState(null);
-    const [loading, setLoading] = useState(false);
-
-    const handleCalculate = async () => {
-        setLoading(true);
-        try {
-            const res = await calculatorService.calculateSIP(inputs);
-            setResult(res);
-        } catch (err) {
-            console.error('Calculation error:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const updateInput = (key, value) => {
-        setInputs(prev => ({ ...prev, [key]: value }));
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-3 gap-4">
-                <InputField label="Monthly Investment" value={inputs.monthlyInvestment} onChange={(v) => updateInput('monthlyInvestment', v)} />
-                <InputField label="Expected Return" value={inputs.annualReturn} onChange={(v) => updateInput('annualReturn', v)} suffix="%" />
-                <InputField label="Duration" value={inputs.years} onChange={(v) => updateInput('years', v)} suffix="years" />
-            </div>
-
-            <Button onClick={handleCalculate} disabled={loading} className="w-full">
-                {loading ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : 'Calculate'}
-            </Button>
-
-            {result && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <ResultCard label="Total Investment" value={`₹${result.total_investment.toLocaleString()}`} color="blue" />
-                    <ResultCard label="Future Value" value={`₹${result.future_value.toLocaleString()}`} color="green" />
-                    <ResultCard label="Wealth Gained" value={`₹${result.wealth_gained.toLocaleString()}`} color="purple" />
-                    <ResultCard label="Returns" value={`${result.returns_percentage}%`} color="green" />
-                </div>
-            )}
-        </div>
-    );
-};
-
-/**
- * Lumpsum Calculator
- */
-const LumpsumCalculator = () => {
-    const [inputs, setInputs] = useState({
-        principal: 100000,
-        annualReturn: 12,
-        years: 10,
-    });
-    const [result, setResult] = useState(null);
-    const [loading, setLoading] = useState(false);
-
-    const handleCalculate = async () => {
-        setLoading(true);
-        try {
-            const res = await calculatorService.calculateLumpsum(inputs);
-            setResult(res);
-        } catch (err) {
-            console.error('Calculation error:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const updateInput = (key, value) => {
-        setInputs(prev => ({ ...prev, [key]: value }));
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-3 gap-4">
-                <InputField label="Principal Amount" value={inputs.principal} onChange={(v) => updateInput('principal', v)} />
-                <InputField label="Expected Return" value={inputs.annualReturn} onChange={(v) => updateInput('annualReturn', v)} suffix="%" />
-                <InputField label="Duration" value={inputs.years} onChange={(v) => updateInput('years', v)} suffix="years" />
-            </div>
-
-            <Button onClick={handleCalculate} disabled={loading} className="w-full">
-                {loading ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : 'Calculate'}
-            </Button>
-
-            {result && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <ResultCard label="Principal" value={`₹${result.principal.toLocaleString()}`} color="blue" />
-                    <ResultCard label="Future Value" value={`₹${result.future_value.toLocaleString()}`} color="green" />
-                    <ResultCard label="Wealth Gained" value={`₹${result.wealth_gained.toLocaleString()}`} color="purple" />
-                    <ResultCard label="Returns" value={`${result.returns_percentage}%`} color="green" />
-                </div>
-            )}
-        </div>
-    );
-};
-
-/**
- * SWP Calculator
- */
-const SWPCalculator = () => {
-    const [inputs, setInputs] = useState({
-        initialInvestment: 1000000,
-        monthlyWithdrawal: 10000,
-        annualReturn: 8,
-        years: 20,
-    });
-    const [result, setResult] = useState(null);
-    const [loading, setLoading] = useState(false);
-
-    const handleCalculate = async () => {
-        setLoading(true);
-        try {
-            const res = await calculatorService.calculateSWP(inputs);
-            setResult(res);
-        } catch (err) {
-            console.error('Calculation error:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const updateInput = (key, value) => {
-        setInputs(prev => ({ ...prev, [key]: value }));
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <InputField label="Initial Investment" value={inputs.initialInvestment} onChange={(v) => updateInput('initialInvestment', v)} />
-                <InputField label="Monthly Withdrawal" value={inputs.monthlyWithdrawal} onChange={(v) => updateInput('monthlyWithdrawal', v)} />
-                <InputField label="Expected Return" value={inputs.annualReturn} onChange={(v) => updateInput('annualReturn', v)} suffix="%" />
-                <InputField label="Duration" value={inputs.years} onChange={(v) => updateInput('years', v)} suffix="years" />
-            </div>
-
-            <Button onClick={handleCalculate} disabled={loading} className="w-full">
-                {loading ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : 'Calculate'}
-            </Button>
-
-            {result && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <ResultCard label="Initial Investment" value={`₹${result.initial_investment.toLocaleString()}`} color="blue" />
-                    <ResultCard label="Total Withdrawn" value={`₹${result.total_withdrawn.toLocaleString()}`} color="green" />
-                    <ResultCard label="Final Balance" value={`₹${result.final_balance.toLocaleString()}`} color="purple" />
-                    <ResultCard label="Withdrawals" value={`${result.monthly_withdrawals} months`} color="blue" />
-                </div>
-            )}
-        </div>
-    );
-};
 
 /**
  * Margin Calculator
@@ -412,12 +252,6 @@ const Calculators = () => {
         switch (activeTab) {
             case 'option':
                 return <OptionCalculator />;
-            case 'sip':
-                return <SIPCalculator />;
-            case 'lumpsum':
-                return <LumpsumCalculator />;
-            case 'swp':
-                return <SWPCalculator />;
             case 'margin':
                 return <MarginCalculator />;
             default:
@@ -429,7 +263,7 @@ const Calculators = () => {
         <>
             <Helmet>
                 <title>Calculators | Stockify</title>
-                <meta name="description" content="Financial calculators for options, SIP, Lumpsum, and SWP" />
+                <meta name="description" content="Financial calculators for options and margin" />
             </Helmet>
 
             <div className="w-full px-4 py-4 space-y-6">

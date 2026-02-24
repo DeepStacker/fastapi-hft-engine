@@ -7,13 +7,13 @@
  * - IV skew analysis with directional hints
  * - Options strategy recommendations based on IV level
  */
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { selectOptionChain, selectSpotPrice, selectATMStrike } from '../../context/selectors';
 import {
     ChartBarSquareIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
-    InformationCircleIcon, LightBulbIcon
+    InformationCircleIcon
 } from '@heroicons/react/24/outline';
 
 // ============ NIFTY 50 IV CONTEXT ============
@@ -34,57 +34,13 @@ const NIFTY_IV_CONTEXT = {
     extreme: 30,
 };
 
-// Strategy recommendations based on IV level
-const getStrategyRecommendations = (atmIV, ivPercentile) => {
-    if (ivPercentile >= 80 || atmIV >= NIFTY_IV_CONTEXT.veryHigh) {
-        return {
-            outlook: 'Premium Selling',
-            strategies: ['Iron Condor', 'Credit Spread', 'Straddle Sell', 'Strangle Sell'],
-            avoid: ['Long Options', 'Debit Spreads'],
-            confidence: 'High',
-            emoji: '🔴',
-            description: 'IV is elevated. Options are overpriced. Premium selling strategies have edge.',
-        };
-    }
-    if (ivPercentile >= 60 || atmIV >= NIFTY_IV_CONTEXT.high) {
-        return {
-            outlook: 'Slightly Bearish on Volatility',
-            strategies: ['Credit Spread', 'Iron Butterfly'],
-            avoid: ['Naked Long Options'],
-            confidence: 'Medium',
-            emoji: '🟠',
-            description: 'IV is above normal. Consider neutral to premium selling strategies.',
-        };
-    }
-    if (ivPercentile <= 20 || atmIV <= NIFTY_IV_CONTEXT.low) {
-        return {
-            outlook: 'Premium Buying',
-            strategies: ['Long Straddle', 'Long Strangle', 'Long Call/Put', 'Debit Spread'],
-            avoid: ['Premium Selling', 'Iron Condors'],
-            confidence: 'High',
-            emoji: '🟢',
-            description: 'IV is low. Options are cheap. Good time to buy premium for directional bets.',
-        };
-    }
-    if (ivPercentile <= 40 || atmIV <= NIFTY_IV_CONTEXT.normalLow) {
-        return {
-            outlook: 'Slightly Bullish on Volatility',
-            strategies: ['Debit Spread', 'Calendar Spread'],
-            avoid: ['Heavy Premium Selling'],
-            confidence: 'Medium',
-            emoji: '🔵',
-            description: 'IV is below normal. Lean toward debit strategies if directional.',
-        };
-    }
-    return {
-        outlook: 'Neutral',
-        strategies: ['Directional Plays', 'Calendar Spread', 'Ratio Spread'],
-        avoid: [],
-        confidence: 'Low',
-        emoji: '⚪',
-        description: 'IV is in normal range. Choose strategy based on directional view.',
-    };
-};
+// Strategy logic moved to dedicated page
+// OLD getStrategyRecommendations REMOVED
+
+// ... existing helper functions ...
+
+// ... inside render ...
+// REMOVED Strategy Section
 
 // ============ HELPER FUNCTIONS ============
 const calcMean = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
@@ -107,7 +63,9 @@ const IVPercentileGauge = () => {
     const optionChain = useSelector(selectOptionChain);
     const _spotPrice = useSelector(selectSpotPrice);
     const atmStrike = useSelector(selectATMStrike);
-    const [showStrategies, setShowStrategies] = useState(false);
+    // removed showStrategies state
+
+    // strategies logic removed
 
     // ============ IV ANALYSIS ENGINE ============
     const ivMetrics = useMemo(() => {
@@ -195,8 +153,7 @@ const IVPercentileGauge = () => {
         );
     }
 
-    // Get strategy recommendations
-    const strategy = getStrategyRecommendations(ivMetrics.atmIV, ivMetrics.ivPercentile);
+    // strategy variable removed
 
     // Determine IV level classification
     const getIVLevel = (percentile) => {
@@ -245,10 +202,7 @@ const IVPercentileGauge = () => {
                     {/* IV Level Badge */}
                     <div className="flex items-center justify-between mb-4">
                         <span className={`px-4 py-2 rounded-lg text-sm font-bold ${getColorClass(ivLevel.color)}`}>
-                            {strategy.emoji} {ivLevel.label} IV Environment
-                        </span>
-                        <span className="text-xs text-gray-500">
-                            Strategy: <span className="font-bold text-indigo-600">{strategy.outlook}</span>
+                            {ivLevel.label} IV Environment
                         </span>
                     </div>
 
@@ -354,70 +308,6 @@ const IVPercentileGauge = () => {
                                     ivMetrics.pcIVSpread < -0.5 ? '🔵 Mild bullish skew' : '⚪ Neutral'}
                     </div>
                 </div>
-            </div>
-
-            {/* Strategy Recommendations */}
-            <div
-                className={`rounded-xl border-2 overflow-hidden cursor-pointer transition-all ${strategy.outlook === 'Premium Selling' ? 'border-red-300 dark:border-red-700' :
-                    strategy.outlook === 'Premium Buying' ? 'border-green-300 dark:border-green-700' :
-                        'border-gray-200 dark:border-gray-700'
-                    }`}
-                onClick={() => setShowStrategies(!showStrategies)}
-            >
-                <div className={`px-4 py-3 flex items-center justify-between ${strategy.outlook === 'Premium Selling' ? 'bg-red-50 dark:bg-red-900/20' :
-                    strategy.outlook === 'Premium Buying' ? 'bg-green-50 dark:bg-green-900/20' :
-                        'bg-gray-50 dark:bg-gray-700/30'
-                    }`}>
-                    <div className="flex items-center gap-2">
-                        <LightBulbIcon className="w-5 h-5 text-amber-500" />
-                        <span className="font-semibold">Strategy Recommendations</span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${strategy.confidence === 'High' ? 'bg-green-100 text-green-700' :
-                            strategy.confidence === 'Medium' ? 'bg-amber-100 text-amber-700' :
-                                'bg-gray-100 text-gray-700'
-                            }`}>
-                            {strategy.confidence} Confidence
-                        </span>
-                    </div>
-                    <span className="text-xs text-gray-500">{showStrategies ? '▲' : '▼'}</span>
-                </div>
-
-                <AnimatePresence>
-                    {showStrategies && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="p-4 space-y-3"
-                        >
-                            <p className="text-sm text-gray-600 dark:text-gray-400">{strategy.description}</p>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <div className="text-[10px] text-gray-500 mb-1">✅ Consider</div>
-                                    <div className="flex flex-wrap gap-1">
-                                        {strategy.strategies.map((s, i) => (
-                                            <span key={i} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
-                                                {s}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                                {strategy.avoid.length > 0 && (
-                                    <div>
-                                        <div className="text-[10px] text-gray-500 mb-1">❌ Avoid</div>
-                                        <div className="flex flex-wrap gap-1">
-                                            {strategy.avoid.map((s, i) => (
-                                                <span key={i} className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">
-                                                    {s}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
             </div>
 
             {/* IV by Strike Chart */}
